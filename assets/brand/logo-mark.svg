@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Proseferno robot blogger</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a0c6b"/>
+      <stop offset="1" stop-color="#1b0c41"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fcffa4"/>
+      <stop offset="1" stop-color="#f7d13d"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#cf4446"/>
+      <stop offset="0.55" stop-color="#ed6925"/>
+      <stop offset="1" stop-color="#fb9b06"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ed6925"/>
+      <stop offset="1" stop-color="#cf4446"/>
+    </linearGradient>
+  </defs>
+
+  <!-- badge -->
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg)"/>
+  <circle cx="256" cy="230" r="170" fill="#781c6d" opacity="0.35"/>
+
+  <!-- antenna with a little flame -->
+  <rect x="249" y="78" width="14" height="48" rx="7" fill="#f7d13d"/>
+  <path d="M256 30 C 274 50 284 64 280 80 C 277 94 266 102 256 102 C 246 102 235 94 232 80 C 229 66 240 58 246 46 C 248 56 252 60 256 60 C 256 50 254 40 256 30 Z" fill="url(#flame)"/>
+  <path d="M256 66 C 264 76 268 84 265 91 C 263 97 260 99 256 99 C 252 99 248 96 247 91 C 246 85 251 78 256 66 Z" fill="#fcffa4"/>
+
+  <!-- pen tucked behind the ear: the blogger detail -->
+  <g transform="translate(-6 22) rotate(-30 404 168)">
+    <rect x="392" y="104" width="24" height="96" rx="7" fill="#fcffa4"/>
+    <rect x="392" y="104" width="24" height="18" rx="7" fill="#a52c60"/>
+    <path d="M392 196 L 404 226 L 416 196 Z" fill="#f7d13d"/>
+    <path d="M400 214 L 404 226 L 408 214 Z" fill="#1b0c41"/>
+  </g>
+
+  <!-- ears -->
+  <circle cx="132" cy="214" r="28" fill="#ed6925"/>
+  <circle cx="132" cy="214" r="13" fill="#fb9b06"/>
+  <circle cx="380" cy="214" r="28" fill="#ed6925"/>
+  <circle cx="380" cy="214" r="13" fill="#fb9b06"/>
+
+  <!-- head -->
+  <rect x="136" y="120" width="240" height="190" rx="66" fill="url(#head)"/>
+  <!-- visor -->
+  <rect x="164" y="150" width="184" height="112" rx="42" fill="#1b0c41"/>
+  <rect x="176" y="160" width="70" height="10" rx="5" fill="#ffffff" opacity="0.12"/>
+  <!-- happy eyes -->
+  <path d="M200 216 Q 220 190 240 216" fill="none" stroke="#fb9b06" stroke-width="13" stroke-linecap="round"/>
+  <path d="M272 216 Q 292 190 312 216" fill="none" stroke="#fb9b06" stroke-width="13" stroke-linecap="round"/>
+  <!-- smile -->
+  <path d="M236 238 Q 256 254 276 238" fill="none" stroke="#ed6925" stroke-width="8" stroke-linecap="round"/>
+  <!-- cheeks -->
+  <ellipse cx="176" cy="280" rx="17" ry="10" fill="#cf4446" opacity="0.55"/>
+  <ellipse cx="336" cy="280" rx="17" ry="10" fill="#cf4446" opacity="0.55"/>
+
+  <!-- neck and shoulders -->
+  <rect x="228" y="304" width="56" height="22" rx="8" fill="#a52c60"/>
+  <rect x="146" y="320" width="220" height="150" rx="60" fill="#781c6d"/>
+
+  <!-- laptop (back of the lid faces us) -->
+  <rect x="166" y="352" width="180" height="108" rx="16" fill="url(#lid)"/>
+  <!-- lid emblem: angle brackets around a quill nib -->
+  <path d="M222 388 L 206 406 L 222 424" fill="none" stroke="#fcffa4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M290 388 L 306 406 L 290 424" fill="none" stroke="#fcffa4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 384 C 268 396 270 410 256 428 C 242 410 244 396 256 384 Z" fill="#fcffa4"/>
+  <line x1="256" y1="400" x2="256" y2="420" stroke="#cf4446" stroke-width="4" stroke-linecap="round"/>
+  <rect x="134" y="454" width="244" height="18" rx="9" fill="#fb9b06"/>
+  <!-- hands -->
+  <circle cx="170" cy="452" r="18" fill="#f7d13d"/>
+  <circle cx="342" cy="452" r="18" fill="#f7d13d"/>
+</svg>

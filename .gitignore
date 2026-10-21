@@ -1,0 +1,44 @@
+# --- Proseferno runtime data (personas, samples, projects, exports, database) ---
+data/
+my_writing_examples/
+*.db
+*.db-journal
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+
+# --- Editors / OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Claude Code local state ---
+.claude/worktrees/
+.claude/settings.local.json
+
+# Local preview config for Claude Code (machine-specific paths)
+.claude/launch.json

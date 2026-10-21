@@ -1,2 +1,17 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Windows batch files must keep CRLF line endings
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts must keep LF line endings
+*.sh text eol=lf
+
+# Binary assets
+*.png binary
+*.ico binary
+*.jpg binary
+*.ttf binary
+*.docx binary
+*.pdf binary

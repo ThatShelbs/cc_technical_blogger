@@ -1,0 +1,202 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Inferno palette: #000004 #1b0c41 #4a0c6b #781c6d #a52c60 #cf4446 #ed6925 #fb9b06 #f7d13d #fcffa4 */
+:root {
+  color-scheme: light;
+  --app-bg: #fffaf0;
+  --app-surface: #ffffff;
+  --app-surface-2: #fff3dc;
+  --app-sunken: #fbefd9;
+  --app-line: #eedfc4;
+  --app-fg: #1b0c41;
+  --app-muted: #66567c;
+  --app-primary: #781c6d;
+  --app-primary-fg: #fffaf0;
+  --app-primary-hover: #4a0c6b;
+  --app-accent: #ed6925;
+  --app-accent-soft: #fde7cf;
+  --app-ring: #ed6925;
+  --app-danger: #b42335;
+  --app-danger-soft: #fde2e4;
+  --app-success: #276b43;
+  --app-success-soft: #dcf3e4;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --app-bg: #0d0524;
+  --app-surface: #170a35;
+  --app-surface-2: #21104a;
+  --app-sunken: #110629;
+  --app-line: #34195e;
+  --app-fg: #f8f1e3;
+  --app-muted: #b9a8cf;
+  --app-primary: #fb9b06;
+  --app-primary-fg: #1b0c41;
+  --app-primary-hover: #f7d13d;
+  --app-accent: #ed6925;
+  --app-accent-soft: #3a1640;
+  --app-ring: #fb9b06;
+  --app-danger: #ff8a94;
+  --app-danger-soft: #3d1028;
+  --app-success: #6fd39a;
+  --app-success-soft: #0f2e22;
+}
+
+@theme inline {
+  --color-bg: var(--app-bg);
+  --color-surface: var(--app-surface);
+  --color-surface-2: var(--app-surface-2);
+  --color-sunken: var(--app-sunken);
+  --color-line: var(--app-line);
+  --color-fg: var(--app-fg);
+  --color-muted: var(--app-muted);
+  --color-primary: var(--app-primary);
+  --color-primary-fg: var(--app-primary-fg);
+  --color-primary-hover: var(--app-primary-hover);
+  --color-accent: var(--app-accent);
+  --color-accent-soft: var(--app-accent-soft);
+  --color-ring: var(--app-ring);
+  --color-danger: var(--app-danger);
+  --color-danger-soft: var(--app-danger-soft);
+  --color-success: var(--app-success);
+  --color-success-soft: var(--app-success-soft);
+  --font-sans: 'Segoe UI', Inter, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --font-mono: 'Cascadia Code', Consolas, Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--app-ring);
+  outline-offset: 2px;
+}
+
+.flame-text {
+  background: linear-gradient(90deg, #cf4446, #ed6925, #fb9b06);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.flame-bar {
+  background: linear-gradient(90deg, #781c6d, #cf4446, #ed6925, #fb9b06);
+}
+
+/* Text-bearing flame surfaces: a deeper gradient so white text stays at WCAG AA (5.2:1 or better). */
+.flame-button {
+  background: linear-gradient(90deg, #781c6d, #b5343f 55%, #b84a1c);
+}
+
+/* Rendered article (preview and live draft) */
+.article {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  line-height: 1.75;
+  color: var(--app-fg);
+}
+.article h1,
+.article h2,
+.article h3,
+.article h4 {
+  font-family: var(--font-sans);
+  line-height: 1.25;
+  font-weight: 750;
+  margin: 1.6em 0 0.5em;
+}
+.article h1 {
+  font-size: 2.25rem;
+  margin-top: 0;
+}
+.article h2 {
+  font-size: 1.6rem;
+}
+.article h3 {
+  font-size: 1.25rem;
+}
+.article p,
+.article ul,
+.article ol,
+.article blockquote,
+.article pre,
+.article table {
+  margin: 0 0 1.1em;
+}
+.article ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.article ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.article a {
+  color: var(--app-primary);
+  text-decoration: underline;
+}
+.article blockquote {
+  border-left: 4px solid var(--app-accent);
+  padding-left: 1em;
+  color: var(--app-muted);
+}
+.article code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--app-sunken);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.article pre {
+  background: #1b0c41;
+  color: #fcffa4;
+  padding: 1em;
+  border-radius: 10px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.article pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.article table {
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+}
+.article th,
+.article td {
+  border: 1px solid var(--app-line);
+  padding: 0.4em 0.7em;
+}
+.article .subtitle {
+  font-family: var(--font-sans);
+  color: var(--app-muted);
+  font-size: 1.3rem;
+  margin-top: -0.2em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
