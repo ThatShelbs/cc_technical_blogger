@@ -154,7 +154,10 @@ export function EmptyState({ icon, title, children, action }: { icon?: ReactNode
 // -- Form controls ------------------------------------------------------------------------
 
 const fieldBase =
-  'w-full rounded-lg border border-line bg-surface px-3 text-fg placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring/30'
+  'rounded-lg border border-line bg-surface px-3 text-fg placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring/30'
+
+/** Full width unless the caller sets a width (two width classes would fight, and CSS order picks the winner). */
+const width = (className?: string) => (/(^|\s)(w-|max-w-|flex-1)/.test(className ?? '') ? '' : 'w-full')
 
 export function Field({ label, hint, children, htmlFor }: { label: ReactNode; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
@@ -169,16 +172,16 @@ export function Field({ label, hint, children, htmlFor }: { label: ReactNode; hi
 }
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={cx(fieldBase, 'h-10', className)} {...rest} />
+  return <input ref={ref} className={cx(fieldBase, width(className), 'h-10', className)} {...rest} />
 })
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
-  return <textarea ref={ref} className={cx(fieldBase, 'py-2 leading-relaxed', className)} {...rest} />
+  return <textarea ref={ref} className={cx(fieldBase, width(className), 'py-2 leading-relaxed', className)} {...rest} />
 })
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cx(fieldBase, 'h-10 pr-8', className)} {...rest}>
+    <select className={cx(fieldBase, width(className), 'h-10 pr-8', className)} {...rest}>
       {children}
     </select>
   )

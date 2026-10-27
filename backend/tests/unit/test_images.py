@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import base64
-
-import httpx
 import pytest
 
 from proseferno.db import Persona
 from proseferno.demo import CHART_SPEC, DIAGRAM_SVG, png_bytes
-from proseferno.images import CloudflareFluxProvider, ImageProviderError, credit_line
-from proseferno.images.base import ImageProviderNotConfiguredError
+from proseferno.images import ImageProviderError, credit_line, model_label
 from proseferno.images.render import add_meme_text, placeholder_png, sanitize_svg, svg_to_png, vega_to_png
 from proseferno.images.service import image_context, image_guidance
 
@@ -45,10 +41,11 @@ def test_charts_reject_remote_data() -> None:
 
 def test_credit_line_uses_persona_template() -> None:
     persona = Persona(name="Shelby", display_name="Shelby Temple")
-    assert credit_line(persona, "cloudflare-flux") == "Author: Shelby Temple; Made with FLUX.2 [klein] on Cloudflare Workers AI"
+    assert credit_line(persona, "claude-svg") == "Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)"
+    assert credit_line(persona, "claude-svg", "claude-sonnet-5-5") == "Author: Shelby Temple; Made with Claude Sonnet 5.5 (SVG)"
     assert credit_line(persona, "upload") == "Image by Shelby Temple"
     persona.credit_template = "Image: {name} ({tool})"
-    assert credit_line(persona, "vega-lite") == "Image: Shelby Temple (Claude + Vega-Lite)"
+    assert credit_line(persona, "vega-lite") == "Image: Shelby Temple (Claude Opus 5.5 + Vega-Lite)"
     persona.credit_template = "{oops}"
     assert credit_line(persona, "vega-lite").startswith("Author: Shelby Temple")
 
@@ -65,36 +62,14 @@ def test_image_guidance_extracts_section() -> None:
     assert image_guidance(soul) == "Captions say Source."
 
 
-async def test_cloudflare_provider_sends_multipart_and_decodes() -> None:
-    seen: dict[str, object] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen["url"] = str(request.url)
-        seen["auth"] = request.headers["authorization"]
-        seen["body"] = request.content.decode("latin-1")
-        return httpx.Response(200, json={"success": True, "result": {"image": base64.b64encode(png_bytes(32, 16)).decode()}})
-
-    provider = CloudflareFluxProvider(account_id=lambda: "acct", api_token=lambda: "tok", transport=httpx.MockTransport(handler))
-    image = await provider.generate("a robot", width=1600, height=900, seed=7)
-
-    assert seen["url"].endswith("/accounts/acct/ai/run/@cf/black-forest-labs/flux-2-klein-4b")
-    assert seen["auth"] == "Bearer tok"
-    body = str(seen["body"])
-    assert 'name="prompt"' in body and "a robot" in body and 'name="seed"' in body
-    assert 'name="height"\r\n\r\n896' in body  # snapped to a multiple of 16
-    assert (image.width, image.height, image.seed) == (32, 16, 7)
+def test_model_label() -> None:
+    assert model_label("claude-opus-5-5") == "Claude Opus 5.5"
+    assert model_label("claude-fable-5-1") == "Claude Fable 5.1"
+    assert model_label("my-custom-model") == "my-custom-model"
 
 
-async def test_cloudflare_errors_are_friendly() -> None:
-    provider = CloudflareFluxProvider(
-        account_id=lambda: "acct",
-        api_token=lambda: "bad",
-        transport=httpx.MockTransport(lambda r: httpx.Response(403, json={"success": False})),
-    )
-    with pytest.raises(ImageProviderError, match="Workers AI"):
-        await provider.generate("x", width=512, height=512, seed=1)
+def test_rich_svg_features_render() -> None:
+    from proseferno.demo import HERO_SVG
 
-    unconfigured = CloudflareFluxProvider(account_id=lambda: None, api_token=lambda: None)
-    assert not unconfigured.is_configured()
-    with pytest.raises(ImageProviderNotConfiguredError):
-        await unconfigured.generate("x", width=512, height=512, seed=1)
+    png, width, height = svg_to_png(HERO_SVG, width=800)
+    assert png[1:4] == b"PNG" and (width, height) == (800, 450)

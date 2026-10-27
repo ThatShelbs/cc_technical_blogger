@@ -17,8 +17,8 @@ from proseferno.api.schemas import (
     SettingsIn,
     SettingsOut,
 )
+from proseferno.images import model_label
 from proseferno.llm import LLMNotConfiguredError
-from proseferno.secrets import CLOUDFLARE_API_TOKEN
 
 router = APIRouter(prefix="/api")
 
@@ -98,9 +98,8 @@ def _settings_out(services: ServicesDep) -> SettingsOut:
         model=s.model,
         use_fallbacks=s.use_fallbacks,
         revision_passes=s.revision_passes,
-        cloudflare_account_id=s.cloudflare_account_id,
-        cloudflare_configured=services.raster.is_configured(),
-        image_provider_label=services.raster.label,
+        ai_detection=s.ai_detection,
+        image_tool_label=f"{model_label(s.model)}: SVG illustrations, icons and diagrams; Vega-Lite charts",
         data_dir=str(s.data_dir),
         seed_samples_dir=str(s.seed_samples_dir),
         version=__version__,
@@ -115,16 +114,8 @@ def get_settings(services: ServicesDep) -> SettingsOut:
 
 @router.put("/settings", response_model=SettingsOut)
 def update_settings(body: SettingsIn, services: ServicesDep) -> SettingsOut:
-    for key in ("model", "use_fallbacks", "revision_passes", "cloudflare_account_id"):
+    for key in ("model", "use_fallbacks", "revision_passes", "ai_detection"):
         value = getattr(body, key)
         if value is not None:
             services.save_runtime_setting(key, value.strip() if isinstance(value, str) else value)
-    if body.cloudflare_api_token:
-        services.secrets.set(CLOUDFLARE_API_TOKEN, body.cloudflare_api_token.strip())
-    return _settings_out(services)
-
-
-@router.delete("/settings/cloudflare-token", response_model=SettingsOut)
-def delete_cloudflare_token(services: ServicesDep) -> SettingsOut:
-    services.secrets.delete(CLOUDFLARE_API_TOKEN)
     return _settings_out(services)

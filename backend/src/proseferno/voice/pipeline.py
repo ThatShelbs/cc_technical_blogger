@@ -34,6 +34,28 @@ def latest_voice_soul(session: Session, persona_id: int) -> VoiceSoul | None:
     return session.exec(select(VoiceSoul).where(VoiceSoul.persona_id == persona_id).order_by(col(VoiceSoul.version).desc())).first()
 
 
+def voice_soul_version(session: Session, persona_id: int, version: int) -> VoiceSoul | None:
+    return session.exec(select(VoiceSoul).where(VoiceSoul.persona_id == persona_id, VoiceSoul.version == version)).first()
+
+
+def current_voice_soul(session: Session, persona_id: int) -> VoiceSoul | None:
+    """The version new posts are written with: the pinned one, else the latest."""
+    persona = session.get(Persona, persona_id)
+    if persona is not None and persona.pinned_voice_soul_version is not None:
+        pinned = voice_soul_version(session, persona_id, persona.pinned_voice_soul_version)
+        if pinned is not None:
+            return pinned
+    return latest_voice_soul(session, persona_id)
+
+
+def unpin(session: Session, persona_id: int) -> None:
+    """A brand-new version becomes the one in use."""
+    persona = session.get(Persona, persona_id)
+    if persona is not None and persona.pinned_voice_soul_version is not None:
+        persona.pinned_voice_soul_version = None
+        session.add(persona)
+
+
 async def analyze_sample(llm: LLM, settings: Settings, sample: Sample, ctx: JobContext | None = None) -> dict[str, Any]:
     kind_description = (
         "the persona's OWN writing (defines their identity and voice)"
@@ -80,6 +102,7 @@ async def generate_voice_soul(
     storage: Storage,
     persona_id: int,
     ctx: JobContext,
+    label: str = "",
 ) -> dict[str, Any]:
     with Session(engine) as session:
         persona = session.get(Persona, persona_id)
@@ -161,6 +184,7 @@ async def generate_voice_soul(
         soul = VoiceSoul(
             persona_id=persona_id,
             version=version,
+            label=label.strip()[:80],
             markdown=markdown,
             best_practices=best_practices or None,
             sample_ids=[s.id for s in samples if s.id is not None],
@@ -168,6 +192,7 @@ async def generate_voice_soul(
             model=settings.model,
         )
         session.add(soul)
+        unpin(session, persona_id)
         visual = _extract_visual_style(markdown)
         persona_row = session.get(Persona, persona_id)
         if persona_row is not None and visual and not persona_row.visual_style:

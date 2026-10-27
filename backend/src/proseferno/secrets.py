@@ -10,7 +10,6 @@ import keyring
 from keyring.errors import KeyringError, PasswordDeleteError
 
 ANTHROPIC_API_KEY = "anthropic_api_key"
-CLOUDFLARE_API_TOKEN = "cloudflare_api_token"
 
 
 class SecretStore(Protocol):

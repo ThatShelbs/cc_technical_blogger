@@ -51,7 +51,7 @@ test('first run: persona, writing sample, voice soul, post, editor, export, them
   // Editor with inline, credited images
   await expect(page.getByRole('heading', { name: 'Title options' })).toBeVisible({ timeout: 90_000 })
   await expect(page.locator('figure img')).toHaveCount(4)
-  await expect(page.getByText(/Author: E2E Writer; Made with FLUX\.2/).first()).toBeVisible()
+  await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()
   await shot(page, 'editor-day')
 
   // Pick another title
@@ -63,7 +63,21 @@ test('first run: persona, writing sample, voice soul, post, editor, export, them
   await page.getByRole('radio', { name: 'Gumroad' }).click()
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download bundle/ }).click()])
   expect(download.suggestedFilename()).toBe('stop-baking-pies-gumroad.zip')
+  await page.getByRole('radio', { name: 'LinkedIn' }).click()
+  await page.getByRole('button', { name: 'Write with Claude' }).click()
+  await expect(page.getByLabel('LinkedIn feed post')).toHaveValue(/I stopped making pie charts/)
   await page.getByRole('button', { name: 'Close' }).click()
+
+  // AI-detection report
+  await expect(page.getByRole('heading', { name: 'Reads as human' })).toBeVisible()
+  await page.getByRole('button', { name: /Full report/ }).click()
+  await expect(page.getByText('Scan signals (calibrated to your own posts)')).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  // Persona switcher in the sidebar
+  await page.getByRole('button', { name: /Writing as/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Switch persona' })).toBeVisible()
+  await page.keyboard.press('Escape')
 
   // Night mode
   await page.getByRole('button', { name: /Theme: Day mode/ }).click()

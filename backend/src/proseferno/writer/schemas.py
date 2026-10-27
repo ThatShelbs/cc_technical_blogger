@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ImageKind = Literal["hero", "diagram", "chart", "illustration", "meme", "screenshot"]
+ImageKind = Literal["hero", "illustration", "icon", "diagram", "chart", "meme", "screenshot"]
 
 
 class SectionPlan(BaseModel):

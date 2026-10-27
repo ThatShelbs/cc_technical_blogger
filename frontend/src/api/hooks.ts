@@ -9,7 +9,9 @@ import type {
   Health,
   ImageOut,
   JobOut,
+  LinkedInPostOut,
   PersonaCreate,
+  PersonaDuplicateIn,
   PersonaOut,
   PersonaUpdate,
   ProjectCreated,
@@ -76,14 +78,6 @@ export function useUpdateSettings() {
   })
 }
 
-export function useDeleteCloudflareToken() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: () => api.del<SettingsOut>('/api/settings/cloudflare-token'),
-    onSuccess: (data) => qc.setQueryData(keys.settings, data),
-  })
-}
-
 // -- personas ---------------------------------------------------------------------
 
 export const usePersonas = () => useQuery({ queryKey: keys.personas, queryFn: () => api.get<PersonaOut[]>('/api/personas') })
@@ -123,9 +117,30 @@ export function usePersonaMutations() {
         void qc.invalidateQueries({ queryKey: keys.projects })
       },
     }),
-    generateVoiceSoul: useMutation({
-      mutationFn: (id: number) => api.post<JobOut>(`/api/personas/${id}/voice-soul`),
+    duplicate: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: PersonaDuplicateIn }) => api.post<PersonaOut>(`/api/personas/${id}/duplicate`, body),
       onSuccess: refresh,
+    }),
+    generateVoiceSoul: useMutation({
+      mutationFn: ({ id, label = '' }: { id: number; label?: string }) => api.post<JobOut>(`/api/personas/${id}/voice-soul`, { label }),
+      onSuccess: refresh,
+    }),
+    /** Which voice soul version new posts use; null = always the latest. */
+    pinVersion: useMutation({
+      mutationFn: ({ id, version }: { id: number; version: number | null }) =>
+        api.patch<PersonaOut>(`/api/personas/${id}`, { pinned_voice_soul_version: version }),
+      onSuccess: (_data, { id }) => {
+        void refresh()
+        void qc.invalidateQueries({ queryKey: ['personas', id] })
+      },
+    }),
+    labelVersion: useMutation({
+      mutationFn: ({ id, version, label }: { id: number; version: number; label: string }) =>
+        api.patch<VoiceSoulOut>(`/api/personas/${id}/voice-soul/${version}`, { label }),
+      onSuccess: (_data, { id }) => {
+        void refresh()
+        void qc.invalidateQueries({ queryKey: ['personas', id] })
+      },
     }),
   }
 }
@@ -185,7 +200,8 @@ export const useVoiceSoulVersions = (personaId: number) =>
 export function useSaveVoiceSoul(personaId: number) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (markdown: string) => api.put<VoiceSoulOut>(`/api/personas/${personaId}/voice-soul`, { markdown }),
+    mutationFn: ({ markdown, label = '' }: { markdown: string; label?: string }) =>
+      api.put<VoiceSoulOut>(`/api/personas/${personaId}/voice-soul`, { markdown, label }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['personas', personaId] })
       void qc.invalidateQueries({ queryKey: keys.personas })
@@ -217,6 +233,11 @@ export function useProjectMutations(projectId?: number) {
     generate: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/generate`) }),
     rewrite: useMutation({
       mutationFn: (body: { selection: string; instruction: string }) => api.post<ProjectOut>(`/api/projects/${projectId}/rewrite`, body),
+      onSuccess: setProject,
+    }),
+    /** Re-run the AI-generation detection report on the current text. */
+    checkAuthenticity: useMutation({
+      mutationFn: () => api.post<ProjectOut>(`/api/projects/${projectId}/authenticity`),
       onSuccess: setProject,
     }),
     remove: useMutation({
@@ -253,3 +274,18 @@ export function useImageMutations(projectId: number) {
 }
 
 export const fetchCopyHtml = (projectId: number, platform: string) => api.get<CopyHtmlOut>(`/api/projects/${projectId}/copy/${platform}`)
+
+export const useLinkedInPost = (projectId: number, enabled: boolean) =>
+  useQuery({
+    queryKey: [...keys.project(projectId), 'linkedin-post'],
+    queryFn: () => api.get<LinkedInPostOut>(`/api/projects/${projectId}/linkedin-post`),
+    enabled,
+  })
+
+export function useWriteLinkedInPost(projectId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post<LinkedInPostOut>(`/api/projects/${projectId}/linkedin-post`),
+    onSuccess: (data) => qc.setQueryData([...keys.project(projectId), 'linkedin-post'], data),
+  })
+}

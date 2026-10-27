@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 
-import { buildDials, type DialsState } from './dials'
+import { buildDials, emptyDials } from './dials'
 import { NewProjectPage } from './NewProjectPage'
 
 const PERSONA = {
@@ -15,41 +15,52 @@ const PERSONA = {
   research_enabled: false,
   default_humor: 6,
   default_education: 'intermediate',
+  default_target_words: 1500,
+  default_image_count: null,
+  default_storytelling: 5,
+  default_opinion: 5,
+  default_formality: 5,
+  default_technical_depth: 5,
+  default_skimmability: 5,
+  default_include_code: 'auto',
+  default_platform: 'medium',
   visual_style: '',
   credit_template: '',
   own_samples: 9,
   influence_samples: 0,
   voice_soul_version: 2,
+  voice_soul_label: '',
+  latest_voice_soul_version: 2,
+  pinned_voice_soul_version: null,
+  voice_soul_versions: [],
   active_job_id: null,
   created_at: '2026-10-20T00:00:00Z',
 }
 
-const BASE: DialsState = {
-  targetWords: 1500,
-  autoImages: true,
-  imageCount: 4,
-  humor: null,
-  education: null,
-  topic: '',
-  platform: 'medium',
-  includeCode: 'auto',
-}
-
 describe('buildDials', () => {
-  it('sends only the platform when not customized, so backend defaults apply', () => {
-    expect(buildDials(false, { ...BASE, humor: 9 })).toEqual({ platform: 'medium' })
+  it('sends nothing when nothing changed, so the persona defaults apply', () => {
+    expect(buildDials(emptyDials)).toEqual({})
   })
 
   it('sends only the values the user changed', () => {
-    expect(buildDials(true, BASE)).toEqual({ target_words: 1500, platform: 'medium', include_code: 'auto' })
-    expect(buildDials(true, { ...BASE, autoImages: false, imageCount: 6, humor: 2, education: 'expert', topic: 'Machine Learning' })).toEqual({
-      target_words: 1500,
-      platform: 'medium',
-      include_code: 'auto',
+    expect(
+      buildDials({
+        ...emptyDials,
+        imageCount: 6,
+        humor: 2,
+        education: 'expert',
+        topic: 'Machine Learning',
+        platform: 'linkedin',
+        style: { opinion: 9, formality: 3 },
+      }),
+    ).toEqual({
       image_count: 6,
       humor: 2,
       education: 'expert',
       topic: 'Machine Learning',
+      platform: 'linkedin',
+      opinion: 9,
+      formality: 3,
     })
   })
 })
@@ -76,7 +87,7 @@ describe('NewProjectPage', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText('Writing as Shelby')).toBeInTheDocument()
+    expect(await screen.findByText('Writing as Shelby · voice soul v2')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText(/What should this post be about/), 'Why A/B tests are underpowered')
     await userEvent.click(screen.getByRole('button', { name: /Write my post/ }))
 
@@ -84,7 +95,7 @@ describe('NewProjectPage', () => {
     const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/projects' && init?.method === 'POST')
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({
       prompt: 'Why A/B tests are underpowered',
-      dials: { platform: 'medium' },
+      dials: {},
       persona_id: 1,
     })
   })

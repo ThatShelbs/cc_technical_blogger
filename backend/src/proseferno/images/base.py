@@ -1,38 +1,12 @@
 from __future__ import annotations
 
 import io
-from dataclasses import dataclass
-from typing import Protocol
 
 from PIL import Image
 
 
 class ImageProviderError(RuntimeError):
-    pass
-
-
-class ImageProviderNotConfiguredError(ImageProviderError):
-    pass
-
-
-@dataclass
-class RenderedImage:
-    png: bytes
-    width: int
-    height: int
-    provider: str
-    seed: int | None = None
-
-
-class RasterProvider(Protocol):
-    """Text-to-image model used for hero, illustration and meme images."""
-
-    name: str
-    label: str
-
-    def is_configured(self) -> bool: ...
-
-    async def generate(self, prompt: str, *, width: int, height: int, seed: int) -> RenderedImage: ...
+    """An image could not be designed or rendered."""
 
 
 def to_png(data: bytes) -> tuple[bytes, int, int]:

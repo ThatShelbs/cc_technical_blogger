@@ -35,6 +35,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
+from proseferno.authenticity import author_profile, scan
 from proseferno.config import Settings, get_settings
 from proseferno.db import Persona, Sample
 from proseferno.ingest import parse_markdown
@@ -178,6 +179,9 @@ async def run(args: argparse.Namespace) -> int:
                 "judge_picked_real": verdicts,
                 "style_score_real": fidelity(soul.baseline_stylometrics, sample.stylometrics)["score"],
                 "style_score_generated": fidelity(soul.baseline_stylometrics, compute(generated_doc))["score"],
+                # AI-detection scan (free): 100 = reads as human. The held-out post is not in the calibration.
+                "human_score_real": scan(sample.markdown, author_profile(others, soul.baseline_stylometrics)).score,
+                "human_score_generated": scan(post.markdown, author_profile(others, soul.baseline_stylometrics)).score,
                 "generated_markdown": post.markdown,
             }
         )
@@ -191,6 +195,8 @@ async def run(args: argparse.Namespace) -> int:
         "judge_accuracy": round(sum(verdicts) / len(verdicts), 3),
         "style_score_real_mean": round(statistics.fmean(r["style_score_real"] or 0 for r in rows), 1),
         "style_score_generated_mean": round(statistics.fmean(r["style_score_generated"] or 0 for r in rows), 1),
+        "human_score_real_mean": round(statistics.fmean(r["human_score_real"] for r in rows), 1),
+        "human_score_generated_mean": round(statistics.fmean(r["human_score_generated"] for r in rows), 1),
         "usage": reporter.usage,
     }
     out_dir = settings.data_dir / "evals"
@@ -204,10 +210,16 @@ async def run(args: argparse.Namespace) -> int:
         f"- **Judge accuracy: {summary['judge_accuracy']:.0%}** (50% = indistinguishable from the real author; 100% = always spotted)",
         f"- Style score vs. baseline (out of 100): real posts {summary['style_score_real_mean']}, "
         f"generated {summary['style_score_generated_mean']}",
+        f"- Human score from the AI-detection scan (100 = reads as human): real posts {summary['human_score_real_mean']}, "
+        f"generated {summary['human_score_generated_mean']} (see evals/ai_detection.py for the full report)",
         "",
-        "| Held-out post | Judge picked real (2 orders) | Style real | Style generated |",
-        "|---|---|---|---|",
-        *(f"| {r['title']} | {sum(r['judge_picked_real'])}/2 | {r['style_score_real']} | {r['style_score_generated']} |" for r in rows),
+        "| Held-out post | Judge picked real (2 orders) | Style real | Style generated | Human real | Human generated |",
+        "|---|---|---|---|---|---|",
+        *(
+            f"| {r['title']} | {sum(r['judge_picked_real'])}/2 | {r['style_score_real']} | {r['style_score_generated']} "
+            f"| {r['human_score_real']} | {r['human_score_generated']} |"
+            for r in rows
+        ),
     ]
     report_path = out_dir / f"voice-fidelity-{stamp}.md"
     report_path.write_text("\n".join(report) + "\n", encoding="utf-8")

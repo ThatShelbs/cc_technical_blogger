@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 from proseferno.db import Persona
 
 Education = Literal["beginner", "intermediate", "expert"]
-Platform = Literal["medium", "substack", "gumroad", "markdown"]
+Platform = Literal["medium", "substack", "linkedin", "gumroad", "markdown"]
+IncludeCode = Literal["auto", "yes", "no"]
 
 TOPICS: dict[str, list[str]] = {
     "Data Science": ["data science", "data scientist", "analysis", "dataset", "statistics", "eda", "sql"],
@@ -91,16 +92,90 @@ EDUCATION_GUIDE = {
 }
 
 
-class Dials(BaseModel):
-    """What the user can set. Every field is optional."""
+# 0-10 style dials. They are relative to the author: 4-6 means "as the author naturally writes",
+# so the voice soul stays in charge unless the user deliberately pushes a dial.
+STYLE_DIALS: dict[str, tuple[str, dict[range, str]]] = {
+    "storytelling": (
+        "Storytelling",
+        {
+            range(0, 2): "Straight explainer: no narrative arc, at most a one-line example of lived experience.",
+            range(2, 4): "Lighter on story than the author usually is: a brief anecdote at most, then get to the point.",
+            range(4, 7): "Match the author's usual balance of story and explanation.",
+            range(7, 9): "More story than usual: open with a concrete personal anecdote and return to it as a thread.",
+            range(9, 11): "Story-driven: a personal narrative arc (setup, tension, payoff) carries the whole post.",
+        },
+    ),
+    "opinion": (
+        "Opinion strength",
+        {
+            range(0, 2): "Neutral and balanced: present options and trade-offs, avoid taking sides.",
+            range(2, 4): "Measured: share a view but give the other side real airtime.",
+            range(4, 7): "Match how strongly the author usually states opinions.",
+            range(7, 9): "Opinionated: take a clear stance early and defend it with evidence.",
+            range(9, 11): "Bold hot take: a contrarian thesis stated plainly and defended confidently (still fair and accurate).",
+        },
+    ),
+    "formality": (
+        "Formality",
+        {
+            range(0, 2): "Very casual: chatty and loose, like talking to a friend over coffee.",
+            range(2, 4): "More relaxed and conversational than the author's usual register.",
+            range(4, 7): "Match the author's usual register.",
+            range(7, 9): "More polished than usual: tighter sentences, fewer asides, professional tone.",
+            range(9, 11): "Formal and authoritative: executive-ready, precise, minimal slang.",
+        },
+    ),
+    "technical_depth": (
+        "Technical depth",
+        {
+            range(0, 2): "Conceptual only: no math, minimal jargon, ideas and implications.",
+            range(2, 4): "Light technical detail: name the methods, skip derivations.",
+            range(4, 7): "Match the author's usual technical depth.",
+            range(7, 9): "Deep: implementation details, parameters, pitfalls and a worked example.",
+            range(9, 11): "Very deep: math, benchmarks, edge cases and production-grade detail.",
+        },
+    ),
+    "skimmability": (
+        "Skimmability",
+        {
+            range(0, 2): "Flowing essay: few headings, prose over lists.",
+            range(2, 4): "Mostly prose with occasional headings and lists.",
+            range(4, 7): "Match the author's usual heading, list and paragraph cadence.",
+            range(7, 9): "Highly scannable: frequent descriptive headings, short paragraphs, bolded key takeaways.",
+            range(9, 11): "Built for skimmers: a TL;DR up top, headings every few paragraphs, bullets, bold takeaways, a recap.",
+        },
+    ),
+}
 
-    target_words: int = Field(1500, ge=300, le=6000)
+PLATFORM_GUIDE: dict[str, str] = {
+    "medium": "Medium story: a strong title and subtitle, a hero image, two heading levels, and a satisfying close.",
+    "substack": "Substack newsletter: a personal, direct-to-reader opening and a sign-off that fits a newsletter.",
+    "linkedin": (
+        "LinkedIn article: the first two lines must hook (they show in the feed preview); keep paragraphs to one to three "
+        "sentences; use descriptive `##` headings only (LinkedIn articles have two heading levels and drop tables, so use lists "
+        "instead of tables); bold one key takeaway per section; speak to practitioners and leaders; end with a question that "
+        "invites comments."
+    ),
+    "gumroad": "Gumroad: a polished, self-contained piece that reads well as a PDF.",
+    "markdown": "Developer blogs (dev.to, Hashnode, Ghost): practical, code-friendly, with clear headings.",
+}
+
+
+class Dials(BaseModel):
+    """What the user can set. Every field is optional and falls back to the persona's defaults."""
+
+    target_words: int | None = Field(None, ge=300, le=6000)
     image_count: int | None = Field(None, ge=2, le=15)
     humor: int | None = Field(None, ge=0, le=10)
     education: Education | None = None
+    storytelling: int | None = Field(None, ge=0, le=10)
+    opinion: int | None = Field(None, ge=0, le=10)
+    formality: int | None = Field(None, ge=0, le=10)
+    technical_depth: int | None = Field(None, ge=0, le=10)
+    skimmability: int | None = Field(None, ge=0, le=10)
     topic: str | None = None
-    platform: Platform = "medium"
-    include_code: Literal["auto", "yes", "no"] = "auto"
+    platform: Platform | None = None
+    include_code: IncludeCode | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
 
 
@@ -111,9 +186,16 @@ class ResolvedDials(BaseModel):
     humor_guide: str
     education: Education
     education_guide: str
+    storytelling: int
+    opinion: int
+    formality: int
+    technical_depth: int
+    skimmability: int
+    style_guide: str
     topic: str
     platform: Platform
-    include_code: Literal["auto", "yes", "no"]
+    platform_guide: str
+    include_code: IncludeCode
     revision_passes: int
 
 
@@ -131,20 +213,43 @@ def auto_image_count(target_words: int) -> int:
     return max(2, min(12, round(target_words / 350)))
 
 
+def _guide(guides: dict[range, str], value: int) -> str:
+    return next(text for span, text in guides.items() if value in span)
+
+
+def style_guide(values: dict[str, int]) -> str:
+    """One bullet per style dial, for the plan, draft and critique prompts."""
+    return "\n".join(f"- {label} {values[key]}/10: {_guide(guides, values[key])}" for key, (label, guides) in STYLE_DIALS.items())
+
+
 def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: int) -> ResolvedDials:
     humor = dials.humor if dials.humor is not None else persona.default_humor
     education: Education = dials.education or persona.default_education  # type: ignore[assignment]
     if education not in EDUCATION_GUIDE:
         education = "intermediate"
+    target_words = dials.target_words or persona.default_target_words or 1500
+    platform: Platform = dials.platform or persona.default_platform  # type: ignore[assignment]
+    if platform not in PLATFORM_GUIDE:
+        platform = "medium"
+    include_code: IncludeCode = dials.include_code or persona.default_include_code  # type: ignore[assignment]
+    if include_code not in ("auto", "yes", "no"):
+        include_code = "auto"
+    styles: dict[str, int] = {}
+    for key in STYLE_DIALS:
+        value = getattr(dials, key)
+        styles[key] = max(0, min(10, value if value is not None else getattr(persona, f"default_{key}", 5)))
     return ResolvedDials(
-        target_words=dials.target_words,
-        image_count=dials.image_count or auto_image_count(dials.target_words),
+        target_words=target_words,
+        image_count=dials.image_count or persona.default_image_count or auto_image_count(target_words),
         humor=humor,
-        humor_guide=next(text for span, text in HUMOR_GUIDE.items() if humor in span),
+        humor_guide=_guide(HUMOR_GUIDE, humor),
         education=education,
         education_guide=EDUCATION_GUIDE[education],
+        **styles,
+        style_guide=style_guide(styles),
         topic=dials.topic or classify_topic(prompt),
-        platform=dials.platform,
-        include_code=dials.include_code,
+        platform=platform,
+        platform_guide=PLATFORM_GUIDE[platform],
+        include_code=include_code,
         revision_passes=dials.revision_passes if dials.revision_passes is not None else default_revisions,
     )

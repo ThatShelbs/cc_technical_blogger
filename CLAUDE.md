@@ -74,7 +74,11 @@ This solution is specialized in writing technical blogs generally covering the f
 - **Name:** Proseferno (Python package `proseferno`).
 - **Claude:** Anthropic Python SDK, default model `claude-opus-5-5`, adaptive thinking, per-task `effort`, streaming for long outputs, structured outputs via `messages.parse()`, server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
 - **"Login to Claude via SSO"** = *Sign in with Claude*: the app runs `ant auth login` (Anthropic CLI browser OAuth with Claude Console; supports org SSO; API billing, not a Claude.ai subscription). An API key in the OS keychain is the fallback. Credential order: saved key → `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` → CLI profile.
-- **Raster images:** Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b` (multipart form; steps fixed at 4). Diagrams are Claude-authored SVG (sanitized, rendered by resvg); charts are Vega-Lite (vl-convert). Without Cloudflare, hero/illustration/meme fall back to Claude SVG. Model-generated code is never executed.
+- **Images: Claude only.** No other image models (no Cloudflare, OpenAI or Gemini). Hero, illustration, icon, diagram and meme images are Claude-authored SVG (sanitized, rendered by resvg; meme captions drawn with Pillow); charts are Claude-authored Vega-Lite (vl-convert). Model-generated code is never executed. Credits name the Claude model.
+- **AI-generation detection:** `authenticity/` scores posts 0-100 (100 = reads as human): a scan calibrated to the persona's own samples + a Claude judge (60/40). The scan's findings feed the critique prompt. Eval: `backend/evals/ai_detection.py`.
+- **LinkedIn:** a platform for writing and export (article HTML, 1920×1080 cover, feed post ≤3,000 chars, carousel PDF + PPTX via python-pptx).
+- **Personas:** voice soul versions can be pinned (`Persona.pinned_voice_soul_version`; use `current_voice_soul`, not `latest_voice_soul`, for writing) and labeled; personas can be duplicated into a new name. 0-10 style dials are relative to the author (5 = as they write).
+- **Schema changes:** `db/engine.add_missing_columns` adds new columns to existing databases; give new columns a default.
 - **Privacy:** user writing (`my_writing_examples/`) and all runtime data (`data/`) are git-ignored. Secrets live in the OS keychain.
 - **Port:** 8732 (8765 collided with another local app).
 
@@ -93,6 +97,7 @@ uv run mypy
 uv run python scripts/export_types.py      # regenerate frontend/src/api/types.gen.ts after API changes
 uv run proseferno --demo --open            # run the app
 uv run python evals/voice_fidelity.py --demo --yes    # eval wiring check (real run costs money; needs --yes)
+uv run python evals/ai_detection.py --demo --judge --yes   # AI-detection eval wiring check (scan-only runs are free)
 ```
 
 Frontend (run in `frontend/`):
@@ -106,11 +111,11 @@ npm run build
 npm run e2e                       # Playwright smoke test in demo mode; PW_CHANNEL=msedge to use installed Edge
 ```
 
-On this Windows machine uv was installed by winget and may not be on PATH in a fresh shell; it lives under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*`. The Anthropic CLI is at `%LOCALAPPDATA%\Programs\ant\ant.exe`.
+Deep worktree paths can exceed Windows' 260-character limit inside `backend/.venv` (an Anthropic SDK file name is very long); if imports fail, set `UV_PROJECT_ENVIRONMENT` to a short path. On this Windows machine uv was installed by winget and may not be on PATH in a fresh shell; it lives under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*`. The Anthropic CLI is at `%LOCALAPPDATA%\Programs\ant\ant.exe`.
 
 ## Layout and conventions
 
-- `backend/src/proseferno/`: `api/` (routes only), `ingest/`, `voice/`, `writer/`, `images/`, `export/`, `llm/`, `prompts/` (Markdown templates with `$placeholders`), `db/`, `jobs.py`, `services.py` (wiring), `demo.py` (fakes for tests and demo mode).
+- `backend/src/proseferno/`: `api/` (routes only), `ingest/`, `voice/`, `writer/`, `authenticity/`, `images/`, `export/`, `llm/`, `prompts/` (Markdown templates with `$placeholders`), `db/`, `jobs.py`, `services.py` (wiring), `demo.py` (fakes for tests and demo mode).
 - All model calls go through the `LLM` protocol (`llm/base.py`); tests use `proseferno.demo.FakeLLM`. When adding a structured-output schema, add a payload for it in `demo.py`.
 - Long work runs as a job (`jobs.py`) and streams events over SSE; the frontend follows it with `useJob`.
 - Tests must never touch real services: `ClaudeAuth(..., discover_ant=False)` and `MemorySecretStore` in fixtures (a test once launched the real `ant auth login`).
@@ -121,4 +126,4 @@ On this Windows machine uv was installed by winget and may not be on PATH in a f
 
 ## Docs
 
-`README.md`, `CONTRIBUTING.md`, `docs/` (architecture, voice pipeline + eval, images, exporting, configuration). Update them when behavior changes; refresh README screenshots with `UPDATE_SCREENSHOTS=1 npm run e2e`.
+`README.md`, `CONTRIBUTING.md`, `docs/` (architecture, voice pipeline + eval, AI detection, images, exporting, configuration). Update them when behavior changes; refresh README screenshots with `UPDATE_SCREENSHOTS=1 npm run e2e`.

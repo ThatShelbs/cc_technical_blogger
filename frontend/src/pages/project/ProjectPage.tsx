@@ -10,6 +10,7 @@ import { useJob, type Critique } from '../../api/useJob'
 import { Article } from '../../components/Article'
 import { Badge, Button, Card, Dialog, Field, Notice, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { AuthenticityPanel } from './AuthenticityPanel'
 import { ExportDialog } from './ExportDialog'
 import { GenerationView } from './GenerationView'
 import { ImageCard } from './ImageCard'
@@ -100,8 +101,14 @@ function DialsSummary({ project }: { project: ProjectOut }) {
         <span className="text-muted">Humor:</span> {d.humor}/10 · <span className="text-muted">Level:</span> {d.education}
       </p>
       <p>
-        <span className="text-muted">Topic:</span> {d.topic}
+        <span className="text-muted">Story:</span> {d.storytelling} · <span className="text-muted">Opinion:</span> {d.opinion} ·{' '}
+        <span className="text-muted">Formality:</span> {d.formality} · <span className="text-muted">Depth:</span> {d.technical_depth} ·{' '}
+        <span className="text-muted">Skim:</span> {d.skimmability}
       </p>
+      <p>
+        <span className="text-muted">Topic:</span> {d.topic} · <span className="text-muted">For:</span> {String(d.platform)}
+      </p>
+      {project.voice_soul_version && <p className="text-muted">Voice soul v{project.voice_soul_version}</p>}
     </Card>
   )
 }
@@ -213,6 +220,7 @@ function Editor({ project, onRegenerate }: { project: ProjectOut; onRegenerate: 
 
       <aside className="space-y-4">
         <TitlePicker project={project} />
+        <AuthenticityPanel project={project} />
         <FidelityPanel project={project} />
         <DialsSummary project={project} />
         <Card className="space-y-2">

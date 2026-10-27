@@ -7,12 +7,14 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | Setting | Where | Default |
 | --- | --- | --- |
 | Claude sign-in or API key | Settings → Claude | none |
-| Cloudflare account ID and token | Settings → Images | none (Claude SVG fallback) |
 | Model | Settings → Advanced | `claude-opus-5-5` |
 | Voice editing passes | Settings → Advanced | 1 |
 | Refusal fallback | Settings → Advanced | on |
+| AI-detection judge | Settings → Advanced | on (the free scan always runs) |
 | Theme | Settings → Appearance, or the sidebar toggle | match system |
-| Persona byline, credit format, visual style, default humor and level, web research | Personas → (persona) → Settings | from the voice soul |
+| Persona name, byline, credit format, visual style, web research | Personas → (persona) → Settings & defaults | from the voice soul |
+| Default dials for new posts: length, images, humor, storytelling, opinion strength, formality, technical depth, skimmability, education level, code, platform | Personas → (persona) → Settings & defaults | 1,500 words, automatic images, humor 5, style dials 5 ("as I write"), intermediate, code where it helps, Medium |
+| Voice soul version in use | Sidebar persona switcher, or the Voice soul tab | always the latest |
 
 ## Environment variables
 
@@ -24,13 +26,13 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | `PROSEFERNO_MODEL` | Claude model | `claude-opus-5-5` |
 | `PROSEFERNO_USE_FALLBACKS` | Server-side refusal fallback | `true` |
 | `PROSEFERNO_REVISION_PASSES` | Editing passes per post | `1` |
-| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES` | see `config.py` |
+| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `DETECT` | see `config.py` |
 | `PROSEFERNO_DEMO` | Demo mode (canned responses) | `false` |
 | `PROSEFERNO_NO_BROWSER` | Do not open a browser on start | unset |
 | `ANTHROPIC_API_KEY` | Claude API key (overrides *Sign in with Claude*) | unset |
-| `PROSEFERNO_CLOUDFLARE_ACCOUNT_ID` / `PROSEFERNO_CLOUDFLARE_API_TOKEN` | Cloudflare credentials | unset |
+| `PROSEFERNO_AI_DETECTION` | Claude judge in the AI-detection report | `true` |
 
-Values saved in the app (model, passes, fallback, Cloudflare account ID) take precedence over environment defaults.
+Values saved in the app (model, passes, fallback, AI-detection judge) take precedence over environment defaults.
 
 ## Claude credentials, in order
 

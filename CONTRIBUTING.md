@@ -16,7 +16,7 @@ You do **not** need API keys to develop: demo mode and the test suite use a fake
 dev.bat --demo
 ```
 
-`dev.bat` starts the API with auto-reload on port 8732 and the Vite dev server with hot reload on <http://localhost:5173>. Drop `--demo` to use real Claude/Cloudflare credentials. On macOS/Linux run the two halves yourself:
+`dev.bat` starts the API with auto-reload on port 8732 and the Vite dev server with hot reload on <http://localhost:5173>. Drop `--demo` to use real Claude credentials. On macOS/Linux run the two halves yourself:
 
 ```bash
 uv run --project backend proseferno --reload --demo

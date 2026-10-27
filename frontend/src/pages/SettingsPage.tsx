@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { errorText } from '../api/client'
 import { useSettings, useUpdateSettings } from '../api/hooks'
-import { ClaudeConnect, CloudflareConnect } from '../components/Connections'
+import { ClaudeConnect, ImagesCard } from '../components/Connections'
 import { Button, Card, Field, Input, Notice, PageHeader, Select, Switch } from '../components/ui'
 import { cx } from '../lib/cx'
 import { useTheme, type ThemeMode } from '../theme/useTheme'
@@ -88,6 +88,16 @@ function AdvancedCard() {
         </div>
         <Switch checked={settings.use_fallbacks} label="Refusal fallback" onChange={(value) => update.mutate({ use_fallbacks: value })} />
       </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="font-semibold">AI-detection judge</p>
+          <p className="text-sm text-muted">
+            Every post gets a 0-100 &ldquo;reads as human&rdquo; score. The free scan always runs; this adds a Claude judge for a sharper read (a few cents per
+            post).
+          </p>
+        </div>
+        <Switch checked={settings.ai_detection} label="AI-detection judge" onChange={(value) => update.mutate({ ai_detection: value })} />
+      </div>
       <Button
         disabled={!currentModel.trim() || currentModel === settings.model}
         loading={update.isPending}
@@ -113,7 +123,7 @@ export function SettingsPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <ClaudeConnect />
-          <CloudflareConnect />
+          <ImagesCard />
         </div>
         <div className="space-y-6">
           <AppearanceCard />

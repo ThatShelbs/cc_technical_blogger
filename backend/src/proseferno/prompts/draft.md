@@ -13,6 +13,12 @@ Settings:
 - Humor level $humor/10: $humor_guide
 - Education level ($education): $education_guide
 - Code snippets / LLM prompts: $include_code
+- Publishing platform ($platform): $platform_guide
+
+Style dials (5 = the author's natural level; adjust emphasis within the author's voice, never abandon it):
+$style_guide
+
+Sound human, because the author is human: vary sentence length and paragraph shape the way the author does, use their real verbal habits, and avoid the generic AI-writing tells listed in the voice soul (stock vocabulary like "delve", "tapestry" or "game-changer", "it's not X, it's Y" constructions, reflexive rule-of-three lists, "Moreover/Furthermore" transitions, em dashes beyond the author's measured rate, and tidy upbeat summaries).
 
 Format (Markdown):
 - First line `# <title>`, then the subtitle in italics on its own line.

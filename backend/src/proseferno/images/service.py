@@ -1,8 +1,12 @@
-"""Design and render every image in a post, with credits and redraw history."""
+"""Design and render every image in a post, with credits and redraw history.
+
+Every image is authored by Claude: illustrations, icons, diagrams and memes as SVG,
+charts as Vega-Lite specs. Both are rendered locally; no model-generated code runs.
+"""
 
 from __future__ import annotations
 
-import random
+import json
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -13,35 +17,42 @@ from sqlmodel import Session
 
 from proseferno.config import Settings
 from proseferno.db import Persona, ProjectImage
-from proseferno.images.base import ImageProviderError, RasterProvider
+from proseferno.images.base import ImageProviderError
 from proseferno.images.render import add_meme_text, placeholder_png, svg_to_png, vega_to_png
-from proseferno.images.specs import ChartSpec, MemeSpec, RasterSpec, SvgSpec
+from proseferno.images.specs import ChartSpec, SvgMemeSpec, SvgSpec
 from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.llm.base import UsageSink
 from proseferno.prompts import raw, render
 from proseferno.storage import Storage
 
-RASTER_KINDS = {"hero", "illustration", "meme"}
-SIZES = {"hero": (1600, 896), "illustration": (1280, 720), "meme": (1024, 1024)}
-TOOL_LABELS = {
-    "cloudflare-flux": "FLUX.2 [klein] on Cloudflare Workers AI",
-    "claude-svg": "Claude (SVG)",
-    "vega-lite": "Claude + Vega-Lite",
-    "placeholder": "Proseferno",
-}
+# Pixel width each SVG kind is rasterized at (height follows the SVG's viewBox).
+RENDER_WIDTH = {"hero": 1600, "illustration": 1600, "diagram": 1600, "icon": 768, "meme": 1080}
 PLACEHOLDER_RE = re.compile(r"\{\{image:([A-Za-z0-9_\-]+)\}\}")
 
 
-class SvgMemeSpec(SvgSpec):
-    top_text: str
-    bottom_text: str
+def model_label(model: str) -> str:
+    """'claude-opus-5-5' -> 'Claude Opus 5.5' (unknown ids are returned unchanged)."""
+    match = re.fullmatch(r"claude-([a-z]+)-(\d+)-(\d+)(?:-\d{8})?", model)
+    if not match:
+        return model
+    family, major, minor = match.groups()
+    return f"Claude {family.capitalize()} {major}.{minor}"
 
 
-def credit_line(persona: Persona, provider: str) -> str:
+def tool_label(provider: str, model: str) -> str:
+    claude = model_label(model)
+    return {
+        "claude-svg": f"{claude} (SVG)",
+        "vega-lite": f"{claude} + Vega-Lite",
+        "placeholder": "Proseferno",
+    }.get(provider, provider)
+
+
+def credit_line(persona: Persona, provider: str, model: str = "claude-opus-5-5") -> str:
     name = persona.display_name or persona.name
     if provider == "upload":
         return f"Image by {name}"
-    tool = TOOL_LABELS.get(provider, provider)
+    tool = tool_label(provider, model)
     try:
         return persona.credit_template.format(name=name, tool=tool)
     except (KeyError, IndexError, ValueError):
@@ -64,12 +75,11 @@ def image_guidance(voice_soul: str) -> str:
 
 
 class ImageService:
-    def __init__(self, *, engine: Engine, llm: LLM, settings: Settings, storage: Storage, raster: RasterProvider) -> None:
+    def __init__(self, *, engine: Engine, llm: LLM, settings: Settings, storage: Storage) -> None:
         self.engine = engine
         self.llm = llm
         self.settings = settings
         self.storage = storage
-        self.raster = raster
 
     async def create(
         self,
@@ -83,7 +93,7 @@ class ImageService:
         rethink: bool = False,
         usage: UsageSink | None = None,
     ) -> ProjectImage:
-        """Design (when needed) and render one image, then persist the result."""
+        """Design and render one image, then persist the result."""
         with Session(self.engine) as session:
             image = session.get(ProjectImage, image_id)
             if image is None:
@@ -159,23 +169,16 @@ class ImageService:
             png, w, h = placeholder_png(image.purpose or image.prompt)
             return self._result(image, png, w, h, "placeholder", persona, alt=image.purpose, caption=image.caption or image.purpose)
 
-        seed = random.randint(1, 2**31 - 1)
-        use_flux = kind in RASTER_KINDS and self.raster.is_configured()
-
-        # A plain redraw of a FLUX image keeps the prompt and only changes the seed.
-        if redraw and not rethink and use_flux and image.prompt and image.provider == "cloudflare-flux":
-            width, height = SIZES[kind]
-            rendered = await self.raster.generate(image.prompt, width=width, height=height, seed=seed)
-            png = rendered.png
-            if kind == "meme":
-                captions = _meme_captions(image.spec)
-                png = add_meme_text(png, captions.get("top", ""), captions.get("bottom", ""))
-            return self._result(image, png, rendered.width, rendered.height, "cloudflare-flux", persona, seed=seed)
-
         variation = ""
-        if redraw:
+        if rethink:
             variation = (
-                f"This is a redraw: create a clearly different take from the previous version (previous caption: {image.caption!r})."
+                "This is a rethink: throw out the previous concept and design a completely different idea that serves the same purpose "
+                f"(previous caption: {image.caption!r})."
+            )
+        elif redraw:
+            variation = (
+                "This is a redraw: keep the same idea but give it a clearly different composition, metaphor or visual treatment "
+                f"(previous caption: {image.caption!r})."
             )
         prompt = render(
             "image_spec",
@@ -184,56 +187,22 @@ class ImageService:
             title=title,
             purpose=image.purpose,
             brief=image.prompt or image.purpose,
-            visual_style=persona.visual_style or "warm editorial illustration in inferno tones",
+            visual_style=persona.visual_style or "warm flat-vector editorial illustration in inferno tones",
             variation=variation,
             image_guidance=image_guidance(voice_soul),
             context=image_context(markdown, image.slot_id),
         )
         system = [SystemBlock(raw("image_system"), cache=True)]
 
-        async def design(schema: type[Any], extra: str = "") -> Any:
+        async def design(schema: type[Any]) -> Any:
             return await self.llm.structured(
                 task=f"{kind} image design",
                 system=system,
-                prompt=prompt + extra,
+                prompt=prompt,
                 schema=schema,
                 effort=self.settings.effort_images,
+                max_tokens=24000,
                 usage=usage,
-            )
-
-        if use_flux:
-            width, height = SIZES[kind]
-            if kind == "meme":
-                meme = await design(MemeSpec)
-                rendered = await self.raster.generate(meme.prompt, width=width, height=height, seed=seed)
-                png = add_meme_text(rendered.png, meme.top_text, meme.bottom_text)
-                spec = _meme_spec_json(meme.top_text, meme.bottom_text)
-                return self._result(
-                    image,
-                    png,
-                    rendered.width,
-                    rendered.height,
-                    "cloudflare-flux",
-                    persona,
-                    seed=seed,
-                    prompt=meme.prompt,
-                    spec=spec,
-                    alt=meme.alt,
-                    caption=meme.caption,
-                )
-            raster = await design(RasterSpec)
-            rendered = await self.raster.generate(raster.prompt, width=width, height=height, seed=seed)
-            return self._result(
-                image,
-                rendered.png,
-                rendered.width,
-                rendered.height,
-                "cloudflare-flux",
-                persona,
-                seed=seed,
-                prompt=raster.prompt,
-                alt=raster.alt,
-                caption=raster.caption,
             )
 
         if kind == "chart":
@@ -244,21 +213,15 @@ class ImageService:
                 caption = f"{caption} (illustrative data)"
             return self._result(image, png, w, h, "vega-lite", persona, spec=chart.vega_lite_json, alt=chart.alt, caption=caption)
 
-        # Diagrams, plus hero/illustration/meme when no text-to-image provider is configured.
-        fallback_note = ""
-        if kind in RASTER_KINDS:
-            fallback_note = (
-                "\n\nNo text-to-image model is available, so draw this as a polished flat-vector editorial "
-                "illustration in SVG instead (simple shapes, inferno palette, no text except meme captions are added later)."
-            )
         if kind == "meme":
-            meme_svg = await design(SvgMemeSpec, fallback_note)
-            png, w, h = svg_to_png(meme_svg.svg, width=1024)
-            png = add_meme_text(png, meme_svg.top_text, meme_svg.bottom_text)
-            spec = _meme_spec_json(meme_svg.top_text, meme_svg.bottom_text)
-            return self._result(image, png, w, h, "claude-svg", persona, spec=spec, alt=meme_svg.alt, caption=meme_svg.caption)
-        svg = await design(SvgSpec, fallback_note)
-        png, w, h = svg_to_png(svg.svg, width=1600)
+            meme = await design(SvgMemeSpec)
+            png, w, h = svg_to_png(meme.svg, width=RENDER_WIDTH["meme"])
+            png = add_meme_text(png, meme.top_text, meme.bottom_text)
+            spec = json.dumps({"svg": meme.svg, "top": meme.top_text, "bottom": meme.bottom_text})
+            return self._result(image, png, w, h, "claude-svg", persona, spec=spec, alt=meme.alt, caption=meme.caption)
+
+        svg = await design(SvgSpec)
+        png, w, h = svg_to_png(svg.svg, width=RENDER_WIDTH.get(kind, 1600))
         return self._result(image, png, w, h, "claude-svg", persona, spec=svg.svg, alt=svg.alt, caption=svg.caption)
 
     def _result(
@@ -276,8 +239,8 @@ class ImageService:
             "provider": provider,
             "width": width,
             "height": height,
-            "credit": credit_line(persona, provider),
-            "seed": fields.pop("seed", None),
+            "credit": credit_line(persona, provider, self.settings.model),
+            "seed": None,
             **fields,
         }
 
@@ -304,19 +267,3 @@ class ImageService:
             session.commit()
             session.refresh(image)
             return image
-
-
-def _meme_spec_json(top: str, bottom: str) -> str:
-    import json
-
-    return json.dumps({"top": top, "bottom": bottom})
-
-
-def _meme_captions(spec: str) -> dict[str, str]:
-    import json
-
-    try:
-        data = json.loads(spec or "{}")
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}

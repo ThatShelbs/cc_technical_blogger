@@ -72,4 +72,6 @@ Check the wiring without API calls:
 uv run python evals/voice_fidelity.py --demo --yes
 ```
 
+The report also lists each post's scan score from the [AI-detection](ai-detection.md) check, so you can see whether generated posts read as human as the real ones.
+
 Note: the voice soul's *Voice Anchors* may quote a held-out post. For the strictest test, regenerate the voice soul without the held-out posts first.

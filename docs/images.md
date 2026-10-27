@@ -1,41 +1,39 @@
 # Images
 
-Every post gets images that add value for the reader. The plan decides how many (about one per 350 words by default, at least two) and what each is for.
+Every post gets images that add value for the reader. The plan decides how many (about one per 350 words by default, at least two, or the persona's default) and what each is for.
+
+Claude draws every image itself: vector art as SVG and data visualizations as Vega-Lite specs. There is no third-party image model and nothing to configure.
 
 | Kind | Purpose | Made by |
 | --- | --- | --- |
-| **hero** | Opening image and thumbnail | FLUX.2 [klein] (Cloudflare), or a Claude SVG illustration |
-| **diagram** | Concepts, workflows, architectures | Claude writes SVG; sanitized and rendered locally with resvg |
-| **chart** | Illustrative data visualization | Claude writes a Vega-Lite spec with inline data; rendered locally with vl-convert |
-| **illustration** | A conceptual image for a section | FLUX.2 [klein], or Claude SVG |
+| **hero** | Opening image and thumbnail: an editorial "stock-style" illustration made for this post | Claude SVG (16:9) |
+| **illustration** | A conceptual image or visual metaphor for a section | Claude SVG (16:9) |
+| **icon** | One concept icon, or a row of 2-4, anchoring a list of steps or principles | Claude SVG |
+| **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
+| **chart** | Data visualization (real numbers from the post, or labeled illustrative data) | Claude Vega-Lite spec with inline data |
 | **screenshot** | A real UI/console screenshot would help | Placeholder card; replace it with your screenshot |
-| **meme** | The closing joke | FLUX.2 [klein] image (no text) + captions overlaid with Pillow |
+| **meme** | The closing joke | Claude SVG cartoon + classic top/bottom captions drawn with Pillow |
 
-## Design step
+## Design and rendering
 
-For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice soul, and the persona's visual style, then returns a structured design: a text-to-image prompt, SVG, or chart spec, plus alt text and a caption in the author's caption style.
+For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice soul, and the persona's visual style, then returns a structured design: SVG markup or a chart spec, plus alt text and a caption in the author's caption style. The art direction prompt (`prompts/image_system.md`) asks for layered compositions, gradients, soft shadows and the inferno palette, so hero and illustration images look like finished editorial art rather than clip art.
 
-Text-to-image prompts never ask for text in the image (small distilled models render text poorly); meme captions are drawn on afterwards.
+Nothing a model writes is executed:
+
+- SVG is parsed with `lxml` and sanitized (no scripts, event handlers, `foreignObject` or external references), then rasterized locally by **resvg**.
+- Charts are declarative Vega-Lite (remote data URLs are rejected), rendered locally by **vl-convert**.
 
 ## Credits
 
-Each image gets a credit from the persona's template (default `Author: {name}; Made with {tool}`), for example:
+Each image gets a credit from the persona's template (default `Author: {name}; Made with {tool}`), where `{tool}` names the Claude model that drew it:
 
-> The saddest pie; Author: Shelby Temple; Made with FLUX.2 [klein] on Cloudflare Workers AI
+> The saddest pie; Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)
 
-Charts with made-up numbers are labeled *(illustrative data)*. You can edit any caption, credit or alt text.
+Charts read "Made with Claude Opus 5.5 + Vega-Lite", and charts with made-up numbers are labeled *(illustrative data)*. You can edit any caption, credit or alt text.
 
 ## Redraw, new idea, replace, versions
 
-- **Redraw**: same design, new random seed (FLUX images) or a fresh take (diagrams and charts).
-- **New idea**: Claude redesigns the image from scratch.
+- **Redraw**: Claude draws the same idea again with a different composition or treatment.
+- **New idea**: Claude throws out the concept and designs a different image for the same purpose.
 - **Replace**: upload your own image (PNG, JPEG, WebP, ...; converted to PNG).
 - **Versions**: every version is kept; click one to restore it.
-
-## Cloudflare setup
-
-1. In the [Cloudflare dashboard](https://dash.cloudflare.com/profile/api-tokens), create an API token with the **Workers AI** permission.
-2. Copy your account ID from the Workers AI page.
-3. Paste both into **Settings → Images** (the token goes into your OS keychain).
-
-The model is `@cf/black-forest-labs/flux-2-klein-4b`, called with multipart form data (`prompt`, `width`, `height`, `seed`); sizes are kept within 256-1920 px and rounded to multiples of 16.

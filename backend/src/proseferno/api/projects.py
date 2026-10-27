@@ -16,6 +16,7 @@ from proseferno.api.schemas import (
     ImageOut,
     ImageUpdate,
     JobOut,
+    LinkedInPostOut,
     ProjectCreate,
     ProjectCreated,
     ProjectOut,
@@ -25,13 +26,15 @@ from proseferno.api.schemas import (
     RevertIn,
     RewriteIn,
 )
-from proseferno.db import Persona, Project, ProjectImage, utcnow
-from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html
+from proseferno.authenticity import analyze, author_profile
+from proseferno.db import Persona, Project, ProjectImage, Sample, utcnow
+from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
 from proseferno.llm import LLMError
 from proseferno.services import Services
-from proseferno.voice import latest_voice_soul
+from proseferno.voice import current_voice_soul
 from proseferno.writer import Dials, WriterError, generate_article, resolve, rewrite_passage, set_title
+from proseferno.writer.social import write_linkedin_post
 
 router = APIRouter(prefix="/api")
 
@@ -134,7 +137,7 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
             raise HTTPException(422, "Create a persona and turn it on first.")
         persona = active
     assert persona.id is not None
-    if body.generate and latest_voice_soul(session, persona.id) is None:
+    if body.generate and current_voice_soul(session, persona.id) is None:
         raise HTTPException(422, f"Persona '{persona.name}' has no voice soul yet. Generate it first.")
     project = Project(
         persona_id=persona.id,
@@ -187,7 +190,7 @@ def delete_project(project_id: int, session: SessionDep, services: ServicesDep) 
 @router.post("/projects/{project_id}/generate", response_model=JobOut, status_code=202)
 async def generate(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
     project = project_or_404(session, project_id)
-    if latest_voice_soul(session, project.persona_id) is None:
+    if current_voice_soul(session, project.persona_id) is None:
         raise HTTPException(422, "This persona has no voice soul yet. Generate it first.")
     job_id = await start_generation(services, project_id)
     return JobOut(**services.jobs.get(job_id).model_dump())
@@ -209,6 +212,28 @@ async def rewrite(project_id: int, body: RewriteIn, session: SessionDep, service
         raise HTTPException(422, str(exc)) from exc
     session.expire_all()
     return project_out(session, project_or_404(session, project_id), services)
+
+
+@router.post("/projects/{project_id}/authenticity", response_model=ProjectOut)
+async def check_authenticity(project_id: int, session: SessionDep, services: ServicesDep) -> ProjectOut:
+    """Re-run the AI-generation detection report on the current text (e.g. after editing)."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post first.")
+    soul = current_voice_soul(session, project.persona_id)
+    samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
+    project.authenticity = await analyze(
+        llm=services.llm,
+        settings=services.settings,
+        markdown=project.markdown,
+        voice_soul=soul.markdown if soul else "",
+        profile=author_profile(samples, soul.baseline_stylometrics if soul else None),
+        use_judge=services.settings.ai_detection,
+    )
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return project_out(session, project, services)
 
 
 # -- images ------------------------------------------------------------------------------
@@ -255,7 +280,7 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
     project = project_or_404(session, image.project_id)
     # Detached copy: the job outlives this request's database session.
     persona = Persona.model_validate(persona_or_404(session, project.persona_id).model_dump())
-    soul = latest_voice_soul(session, project.persona_id)
+    soul = current_voice_soul(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, soul.markdown if soul else ""
 
     async def run(ctx):  # type: ignore[no-untyped-def]
@@ -322,8 +347,13 @@ def export_bundle(project_id: int, platform: str, session: SessionDep, services:
     project = project_or_404(session, project_id)
     if not project.markdown:
         raise HTTPException(409, "Generate the post before exporting it.")
+    persona = session.get(Persona, project.persona_id)
     name, data = build_bundle(
-        project, project_images(session, project_id), services.storage.image_dir(project_id), _check_platform(platform)
+        project,
+        project_images(session, project_id),
+        services.storage.image_dir(project_id),
+        _check_platform(platform),
+        author=(persona.display_name or persona.name) if persona else "",
     )
     return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
@@ -333,3 +363,24 @@ def export_copy_html(project_id: int, platform: str, session: SessionDep, servic
     project = project_or_404(session, project_id)
     html = copy_html(project, project_images(session, project_id), services.storage.image_dir(project_id), _check_platform(platform))
     return CopyHtmlOut(html=html)
+
+
+@router.get("/projects/{project_id}/linkedin-post", response_model=LinkedInPostOut)
+def get_linkedin_post(project_id: int, session: SessionDep) -> LinkedInPostOut:
+    """The saved Claude-written feed post, or a template built from the article."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post first.")
+    text, by_claude = linkedin_post(project)
+    return LinkedInPostOut(text=text, characters=len(text), written_by="claude" if by_claude else "template")
+
+
+@router.post("/projects/{project_id}/linkedin-post", response_model=LinkedInPostOut)
+async def create_linkedin_post(project_id: int, session: SessionDep, services: ServicesDep) -> LinkedInPostOut:
+    """Have Claude write the LinkedIn feed post in the persona's voice (replaces any saved one)."""
+    project_or_404(session, project_id)
+    try:
+        text = await write_linkedin_post(llm=services.llm, settings=services.settings, engine=services.engine, project_id=project_id)
+    except (WriterError, LLMError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return LinkedInPostOut(text=text, characters=len(text), written_by="claude")
