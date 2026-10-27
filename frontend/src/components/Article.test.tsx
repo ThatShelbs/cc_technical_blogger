@@ -30,8 +30,8 @@ function image(slot: string, extra: Partial<ImageOut> = {}): ImageOut {
     prompt: '',
     alt: `${slot} alt`,
     caption: 'A sad pie',
-    credit: 'Author: Shelby; Made with FLUX',
-    provider: 'cloudflare-flux',
+    credit: 'Author: Shelby; Made with Claude Opus 5.5 (SVG)',
+    provider: 'claude-svg',
     seed: 1,
     width: 10,
     height: 10,
@@ -82,6 +82,6 @@ describe('Article', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Pie Charts Are Lame' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Section' })).toBeInTheDocument()
     expect(screen.getByAltText('hero alt')).toBeInTheDocument()
-    expect(screen.getByText('Pie logic; Author: Shelby; Made with FLUX')).toBeInTheDocument()
+    expect(screen.getByText('Pie logic; Author: Shelby; Made with Claude Opus 5.5 (SVG)')).toBeInTheDocument()
   })
 })

@@ -9,7 +9,7 @@ from docx import Document
 from fastapi.testclient import TestClient
 
 from proseferno.config import Settings
-from proseferno.demo import FakeLLM, FakeRaster
+from proseferno.demo import FakeLLM
 from proseferno.llm.auth import ClaudeAuth
 from proseferno.main import create_app
 from proseferno.secrets import MemorySecretStore
@@ -36,19 +36,14 @@ def fake_llm() -> FakeLLM:
 
 
 @pytest.fixture
-def fake_raster() -> FakeRaster:
-    return FakeRaster()
-
-
-@pytest.fixture
-def services(settings: Settings, fake_llm: FakeLLM, fake_raster: FakeRaster, tmp_path: Path) -> Services:
+def services(settings: Settings, fake_llm: FakeLLM, tmp_path: Path) -> Services:
     secrets = MemorySecretStore()
     auth = ClaudeAuth(
         secrets,
         env={"APPDATA": str(tmp_path / "appdata"), "ANTHROPIC_CONFIG_DIR": str(tmp_path / "anthropic")},
         discover_ant=False,
     )
-    return build_services(settings, secrets=secrets, llm=fake_llm, raster=fake_raster, auth=auth, inline_jobs=True)
+    return build_services(settings, secrets=secrets, llm=fake_llm, auth=auth, inline_jobs=True)
 
 
 @pytest.fixture

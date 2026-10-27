@@ -43,16 +43,15 @@ class Settings(BaseSettings):
     effort_plan: Effort = "medium"
     effort_draft: Effort = "high"
     effort_critique: Effort = "medium"
-    effort_images: Effort = "low"
+    effort_images: Effort = "medium"
+    effort_detect: Effort = "low"
     revision_passes: int = 1
     research_max_searches: int = 8
 
-    # Cloudflare Workers AI (FLUX.2 klein) — usually entered in the app instead.
-    cloudflare_account_id: str | None = None
-    cloudflare_api_token: str | None = None
-    cloudflare_model: str = "@cf/black-forest-labs/flux-2-klein-4b"
+    # Score every generated post for AI-writing tells with a Claude judge (heuristics always run).
+    ai_detection: bool = True
 
-    # Demo mode: canned AI responses and placeholder images (no keys, no cost).
+    # Demo mode: canned AI responses and images (no keys, no cost).
     demo: bool = False
 
     # OS keychain service name for stored secrets.

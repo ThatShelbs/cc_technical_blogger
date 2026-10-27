@@ -1,4 +1,4 @@
-"""Demo mode: deterministic stand-ins for Claude and the image model.
+"""Demo mode: a deterministic stand-in for Claude.
 
 Used by the test suite and by ``proseferno --demo``, which lets you click
 through the whole app with canned responses: no API keys, no cost.
@@ -14,7 +14,6 @@ from typing import Any
 from PIL import Image
 from pydantic import BaseModel
 
-from proseferno.images.base import RenderedImage
 from proseferno.llm.base import Citation, OnDelta, ResearchResult, SystemBlock, UsageSink
 
 VOICE_SOUL = """# Voice Soul: Test Persona
@@ -81,7 +80,7 @@ class FakeLLM:
             await asyncio.sleep(self.delay * 20)
         if usage:
             usage({"input_tokens": 100, "output_tokens": 50, "requests": 1})
-        return schema.model_validate(_structured_payload(schema.__name__))
+        return schema.model_validate(_structured_payload(schema.__name__, prompt))
 
     async def text(
         self,
@@ -136,6 +135,21 @@ DIAGRAM_SVG = (
     '<text x="250" y="340" fill="#fcffa4" font-size="28" text-anchor="middle">Data</text></svg>'
 )
 
+HERO_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900"><defs>'
+    '<linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b0c41"/><stop offset=".55" stop-color="#781c6d"/>'
+    '<stop offset="1" stop-color="#ed6925"/></linearGradient>'
+    '<radialGradient id="sun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fcffa4"/>'
+    '<stop offset="1" stop-color="#fb9b06"/></radialGradient>'
+    '<filter id="soft"><feGaussianBlur stdDeviation="18"/></filter></defs>'
+    '<rect width="1600" height="900" fill="url(#sky)"/><circle cx="1180" cy="300" r="190" fill="url(#sun)" opacity=".9"/>'
+    '<ellipse cx="800" cy="820" rx="700" ry="80" fill="#000004" opacity=".35" filter="url(#soft)"/>'
+    '<g transform="translate(560 260)"><rect x="40" y="180" width="320" height="320" rx="40" fill="#cf4446"/>'
+    '<path d="M200 340 L200 180 A160 160 0 0 1 356 304 Z" fill="#fcffa4"/>'
+    '<rect x="70" y="40" width="260" height="150" rx="36" fill="#f7d13d"/><circle cx="150" cy="115" r="22" fill="#1b0c41"/>'
+    '<circle cx="250" cy="115" r="22" fill="#1b0c41"/><rect x="190" y="0" width="20" height="44" rx="10" fill="#fb9b06"/></g></svg>'
+)
+
 CHART_SPEC = json.dumps(
     {
         "title": "Pie vs bar accuracy",
@@ -146,7 +160,7 @@ CHART_SPEC = json.dumps(
 )
 
 
-def _structured_payload(name: str) -> dict[str, Any]:
+def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
     if name == "SampleAnalysis":
         return {
             "summary": "A roast of word clouds.",
@@ -202,24 +216,37 @@ def _structured_payload(name: str) -> dict[str, Any]:
             "issues": ["Opening is generic"],
             "revision_instructions": ["Open with a personal confession"],
         }
-    if name == "RasterSpec":
-        return {"prompt": "A sad pie chart in a bakery window, warm light", "alt": "A sad pie chart", "caption": "The saddest pie"}
-    if name == "MemeSpec":
-        return {
-            "prompt": "A cat staring at a pie",
-            "alt": "Cat and pie",
-            "caption": "Me vs pie charts",
-            "top_text": "Pie chart",
-            "bottom_text": "Bar chart",
-        }
     if name == "SvgSpec":
+        if "**hero**" in prompt or "**illustration**" in prompt:
+            return {"svg": HERO_SVG, "alt": "A robot made of a pie chart under a setting sun", "caption": "The saddest pie"}
         return {"svg": DIAGRAM_SVG, "alt": "A diagram", "caption": "How pies mislead"}
     if name == "SvgMemeSpec":
-        return {"svg": DIAGRAM_SVG, "alt": "A meme", "caption": "Pie logic", "top_text": "Pie", "bottom_text": "Lie"}
+        return {"svg": HERO_SVG, "alt": "A pie-chart robot", "caption": "Pie logic", "top_text": "Pie chart", "bottom_text": "Bar chart"}
     if name == "ChartSpec":
         return {"vega_lite_json": CHART_SPEC, "alt": "Bar chart", "caption": "Accuracy by chart type", "data_is_illustrative": True}
     if name == "PostBrief":
         return {"brief": "Why pie charts mislead\n- angles are hard to compare\n- use sorted bars\n- a tiny matplotlib example"}
+    if name == "AIDetectionJudgement":
+        return {
+            "human_score": 82,
+            "verdict": "Reads like the author: specific, opinionated and a little sarcastic.",
+            "human_signals": ["Wry one-liners", "A concrete recommendation"],
+            "ai_signals": ["The closing line is a tidy summary"],
+            "flagged_passages": [
+                {
+                    "quote": "Your readers will thank you.",
+                    "reason": "Stock closing line",
+                    "suggestion": "End on a specific, slightly cheeky instruction instead.",
+                }
+            ],
+        }
+    if name == "LinkedInPost":
+        return {
+            "hook": "I stopped making pie charts in 2019. My dashboards got better overnight.",
+            "body": "Humans compare lengths far better than angles.\n\nSo the next time you reach for a pie, reach for a sorted bar.\n\n"
+            "What chart do you wish would disappear from slide decks?\n\nFull article in the comments.",
+            "hashtags": ["DataVisualization", "Analytics", "data viz"],
+        }
     if name == "Judgement":
         return {"reasoning": "Passage A has the author's wry asides.", "authentic": "A", "confidence": 3, "similarity": 7}
     raise AssertionError(f"FakeLLM has no payload for {name}")
@@ -229,38 +256,3 @@ def png_bytes(width: int = 64, height: int = 48, color: str = "#ed6925") -> byte
     buffer = io.BytesIO()
     Image.new("RGB", (width, height), color).save(buffer, format="PNG")
     return buffer.getvalue()
-
-
-def gradient_png(width: int, height: int, seed: int) -> bytes:
-    """An inferno-toned gradient so demo images look intentional."""
-    stops = ["#1b0c41", "#781c6d", "#cf4446", "#fb9b06", "#fcffa4"]
-    start, end = stops[seed % 3], stops[2 + seed % 3]
-    side = max(width, height) * 2
-    angle = seed % 360
-    big = Image.linear_gradient("L").resize((side, side)).rotate(angle, resample=Image.Resampling.BICUBIC, fillcolor=128)
-    left, top = (side - width) // 2, (side - height) // 2
-    mask = big.crop((left, top, left + width, top + height))
-    image = Image.composite(Image.new("RGB", (width, height), end), Image.new("RGB", (width, height), start), mask)
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
-class FakeRaster:
-    name = "cloudflare-flux"
-    label = "Fake FLUX"
-
-    def __init__(self, configured: bool = True, *, pretty: bool = False) -> None:
-        self.configured = configured
-        self.pretty = pretty
-        self.prompts: list[tuple[str, int]] = []
-
-    def is_configured(self) -> bool:
-        return self.configured
-
-    async def generate(self, prompt: str, *, width: int, height: int, seed: int) -> RenderedImage:
-        self.prompts.append((prompt, seed))
-        if self.pretty:
-            w, h = width // 2, height // 2
-            return RenderedImage(png=gradient_png(w, h, seed), width=w, height=h, provider=self.name, seed=seed)
-        return RenderedImage(png=png_bytes(width // 8, height // 8), width=width // 8, height=height // 8, provider=self.name, seed=seed)

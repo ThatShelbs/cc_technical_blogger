@@ -22,8 +22,21 @@ class Persona(SQLModel, table=True):
     display_name: str = ""
     is_active: bool = False
     research_enabled: bool = False
+    # Default dials for new posts. The 0-10 style dials are relative to the author: 5 = as in their writing.
     default_humor: int = 5
     default_education: str = "intermediate"
+    default_target_words: int = 1500
+    # None = choose the number of images from the length.
+    default_image_count: int | None = None
+    default_storytelling: int = 5
+    default_opinion: int = 5
+    default_formality: int = 5
+    default_technical_depth: int = 5
+    default_skimmability: int = 5
+    default_include_code: str = "auto"
+    default_platform: str = "medium"
+    # Voice soul version used for new posts; None = always the latest.
+    pinned_voice_soul_version: int | None = None
     # One line that keeps a post's generated images looking like a set.
     visual_style: str = ""
     # How image credits read; {name} = display name, {tool} = what made the image.
@@ -55,6 +68,8 @@ class VoiceSoul(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     persona_id: int = Field(foreign_key="persona.id", index=True)
     version: int
+    # Optional user-given name for this version, e.g. "Punchier, fewer jokes".
+    label: str = ""
     markdown: str = Field(sa_column=Column(Text))
     best_practices: str | None = Field(default=None, sa_column=Column(Text))
     sample_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))
@@ -77,6 +92,10 @@ class Project(SQLModel, table=True):
     markdown: str = Field(default="", sa_column=Column(Text))
     critique: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     fidelity: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    # AI-writing detection report: 100 = reads as authentic human prose, 0 = almost certainly flagged as AI.
+    authenticity: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    # Platform companions, e.g. {"linkedin_post": "..."}.
+    social: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     voice_soul_version: int | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
@@ -88,7 +107,7 @@ class ProjectImage(SQLModel, table=True):
     project_id: int = Field(foreign_key="project.id", index=True)
     slot_id: str
     position: int = 0
-    # hero | diagram | chart | illustration | meme | screenshot
+    # hero | illustration | icon | diagram | chart | meme | screenshot
     kind: str
     purpose: str = ""
     anchor: str = ""

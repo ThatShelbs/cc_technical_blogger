@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from sqlalchemy import Engine
 from sqlmodel import Session, col, delete, select
 
+from proseferno.authenticity import analyze, author_profile, scan
 from proseferno.config import Settings
 from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceSoul, utcnow
 from proseferno.images import PLACEHOLDER_RE, ImageService
@@ -20,7 +21,7 @@ from proseferno.ingest.stylometrics import compute, fidelity
 from proseferno.jobs import JobContext
 from proseferno.llm import LLM, SystemBlock
 from proseferno.prompts import raw, render
-from proseferno.voice import format_exemplars, latest_voice_soul, select_exemplars
+from proseferno.voice import current_voice_soul, format_exemplars, select_exemplars
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot
 
@@ -134,7 +135,7 @@ async def generate_article(
         if project is None:
             raise WriterError("Project not found.")
         persona = session.get(Persona, project.persona_id)
-        soul = latest_voice_soul(session, project.persona_id)
+        soul = current_voice_soul(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
         project.status = "generating"
         project.error = None
@@ -173,6 +174,7 @@ class WrittenPost:
     plan: ArticlePlan
     critique: Critique | None
     fidelity: dict[str, Any]
+    authenticity: dict[str, Any]
 
 
 async def write_post(
@@ -234,14 +236,21 @@ async def write_post(
     if on_draft:
         on_draft(draft, measured)
 
-    # 3. Critique and revise
+    # 3. Critique and revise (the editor also sees the AI-writing tells the scan found)
+    profile = author_profile(samples, soul.baseline_stylometrics)
     critique: Critique | None = None
     for round_number in range(dials.revision_passes):
-        await reporter.progress(0.45 + 0.1 * round_number, "Editor reviewing the draft for voice fidelity")
+        await reporter.progress(0.45 + 0.1 * round_number, "Editor reviewing the draft for voice fidelity and AI tells")
         critique = await llm.structured(
             task="critique",
             system=system,
-            prompt=render("critique", draft=draft, fidelity=json.dumps(measured, indent=1), **settings_text),
+            prompt=render(
+                "critique",
+                draft=draft,
+                fidelity=json.dumps(measured, indent=1),
+                ai_tells=scan(draft, profile).tells_text(),
+                **settings_text,
+            ),
             schema=Critique,
             effort=settings.effort_critique,
             usage=reporter.add_usage,
@@ -262,7 +271,20 @@ async def write_post(
         draft = ensure_placeholders(draft, slots)
         measured = measure(draft, soul.baseline_stylometrics)
 
-    return WrittenPost(markdown=draft, plan=plan, critique=critique, fidelity=measured)
+    # 4. AI-generation detection report
+    await reporter.progress(0.66, "Checking how human the post reads")
+    authenticity = await analyze(
+        llm=llm,
+        settings=settings,
+        markdown=draft,
+        voice_soul=soul.markdown,
+        profile=profile,
+        use_judge=settings.ai_detection,
+        usage=reporter.add_usage,
+    )
+    await reporter.emit("authenticity", authenticity)
+
+    return WrittenPost(markdown=draft, plan=plan, critique=critique, fidelity=measured, authenticity=authenticity)
 
 
 async def _generate(
@@ -303,9 +325,10 @@ async def _generate(
         subtitle=subtitle or plan.subtitle,
         critique=post.critique.model_dump() if post.critique else None,
         fidelity=post.fidelity,
+        authenticity=post.authenticity,
     )
 
-    # 4. Images
+    # 5. Images
     await ctx.progress(0.7, f"Creating {len(slots)} images")
     image_ids = _create_image_rows(engine, project.id, slots)
     finished = 0
@@ -345,7 +368,7 @@ async def rewrite_passage(
         project = session.get(Project, project_id)
         if project is None:
             raise WriterError("Project not found.")
-        soul = latest_voice_soul(session, project.persona_id)
+        soul = current_voice_soul(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
     if soul is None:
         raise WriterError("This persona has no voice soul yet.")
@@ -377,8 +400,10 @@ def _settings_text(dials: ResolvedDials) -> dict[str, Any]:
         "humor_guide": dials.humor_guide,
         "education": dials.education,
         "education_guide": dials.education_guide,
+        "style_guide": dials.style_guide,
         "include_code": include_code,
         "platform": dials.platform,
+        "platform_guide": dials.platform_guide,
         "image_count": dials.image_count,
     }
 

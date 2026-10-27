@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from proseferno.writer.dials import Dials
+from proseferno.writer.dials import Dials, IncludeCode, Platform
 
 Education = Literal["beginner", "intermediate", "expert"]
 SampleKind = Literal["own", "influence"]
@@ -46,9 +46,8 @@ class SettingsOut(BaseModel):
     model: str
     use_fallbacks: bool
     revision_passes: int
-    cloudflare_account_id: str | None
-    cloudflare_configured: bool
-    image_provider_label: str
+    ai_detection: bool
+    image_tool_label: str
     data_dir: str
     seed_samples_dir: str
     version: str
@@ -59,8 +58,7 @@ class SettingsIn(BaseModel):
     model: str | None = None
     use_fallbacks: bool | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
-    cloudflare_account_id: str | None = None
-    cloudflare_api_token: str | None = None
+    ai_detection: bool | None = None
 
 
 # -- personas / samples / voice ----------------------------------------------------
@@ -74,14 +72,39 @@ class PersonaCreate(BaseModel):
     default_education: Education = "intermediate"
 
 
-class PersonaUpdate(BaseModel):
+class PersonaDefaults(BaseModel):
+    """Default dials for the persona's new posts (every field optional on update)."""
+
+    default_humor: int | None = Field(None, ge=0, le=10)
+    default_education: Education | None = None
+    default_target_words: int | None = Field(None, ge=300, le=6000)
+    # 0 = choose automatically from the length.
+    default_image_count: int | None = Field(None, ge=0, le=15)
+    default_storytelling: int | None = Field(None, ge=0, le=10)
+    default_opinion: int | None = Field(None, ge=0, le=10)
+    default_formality: int | None = Field(None, ge=0, le=10)
+    default_technical_depth: int | None = Field(None, ge=0, le=10)
+    default_skimmability: int | None = Field(None, ge=0, le=10)
+    default_include_code: IncludeCode | None = None
+    default_platform: Platform | None = None
+
+
+class PersonaUpdate(PersonaDefaults):
     name: str | None = Field(None, min_length=1, max_length=80)
     display_name: str | None = None
     research_enabled: bool | None = None
-    default_humor: int | None = Field(None, ge=0, le=10)
-    default_education: Education | None = None
     visual_style: str | None = None
     credit_template: str | None = None
+    # Which voice soul version new posts use; null = always the latest.
+    pinned_voice_soul_version: int | None = None
+
+
+class VoiceSoulVersion(BaseModel):
+    id: int
+    version: int
+    label: str
+    edited_by_user: bool
+    created_at: datetime
 
 
 class PersonaOut(BaseModel):
@@ -92,13 +115,35 @@ class PersonaOut(BaseModel):
     research_enabled: bool
     default_humor: int
     default_education: str
+    default_target_words: int
+    default_image_count: int | None
+    default_storytelling: int
+    default_opinion: int
+    default_formality: int
+    default_technical_depth: int
+    default_skimmability: int
+    default_include_code: str
+    default_platform: str
     visual_style: str
     credit_template: str
     own_samples: int
     influence_samples: int
+    # The version new posts use (pinned, else latest).
     voice_soul_version: int | None
+    voice_soul_label: str
+    latest_voice_soul_version: int | None
+    pinned_voice_soul_version: int | None
+    voice_soul_versions: list[VoiceSoulVersion]
     active_job_id: str | None
     created_at: datetime
+
+
+class PersonaDuplicateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    display_name: str | None = None
+    # Copy this voice soul version as the new persona's v1 (null = start without one).
+    voice_soul_version: int | None = None
+    copy_samples: bool = True
 
 
 class SampleOut(BaseModel):
@@ -147,6 +192,8 @@ class VoiceSoulOut(BaseModel):
     id: int
     persona_id: int
     version: int
+    label: str
+    in_use: bool
     markdown: str
     best_practices: str | None
     baseline_stylometrics: dict[str, Any]
@@ -156,15 +203,17 @@ class VoiceSoulOut(BaseModel):
     created_at: datetime
 
 
-class VoiceSoulVersion(BaseModel):
-    id: int
-    version: int
-    edited_by_user: bool
-    created_at: datetime
-
-
 class VoiceSoulEdit(BaseModel):
     markdown: str = Field(min_length=20)
+    label: str = Field("", max_length=80)
+
+
+class VoiceSoulGenerateIn(BaseModel):
+    label: str = Field("", max_length=80)
+
+
+class VoiceSoulLabelIn(BaseModel):
+    label: str = Field(max_length=80)
 
 
 # -- jobs -------------------------------------------------------------------------
@@ -269,6 +318,8 @@ class ProjectOut(BaseModel):
     markdown: str
     critique: dict[str, Any] | None
     fidelity: dict[str, Any] | None
+    authenticity: dict[str, Any] | None
+    social: dict[str, Any] | None
     voice_soul_version: int | None
     error: str | None
     images: list[ImageOut]
@@ -289,3 +340,9 @@ class RewriteIn(BaseModel):
 
 class CopyHtmlOut(BaseModel):
     html: str
+
+
+class LinkedInPostOut(BaseModel):
+    text: str
+    characters: int
+    written_by: Literal["claude", "template"]

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { useActivePersona, useAuthStatus, useHealth } from '../api/hooks'
-import { ClaudeConnect, CloudflareConnect } from '../components/Connections'
+import { ClaudeConnect, ImagesCard } from '../components/Connections'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceSoulPanel } from '../components/VoiceSoulPanel'
 import { Button, Card } from '../components/ui'
@@ -58,7 +58,7 @@ export function WelcomePage() {
 
       <div className="space-y-6">
         {step === 0 && <ClaudeConnect />}
-        {step === 1 && <CloudflareConnect />}
+        {step === 1 && <ImagesCard />}
         {step === 2 &&
           (persona ? (
             <Card>
@@ -89,7 +89,7 @@ export function WelcomePage() {
           </Button>
           {step < STEPS.length - 1 ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext} icon={<ArrowRight className="size-4" />}>
-              {step === 1 ? 'Continue (you can skip this)' : 'Continue'}
+              Continue
             </Button>
           ) : (
             <Link to="/projects/new">

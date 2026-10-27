@@ -34,13 +34,18 @@ export interface CopyHtmlOut {
 }
 
 export interface Dials {
-  target_words?: number;
+  target_words?: number | null;
   image_count?: number | null;
   humor?: number | null;
   education?: "beginner" | "intermediate" | "expert" | null;
+  storytelling?: number | null;
+  opinion?: number | null;
+  formality?: number | null;
+  technical_depth?: number | null;
+  skimmability?: number | null;
   topic?: string | null;
-  platform?: "medium" | "substack" | "gumroad" | "markdown";
-  include_code?: "auto" | "yes" | "no";
+  platform?: "medium" | "substack" | "linkedin" | "gumroad" | "markdown" | null;
+  include_code?: "auto" | "yes" | "no" | null;
   revision_passes?: number | null;
 }
 
@@ -99,12 +104,25 @@ export interface JobOut {
   created_at: string;
 }
 
+export interface LinkedInPostOut {
+  text: string;
+  characters: number;
+  written_by: "claude" | "template";
+}
+
 export interface PersonaCreate {
   name: string;
   display_name?: string;
   research_enabled?: boolean;
   default_humor?: number;
   default_education?: "beginner" | "intermediate" | "expert";
+}
+
+export interface PersonaDuplicateIn {
+  name: string;
+  display_name?: string | null;
+  voice_soul_version?: number | null;
+  copy_samples?: boolean;
 }
 
 export interface PersonaOut {
@@ -115,23 +133,46 @@ export interface PersonaOut {
   research_enabled: boolean;
   default_humor: number;
   default_education: string;
+  default_target_words: number;
+  default_image_count: number | null;
+  default_storytelling: number;
+  default_opinion: number;
+  default_formality: number;
+  default_technical_depth: number;
+  default_skimmability: number;
+  default_include_code: string;
+  default_platform: string;
   visual_style: string;
   credit_template: string;
   own_samples: number;
   influence_samples: number;
   voice_soul_version: number | null;
+  voice_soul_label: string;
+  latest_voice_soul_version: number | null;
+  pinned_voice_soul_version: number | null;
+  voice_soul_versions: VoiceSoulVersion[];
   active_job_id: string | null;
   created_at: string;
 }
 
 export interface PersonaUpdate {
+  default_humor?: number | null;
+  default_education?: "beginner" | "intermediate" | "expert" | null;
+  default_target_words?: number | null;
+  default_image_count?: number | null;
+  default_storytelling?: number | null;
+  default_opinion?: number | null;
+  default_formality?: number | null;
+  default_technical_depth?: number | null;
+  default_skimmability?: number | null;
+  default_include_code?: "auto" | "yes" | "no" | null;
+  default_platform?: "medium" | "substack" | "linkedin" | "gumroad" | "markdown" | null;
   name?: string | null;
   display_name?: string | null;
   research_enabled?: boolean | null;
-  default_humor?: number | null;
-  default_education?: "beginner" | "intermediate" | "expert" | null;
   visual_style?: string | null;
   credit_template?: string | null;
+  pinned_voice_soul_version?: number | null;
 }
 
 export interface ProjectCreate {
@@ -159,6 +200,8 @@ export interface ProjectOut {
   markdown: string;
   critique: Record<string, unknown> | null;
   fidelity: Record<string, unknown> | null;
+  authenticity: Record<string, unknown> | null;
+  social: Record<string, unknown> | null;
   voice_soul_version: number | null;
   error: string | null;
   images: ImageOut[];
@@ -247,17 +290,15 @@ export interface SettingsIn {
   model?: string | null;
   use_fallbacks?: boolean | null;
   revision_passes?: number | null;
-  cloudflare_account_id?: string | null;
-  cloudflare_api_token?: string | null;
+  ai_detection?: boolean | null;
 }
 
 export interface SettingsOut {
   model: string;
   use_fallbacks: boolean;
   revision_passes: number;
-  cloudflare_account_id: string | null;
-  cloudflare_configured: boolean;
-  image_provider_label: string;
+  ai_detection: boolean;
+  image_tool_label: string;
   data_dir: string;
   seed_samples_dir: string;
   version: string;
@@ -276,12 +317,23 @@ export interface UrlImportIn {
 
 export interface VoiceSoulEdit {
   markdown: string;
+  label?: string;
+}
+
+export interface VoiceSoulGenerateIn {
+  label?: string;
+}
+
+export interface VoiceSoulLabelIn {
+  label: string;
 }
 
 export interface VoiceSoulOut {
   id: number;
   persona_id: number;
   version: number;
+  label: string;
+  in_use: boolean;
   markdown: string;
   best_practices: string | null;
   baseline_stylometrics: Record<string, unknown>;
@@ -294,6 +346,7 @@ export interface VoiceSoulOut {
 export interface VoiceSoulVersion {
   id: number;
   version: number;
+  label: string;
   edited_by_user: boolean;
   created_at: string;
 }

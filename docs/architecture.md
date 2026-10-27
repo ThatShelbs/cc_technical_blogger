@@ -13,6 +13,7 @@ flowchart TB
     Voice[voice/ pipeline]
     Writer[writer/ pipeline]
     Images[images/ service]
+    Detect[authenticity/ scan + judge]
     Export[export/ bundles]
     LLM[llm/ ClaudeLLM]
   end
@@ -20,13 +21,11 @@ flowchart TB
   Files[(data/ files<br/>samples, voice souls, images)]
   Keychain[(OS keychain)]
   Claude[[Claude API]]
-  CF[[Cloudflare Workers AI<br/>FLUX.2 klein]]
 
   UI -- REST + SSE --> API
   API --> Jobs --> Voice & Writer
-  Writer --> Images
-  Voice & Writer & Images --> LLM --> Claude
-  Images --> CF
+  Writer --> Images & Detect
+  Voice & Writer & Images & Detect --> LLM --> Claude
   API --> Export
   API & Jobs --> DB
   Voice & Images & Export --> Files
@@ -38,17 +37,18 @@ flowchart TB
 | Module | Responsibility |
 | --- | --- |
 | `config.py` | Settings with smart defaults; `PROSEFERNO_*` env vars or `.env` override them. |
-| `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image provider, jobs). Tests and demo mode inject fakes here. |
-| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceSoul`, `Project`, `ProjectImage`, `Job`, `AppSetting`. |
+| `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs). Tests and demo mode inject fakes here. |
+| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceSoul`, `Project`, `ProjectImage`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
 | `jobs.py` | Runs long work as asyncio tasks, persists status, and keeps an in-memory event log per job that `/api/jobs/{id}/events` streams as Server-Sent Events (with sequence ids, so reconnects resume cleanly). |
 | `llm/` | The `LLM` protocol, the Claude implementation (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching) and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
 | `voice/` | Sample analysis, best-practice research, voice soul synthesis, exemplar selection. |
-| `writer/` | Dials, plan → draft → critique → revise, passage rewrite. |
-| `images/` | Image design (Claude), FLUX provider, SVG/Vega-Lite/meme/placeholder renderers, credits, redraw history. |
-| `export/` | HTML/Markdown rendering and platform bundles. |
+| `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, LinkedIn feed post. |
+| `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
+| `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, memes, placeholders, credits, redraw history. |
+| `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX). |
 | `prompts/` | All prompts as Markdown templates. |
-| `demo.py` | Fake Claude and fake image model used by tests and `--demo`. |
+| `demo.py` | Fake Claude used by tests and `--demo`. |
 
 ## Claude usage
 
@@ -60,7 +60,9 @@ flowchart TB
 | Plan a post | structured output (`ArticlePlan`) | medium |
 | Draft / revise | streamed text | high |
 | Critique | structured output (`Critique`) | medium |
-| Design an image | structured output (`RasterSpec`, `SvgSpec`, `ChartSpec`, `MemeSpec`) | low |
+| AI-detection judge | structured output (`AIDetectionJudgement`) | low |
+| LinkedIn feed post | structured output (`LinkedInPost`) | medium |
+| Design an image | structured output (`SvgSpec`, `SvgMemeSpec`, `ChartSpec`) | medium |
 
 All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice soul → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix.
 

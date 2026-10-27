@@ -110,7 +110,7 @@ export function SampleUploader({ personaId, defaultKind = 'own' }: { personaId: 
       {seed.data?.available && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
           <p className="text-sm">
-            Found <strong>{seed.data.files.length}</strong> posts in <code className="text-xs">{seed.data.directory}</code>
+            Found <strong>{seed.data.files.length}</strong> posts in <code className="text-xs break-all">{seed.data.directory}</code>
           </p>
           <Button
             size="sm"

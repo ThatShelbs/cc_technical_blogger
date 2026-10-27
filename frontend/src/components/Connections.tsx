@@ -2,7 +2,7 @@ import { CheckCircle2, ExternalLink, ImageIcon, KeyRound, LogIn, Sparkles } from
 import { useState } from 'react'
 
 import { errorText } from '../api/client'
-import { useAuthActions, useAuthStatus, useDeleteCloudflareToken, useHealth, useSettings, useUpdateSettings } from '../api/hooks'
+import { useAuthActions, useAuthStatus, useHealth, useSettings } from '../api/hooks'
 import type { AuthStatusOut } from '../api/types.gen'
 import { Badge, Button, Card, Field, Input, Notice } from './ui'
 
@@ -138,64 +138,31 @@ function ConnectionDetails({
   )
 }
 
-export function CloudflareConnect() {
+export function ImagesCard() {
   const { data: settings } = useSettings()
-  const update = useUpdateSettings()
-  const removeToken = useDeleteCloudflareToken()
-  const [accountId, setAccountId] = useState<string | null>(null)
-  const [token, setToken] = useState('')
-  if (!settings) return null
-  const account = accountId ?? settings.cloudflare_account_id ?? ''
-
   return (
-    <Card className="space-y-4">
+    <Card className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <ImageIcon className="size-6 text-accent" aria-hidden />
           <div>
-            <h2 className="text-lg font-bold">Images (optional)</h2>
-            <p className="text-sm text-muted">Hero, illustration and meme images use FLUX.2 [klein] on Cloudflare Workers AI.</p>
+            <h2 className="text-lg font-bold">Images</h2>
+            <p className="text-sm text-muted">Claude draws every image itself. Nothing to set up.</p>
           </div>
         </div>
-        {settings.cloudflare_configured ? <Badge tone="success">Configured</Badge> : <Badge>Not configured</Badge>}
+        <Badge tone="success">
+          <CheckCircle2 className="size-3.5" aria-hidden /> Ready
+        </Badge>
       </div>
-      <p className="text-sm text-muted">
-        Without it, Proseferno still makes diagrams, charts and SVG illustrations with Claude. Create a token with the <strong>Workers AI</strong> permission in
-        the{' '}
-        <a className="font-semibold text-primary underline" href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noreferrer">
-          Cloudflare dashboard
-        </a>
-        ; your account ID is on the Workers AI overview page. Cloudflare includes a daily free allocation.
+      <ul className="list-disc space-y-1 pl-5 text-sm">
+        <li>Hero and stock-style illustrations, concept icons and memes: hand-built SVG vector art.</li>
+        <li>Diagrams (workflows, architectures, comparisons): clean SVG in your inferno palette.</li>
+        <li>Data visualizations: Vega-Lite charts with inline data, labeled when the numbers are illustrative.</li>
+      </ul>
+      <p className="text-xs text-muted">
+        Everything is rendered on your computer; model-written code is never run. Credits name you and the model
+        {settings ? ` (${settings.image_tool_label.split(':')[0]})` : ''}.
       </p>
-      <form
-        className="grid gap-3 sm:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          update.mutate({ cloudflare_account_id: account, cloudflare_api_token: token || null }, { onSuccess: () => setToken('') })
-        }}
-      >
-        <Field label="Account ID" htmlFor="cf-account">
-          <Input id="cf-account" value={account} onChange={(e) => setAccountId(e.target.value)} placeholder="e.g. 1a2b3c…" />
-        </Field>
-        <Field
-          label="API token"
-          htmlFor="cf-token"
-          hint={settings.cloudflare_configured ? 'A token is saved. Enter a new one to replace it.' : 'Stored in your OS keychain.'}
-        >
-          <Input id="cf-token" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="••••••••" />
-        </Field>
-        <div className="flex flex-wrap gap-2 sm:col-span-2">
-          <Button type="submit" loading={update.isPending} disabled={!account.trim()}>
-            Save image settings
-          </Button>
-          {settings.cloudflare_configured && (
-            <Button variant="ghost" onClick={() => removeToken.mutate()}>
-              Remove token
-            </Button>
-          )}
-        </div>
-      </form>
-      {update.error && <Notice tone="error">{errorText(update.error)}</Notice>}
     </Card>
   )
 }

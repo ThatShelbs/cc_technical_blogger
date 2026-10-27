@@ -1,18 +1,24 @@
-import { ChevronDown, Flame } from 'lucide-react'
+import { ChevronDown, Flame, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { errorText } from '../api/client'
 import { useActivePersona, useProjectMutations } from '../api/hooks'
-import { TOPICS, buildDials, type DialsState, type Education } from './dials'
+import {
+  PLATFORMS,
+  STYLE_DIALS,
+  TOPICS,
+  autoImageCount,
+  buildDials,
+  emptyDials,
+  personaStyle,
+  styleLabel,
+  type DialsState,
+  type Education,
+  type IncludeCode,
+  type Platform,
+} from './dials'
 import { Button, Card, Field, Notice, PageHeader, Select, Slider, Textarea } from '../components/ui'
-
-const PLATFORMS = [
-  ['medium', 'Medium'],
-  ['substack', 'Substack'],
-  ['gumroad', 'Gumroad'],
-  ['markdown', 'Markdown (dev.to, Hashnode, Ghost)'],
-] as const
 
 const EXAMPLE = `Why most A/B tests at big companies are underpowered
 - story: the test that "won" and then quietly lost
@@ -26,30 +32,35 @@ export function NewProjectPage() {
   const { create } = useProjectMutations()
   const [prompt, setPrompt] = useState('')
   const [custom, setCustom] = useState(false)
-  const [dials, setDials] = useState<DialsState>({
-    targetWords: 1500,
-    autoImages: true,
-    imageCount: 4,
-    humor: null,
-    education: null,
-    topic: '',
-    platform: 'medium',
-    includeCode: 'auto',
-  })
+  const [dials, setDials] = useState<DialsState>(emptyDials)
   const set = (patch: Partial<DialsState>) => setDials((d) => ({ ...d, ...patch }))
+
+  // What each control shows: the user's choice, else the persona's default.
+  const targetWords = dials.targetWords ?? persona?.default_target_words ?? 1500
+  const imageCount = dials.imageCount ?? persona?.default_image_count ?? null
   const humor = dials.humor ?? persona?.default_humor ?? 5
   const education = dials.education ?? (persona?.default_education as Education | undefined) ?? 'intermediate'
+  const platform = dials.platform ?? (persona?.default_platform as Platform | undefined) ?? 'medium'
+  const includeCode = dials.includeCode ?? (persona?.default_include_code as IncludeCode | undefined) ?? 'auto'
+  const changed = Object.keys(buildDials(dials)).length > 0
 
   const ready = !!persona?.voice_soul_version
   const submit = () =>
     create.mutate(
-      { prompt, dials: buildDials(custom, dials), persona_id: persona?.id },
+      { prompt, dials: buildDials(dials), persona_id: persona?.id },
       { onSuccess: (data) => navigate(`/projects/${data.project.id}${data.job_id ? `?job=${data.job_id}` : ''}`) },
     )
 
   return (
     <>
-      <PageHeader title="New post" subtitle={persona ? `Writing as ${persona.name}` : undefined} />
+      <PageHeader
+        title="New post"
+        subtitle={
+          persona
+            ? `Writing as ${persona.name}${persona.voice_soul_version ? ` · voice soul v${persona.voice_soul_version}${persona.voice_soul_label ? ` (${persona.voice_soul_label})` : ''}` : ''}`
+            : undefined
+        }
+      />
       {!isLoading && !ready && (
         <div className="mb-6">
           <Notice tone="warn" title={persona ? `${persona.name} has no voice soul yet` : 'No persona is turned on'}>
@@ -90,14 +101,25 @@ export function NewProjectPage() {
         </Card>
 
         <Card className="h-fit space-y-5">
+          <Field label="Publishing on" htmlFor="platform">
+            <Select id="platform" value={platform} onChange={(e) => set({ platform: e.target.value as Platform })}>
+              {PLATFORMS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <button type="button" className="flex w-full items-center justify-between font-bold" aria-expanded={custom} onClick={() => setCustom((v) => !v)}>
             Customize
             <ChevronDown className={`size-5 transition ${custom ? 'rotate-180' : ''}`} aria-hidden />
           </button>
           {!custom ? (
             <p className="text-sm text-muted">
-              Smart defaults: about 1,500 words, an image every ~350 words (hero first, meme last), your persona&apos;s usual humor and level, topic detected
-              automatically.
+              Using {persona ? `${persona.name}'s` : 'your'} defaults: about {targetWords.toLocaleString()} words,{' '}
+              {imageCount ? `${imageCount} images` : 'an image every ~350 words'} (hero first, meme last), humor {humor}/10, style dials as you write, topic
+              detected automatically.
+              {changed && ' Some settings are customized for this post.'}
             </p>
           ) : (
             <div className="space-y-5">
@@ -106,7 +128,7 @@ export function NewProjectPage() {
                 min={500}
                 max={5000}
                 step={100}
-                value={dials.targetWords}
+                value={targetWords}
                 onChange={(v) => set({ targetWords: v })}
                 format={(v) => `${v.toLocaleString()} words`}
               />
@@ -114,15 +136,26 @@ export function NewProjectPage() {
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    checked={dials.autoImages}
-                    onChange={(e) => set({ autoImages: e.target.checked })}
+                    checked={imageCount === null}
+                    onChange={(e) => set({ imageCount: e.target.checked ? null : autoImageCount(targetWords) })}
                     className="accent-[var(--app-accent)]"
                   />
                   Choose the number of images automatically
                 </label>
-                {!dials.autoImages && <Slider label="Images" min={2} max={12} value={dials.imageCount} onChange={(v) => set({ imageCount: v })} />}
+                {imageCount !== null && <Slider label="Images" min={2} max={12} value={imageCount} onChange={(v) => set({ imageCount: v })} />}
               </div>
               <Slider label="Humor" min={0} max={10} value={humor} onChange={(v) => set({ humor: v })} format={(v) => `${v}/10`} />
+              {STYLE_DIALS.map(({ key, label, low, high }) => (
+                <Slider
+                  key={key}
+                  label={label}
+                  min={0}
+                  max={10}
+                  value={dials.style[key] ?? personaStyle(persona, key)}
+                  onChange={(v) => set({ style: { ...dials.style, [key]: v } })}
+                  format={(v) => styleLabel(v, low, high)}
+                />
+              ))}
               <Field label="Education level" htmlFor="education">
                 <Select id="education" value={education} onChange={(e) => set({ education: e.target.value as Education })}>
                   <option value="beginner">Beginner: explain everything</option>
@@ -139,23 +172,17 @@ export function NewProjectPage() {
                 </Select>
               </Field>
               <Field label="Code snippets and prompts" htmlFor="code">
-                <Select id="code" value={dials.includeCode} onChange={(e) => set({ includeCode: e.target.value as DialsState['includeCode'] })}>
+                <Select id="code" value={includeCode} onChange={(e) => set({ includeCode: e.target.value as IncludeCode })}>
                   <option value="auto">Where they help</option>
                   <option value="yes">Yes, include them</option>
                   <option value="no">No code</option>
                 </Select>
               </Field>
+              <Button variant="ghost" size="sm" icon={<RotateCcw className="size-4" />} disabled={!changed} onClick={() => setDials(emptyDials)}>
+                Reset to persona defaults
+              </Button>
             </div>
           )}
-          <Field label="Publishing on" htmlFor="platform">
-            <Select id="platform" value={dials.platform} onChange={(e) => set({ platform: e.target.value as DialsState['platform'] })}>
-              {PLATFORMS.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </Field>
         </Card>
       </form>
     </>

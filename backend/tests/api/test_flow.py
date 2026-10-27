@@ -1,4 +1,4 @@
-"""End-to-end API flow with a fake Claude and a fake image model."""
+"""End-to-end API flow with a fake Claude."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import zipfile
 from fastapi.testclient import TestClient
 
 from proseferno.config import Settings
-from proseferno.demo import FakeLLM, FakeRaster, png_bytes
+from proseferno.demo import FakeLLM, png_bytes
 
 
 def create_persona(client: TestClient, name: str = "Shelby") -> dict:
@@ -47,7 +47,7 @@ def test_exactly_one_persona_is_active(client: TestClient) -> None:
     assert len(remaining) == 1 and remaining[0]["is_active"]
 
 
-def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM, fake_raster: FakeRaster) -> None:
+def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
     persona = create_persona(client)
     pid = persona["id"]
 
@@ -95,25 +95,34 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     assert kinds == ["hero", "diagram", "chart", "meme"]
     assert all(img["status"] == "ready" and img["url"] for img in project["images"])
     assert all(img["credit"].startswith("Author: Shelby Temple") for img in project["images"])
+    assert project["images"][0]["credit"] == "Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)"
+    assert project["images"][2]["credit"].endswith("Claude Opus 5.5 + Vega-Lite")
+    assert [img["provider"] for img in project["images"]] == ["claude-svg", "claude-svg", "vega-lite", "claude-svg"]
     assert "(illustrative data)" in project["images"][2]["caption"]
+    # AI-generation detection ran (scan + judge) and the editor saw the scan's findings.
+    report = project["authenticity"]
+    assert 0 <= report["score"] <= 100 and report["judge_score"] == 82 and report["label"]
+    assert any(f["source"] == "judge" for f in report["flagged"])
+    critique_call = next(c for c in fake_llm.calls if c.get("task") == "critique")
+    assert "AI-writing tells found by an automated scan" in critique_call["prompt"]
     assert "draft" in fake_llm.tasks() and "revision" in fake_llm.tasks()
     # The writer saw the voice soul and the user's own example post.
     draft_call = next(c for c in fake_llm.calls if c.get("task") == "draft")
     system_text = "\n".join(block.text for block in draft_call["system"])
     assert "edited by hand" in system_text and "Pie Charts Are Lame" in system_text
 
-    # Images: file, redraw (new seed, same prompt), upload, revert.
+    # Images: file, redraw (Claude designs a new version), upload, revert.
     hero = project["images"][0]
     assert client.get(hero["url"]).headers["content-type"] == "image/png"
-    prompts_before = len(fake_raster.prompts)
+    designs_before = fake_llm.tasks().count("hero image design")
     redraw = client.post(f"/api/images/{hero['id']}/redraw", json={}).json()
     assert redraw["status"] == "succeeded", redraw
-    assert len(fake_raster.prompts) == prompts_before + 1
-    assert fake_raster.prompts[-1][0] == fake_raster.prompts[0][0]
+    assert fake_llm.tasks().count("hero image design") == designs_before + 1
+    assert "This is a redraw" in fake_llm.calls[-1]["prompt"]
     uploaded = client.post(f"/api/images/{hero['id']}/upload", files={"file": ("shot.png", png_bytes(), "image/png")}).json()
     assert uploaded["provider"] == "upload" and len(uploaded["history"]) == 3
     reverted = client.post(f"/api/images/{hero['id']}/revert", json={"index": 0}).json()
-    assert reverted["provider"] == "cloudflare-flux"
+    assert reverted["provider"] == "claude-svg"
     assert client.get(reverted["history"][1]["url"]).status_code == 200
 
     # Editing: title, caption, passage rewrite.
@@ -130,6 +139,7 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     for platform, expected in {
         "medium": {"post.html", "post.md", "thumbnail.png", "README.txt"},
         "substack": {"post.html", "post.md", "thumbnail.png"},
+        "linkedin": {"post.html", "post.md", "thumbnail.png", "feed-post.txt", "carousel.pdf", "carousel.pptx"},
         "gumroad": {"post.pdf", "post.html"},
         "markdown": {"post.md", "post.docx"},
     }.items():
@@ -144,6 +154,23 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     assert "<figcaption>A very sad pie; Author: Shelby Temple" in medium
     substack = client.get(f"/api/projects/{project_id}/copy/substack").json()["html"]
     assert "<h1>" not in substack and "<h2>" in substack
+    linkedin = client.get(f"/api/projects/{project_id}/copy/linkedin").json()["html"]
+    assert "<h1>" not in linkedin and "<h2>" in linkedin
+
+    # LinkedIn feed post: a template until Claude writes one in the persona's voice.
+    template = client.get(f"/api/projects/{project_id}/linkedin-post").json()
+    assert template["written_by"] == "template" and template["characters"] <= 3000 and "#" in template["text"]
+    written = client.post(f"/api/projects/{project_id}/linkedin-post").json()
+    assert written["written_by"] == "claude" and written["text"].startswith("I stopped making pie charts")
+    assert "#DataViz" in written["text"] and "**" not in written["text"]
+    assert client.get(f"/api/projects/{project_id}/linkedin-post").json()["text"] == written["text"]
+    bundle = zipfile.ZipFile(io.BytesIO(client.get(f"/api/projects/{project_id}/export/linkedin").content))
+    assert bundle.read("feed-post.txt").decode().startswith("I stopped making pie charts")
+    assert bundle.read("carousel.pdf").startswith(b"%PDF")
+
+    # Re-running the AI check after edits.
+    rechecked = client.post(f"/api/projects/{project_id}/authenticity").json()
+    assert rechecked["authenticity"]["checked_at"] != report["checked_at"]
     assert client.get(f"/api/projects/{project_id}/export/myspace").status_code == 404
 
     summaries = client.get("/api/projects").json()
@@ -154,17 +181,64 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     assert client.get("/api/projects").json() == []
 
 
-def test_without_cloudflare_raster_images_fall_back_to_svg(client: TestClient, sample_docx: bytes, fake_raster: FakeRaster) -> None:
-    fake_raster.configured = False
+def test_persona_versions_rename_and_duplicate(client: TestClient, sample_docx: bytes) -> None:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    client.post(f"/api/personas/{pid}/voice-soul", json={"label": "First take"})
+    client.post(f"/api/personas/{pid}/voice-soul")
+    persona = client.get(f"/api/personas/{pid}").json()
+    assert persona["voice_soul_version"] == 2 and persona["latest_voice_soul_version"] == 2
+    assert [v["label"] for v in persona["voice_soul_versions"]] == ["", "First take"]
+
+    # Pin an older version: new posts use it, and the persona reports it.
+    pinned = client.patch(f"/api/personas/{pid}", json={"pinned_voice_soul_version": 1}).json()
+    assert pinned["voice_soul_version"] == 1 and pinned["voice_soul_label"] == "First take"
+    assert client.get(f"/api/personas/{pid}/voice-soul").json()["version"] == 1
+    assert client.get(f"/api/personas/{pid}/voice-soul?version=2").json()["in_use"] is False
+    assert client.patch(f"/api/personas/{pid}", json={"pinned_voice_soul_version": 9}).status_code == 404
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"image_count": 2, "revision_passes": 0}}).json()
+    assert (
+        created["project"]["voice_soul_version"] == 1
+        or client.get(f"/api/projects/{created['project']['id']}").json()["voice_soul_version"] == 1
+    )
+
+    # Naming a version; a new version is used automatically (unpins).
+    assert client.patch(f"/api/personas/{pid}/voice-soul/2", json={"label": "Punchier"}).json()["label"] == "Punchier"
+    client.put(f"/api/personas/{pid}/voice-soul", json={"markdown": "# Voice Soul: hand edited version here", "label": "Edited"})
+    persona = client.get(f"/api/personas/{pid}").json()
+    assert persona["voice_soul_version"] == 3 and persona["pinned_voice_soul_version"] is None
+
+    # Rename, then branch a separately named persona from version 2.
+    assert client.patch(f"/api/personas/{pid}", json={"name": "  Shelby (work)  "}).json()["name"] == "Shelby (work)"
+    copy = client.post(f"/api/personas/{pid}/duplicate", json={"name": "Shelby (playful)", "voice_soul_version": 2})
+    assert copy.status_code == 201, copy.text
+    copy = copy.json()
+    assert copy["name"] == "Shelby (playful)" and not copy["is_active"] and copy["own_samples"] == 1
+    assert copy["voice_soul_version"] == 1 and copy["voice_soul_label"] == "Punchier"
+    assert len(client.get("/api/personas").json()) == 2
+
+
+def test_persona_default_dials(client: TestClient, sample_docx: bytes) -> None:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
     client.post(f"/api/personas/{pid}/voice-soul")
-    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"image_count": 2, "revision_passes": 0}}).json()
-    images = created["project"]["images"] or client.get(f"/api/projects/{created['project']['id']}").json()["images"]
+    out = client.patch(
+        f"/api/personas/{pid}",
+        json={"default_target_words": 900, "default_image_count": 3, "default_opinion": 9, "default_platform": "linkedin"},
+    ).json()
+    assert out["default_target_words"] == 900 and out["default_opinion"] == 9 and out["default_platform"] == "linkedin"
+    assert client.patch(f"/api/personas/{pid}", json={"default_storytelling": 11}).status_code == 422
 
-    assert [i["kind"] for i in images] == ["hero", "meme"]
-    assert all(i["provider"] == "claude-svg" and i["status"] == "ready" for i in images)
-    assert fake_raster.prompts == []
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"revision_passes": 0, "formality": 1}}).json()
+    project = client.get(f"/api/projects/{created['project']['id']}").json()
+    dials = project["resolved_dials"]
+    assert (dials["target_words"], dials["image_count"], dials["platform"]) == (900, 3, "linkedin")
+    assert dials["opinion"] == 9 and dials["formality"] == 1 and dials["storytelling"] == 5
+    assert "Bold hot take" in dials["style_guide"] and "Very casual" in dials["style_guide"]
+    assert len(project["images"]) == 3
+
+    # 0 = automatic image count again.
+    assert client.patch(f"/api/personas/{pid}", json={"default_image_count": 0}).json()["default_image_count"] is None
 
 
 def test_seed_import(client: TestClient, settings: Settings, sample_docx: bytes) -> None:
@@ -188,6 +262,7 @@ def test_settings_and_auth(client: TestClient) -> None:
 
     assert client.post("/api/auth/login").status_code == 409  # no ant CLI in tests
 
-    out = client.put("/api/settings", json={"cloudflare_account_id": "acct", "revision_passes": 2, "model": "claude-sonnet-5-5"}).json()
-    assert out["cloudflare_account_id"] == "acct" and out["revision_passes"] == 2 and out["model"] == "claude-sonnet-5-5"
+    out = client.put("/api/settings", json={"ai_detection": False, "revision_passes": 2, "model": "claude-sonnet-5-5"}).json()
+    assert out["ai_detection"] is False and out["revision_passes"] == 2 and out["model"] == "claude-sonnet-5-5"
+    assert out["image_tool_label"].startswith("Claude Sonnet 5.5")
     assert client.get("/api/settings").json()["revision_passes"] == 2

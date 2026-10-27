@@ -10,11 +10,19 @@ import { fullCaption } from '../../lib/article'
 import { Badge, Button, Dialog, Field, Input, Notice, Spinner } from '../../components/ui'
 import { cx } from '../../lib/cx'
 
+const PROVIDER_LABEL: Record<string, string> = {
+  'claude-svg': 'Claude SVG',
+  'vega-lite': 'Claude + Vega-Lite',
+  placeholder: 'Placeholder',
+  upload: 'Your upload',
+}
+
 const KIND_LABEL: Record<string, string> = {
   hero: 'Hero · thumbnail',
   diagram: 'Diagram',
   chart: 'Chart',
   illustration: 'Illustration',
+  icon: 'Icons',
   meme: 'Closing meme',
   screenshot: 'Screenshot',
 }
@@ -86,7 +94,7 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           icon={<Dices className="size-4" />}
           onClick={() => redraw(false)}
           disabled={busy}
-          title="Same idea, new random image"
+          title="Claude draws the same idea a new way"
         >
           Redraw
         </Button>
@@ -146,7 +154,8 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             >
               <img src={entry.url} alt={`Version ${entry.index + 1}`} className="w-full rounded-lg" />
               <p className="mt-1 text-xs text-muted">
-                v{entry.index + 1} · {entry.provider} {entry.created_at ? `· ${new Date(entry.created_at).toLocaleString()}` : ''}
+                v{entry.index + 1} · {PROVIDER_LABEL[entry.provider] ?? entry.provider}{' '}
+                {entry.created_at ? `· ${new Date(entry.created_at).toLocaleString()}` : ''}
               </p>
             </button>
           ))}

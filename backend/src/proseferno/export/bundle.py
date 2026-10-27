@@ -11,6 +11,7 @@ from typing import Literal
 from PIL import Image
 
 from proseferno.db import Project, ProjectImage
+from proseferno.export.linkedin import carousel_pdf, carousel_pptx, carousel_slides, template_post
 from proseferno.export.render import (
     Figure,
     body_html,
@@ -23,12 +24,12 @@ from proseferno.export.render import (
 from proseferno.storage import slugify
 from proseferno.writer import split_title
 
-Platform = Literal["medium", "substack", "gumroad", "markdown"]
-PLATFORMS: tuple[Platform, ...] = ("medium", "substack", "gumroad", "markdown")
+Platform = Literal["medium", "substack", "linkedin", "gumroad", "markdown"]
+PLATFORMS: tuple[Platform, ...] = ("medium", "substack", "linkedin", "gumroad", "markdown")
 
 # Thumbnail sizes: Medium and Substack crop previews from a wide image; 1200x630 is the
-# common social-card size and suits Gumroad covers too.
-THUMBNAIL_SIZE = {"medium": (1400, 788), "substack": (1200, 630), "gumroad": (1280, 720), "markdown": (1000, 420)}
+# common social-card size and suits Gumroad covers too. LinkedIn article covers are 1920x1080.
+THUMBNAIL_SIZE = {"medium": (1400, 788), "substack": (1200, 630), "linkedin": (1920, 1080), "gumroad": (1280, 720), "markdown": (1000, 420)}
 
 INSTRUCTIONS = {
     "medium": """Publishing on Medium
@@ -49,6 +50,23 @@ INSTRUCTIONS = {
    If an image does not come through, upload it from images/ and add its caption from post.md.
 3. Set thumbnail.png as the post's social preview image in Settings > Social preview.
 """,
+    "linkedin": """Publishing on LinkedIn
+======================
+Article
+1. On LinkedIn, choose "Write article". Upload thumbnail.png (1920x1080) as the cover image.
+2. Paste the title into the title field: {title}
+3. In Proseferno's export dialog, click "Copy for LinkedIn" and paste into the article body
+   (## headings become LinkedIn headings). If an image does not come through, upload it from
+   images/ and add its caption from post.md.
+
+Feed post
+4. feed-post.txt is a companion post (under 3,000 characters; the first ~210 show before
+   "...see more"). Share the article with it, or post it on its own and put the link in a comment.
+
+Document carousel
+5. carousel.pdf is a swipeable 1080x1350 document post: "Start a post" > "Add a document".
+   carousel.pptx is the same deck, editable in PowerPoint, Keynote or Google Slides.
+""",
     "gumroad": """Publishing on Gumroad
 =====================
 post.pdf is a print-ready version of the post for a Gumroad product or post attachment.
@@ -68,12 +86,23 @@ def copy_html(project: Project, images: list[ProjectImage], image_dir: Path, pla
     if platform == "medium":
         # Medium: title h1, subtitle h2, sections h3 (large heading), subsections h4 (small heading).
         return body_html(project.markdown, figures, src=data_uri, heading_shift=1)
-    if platform == "substack":
+    if platform in ("substack", "linkedin"):
+        # The title (and subtitle) go in the platform's own fields; ## and ### map to its two heading sizes.
         return body_html(strip_title(project.markdown), figures, src=data_uri, include_title=True)
     return body_html(project.markdown, figures, src=data_uri)
 
 
-def build_bundle(project: Project, images: list[ProjectImage], image_dir: Path, platform: Platform) -> tuple[str, bytes]:
+def linkedin_post(project: Project) -> tuple[str, bool]:
+    """The saved Claude-written feed post if there is one, else a template built from the article."""
+    saved = (project.social or {}).get("linkedin_post")
+    if saved:
+        return str(saved), True
+    return template_post(project.markdown, (project.plan or {}).get("tags", [])), False
+
+
+def build_bundle(
+    project: Project, images: list[ProjectImage], image_dir: Path, platform: Platform, *, author: str = ""
+) -> tuple[str, bytes]:
     figures = figures_for(images, image_dir)
     title, subtitle = split_title(project.markdown)
     title = title or project.title or "Untitled post"
@@ -104,6 +133,12 @@ def build_bundle(project: Project, images: list[ProjectImage], image_dir: Path, 
 
         if platform == "gumroad":
             zf.writestr("post.pdf", _pdf(title, body_html(project.markdown, figures, src=lambda f: f.file_name or ""), image_dir))
+
+        if platform == "linkedin":
+            zf.writestr("feed-post.txt", linkedin_post(project)[0] + "\n")
+            slides = carousel_slides(project.markdown, figures, author)
+            zf.writestr("carousel.pdf", carousel_pdf(slides, title))
+            zf.writestr("carousel.pptx", carousel_pptx(slides))
 
         zf.writestr("README.txt", INSTRUCTIONS[platform].format(title=title, subtitle=subtitle, tags=tags))
     return f"{slug}-{platform}.zip", buffer.getvalue()
