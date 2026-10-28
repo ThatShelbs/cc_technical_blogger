@@ -25,6 +25,6 @@ Format (Markdown):
 - Section headings with `##` (and `###` only if the author uses subsections).
 - Code and LLM prompts in fenced blocks with a language tag.
 - Put each image placeholder on its own line exactly where the image belongs: $placeholders. The hero goes right after the subtitle. The meme goes at the very end of the post, after the final line of text.
-- Do not write image captions; they are added separately.
+- Each placeholder line stands alone. Do not write captions, credits, photo or data sources, or italic caption lines before or after it (no "Photo by ...", "Image: ...", "Visualization: ...", "Source: ..."); every image gets its own caption and credit automatically.
 
 Return only the post.

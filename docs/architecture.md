@@ -58,11 +58,14 @@ flowchart TB
 | Best-practice research | streamed, `web_search` server tool | medium |
 | Voice soul | streamed text | high |
 | Plan a post | structured output (`ArticlePlan`) | medium |
+| New title options | structured output (`TitleOptions`) | medium |
 | Draft / revise | streamed text | high |
 | Critique | structured output (`Critique`) | medium |
 | AI-detection judge | structured output (`AIDetectionJudgement`) | low |
 | LinkedIn feed post | structured output (`LinkedInPost`) | medium |
 | Design an image | structured output (`SvgSpec`, `SvgMemeSpec`, `ChartSpec`) | medium |
+
+Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
 
 All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice soul → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix.
 

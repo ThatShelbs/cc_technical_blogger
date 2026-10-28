@@ -32,6 +32,8 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # Jobs live in memory, so an image still "pending" at startup lost its job in a previous run.
+        services.images.fail_pending()
         yield
         await services.jobs.shutdown()
 

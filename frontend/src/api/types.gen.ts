@@ -202,6 +202,7 @@ export interface ProjectOut {
   fidelity: Record<string, unknown> | null;
   authenticity: Record<string, unknown> | null;
   social: Record<string, unknown> | null;
+  pinned_titles: string[];
   voice_soul_version: number | null;
   error: string | null;
   images: ImageOut[];
@@ -224,6 +225,7 @@ export interface ProjectSummary {
 
 export interface ProjectUpdate {
   title?: string | null;
+  pinned_titles?: string[] | null;
   markdown?: string | null;
   prompt?: string | null;
   dials?: Dials | null;

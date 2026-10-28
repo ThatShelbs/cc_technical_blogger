@@ -7,11 +7,13 @@ from proseferno.writer import (
     ImageSlot,
     classify_topic,
     ensure_placeholders,
+    merge_titles,
     normalize_slots,
     resolve,
     set_title,
     split_title,
 )
+from proseferno.writer.pipeline import strip_image_captions
 
 
 def slot(slot_id: str, kind: str, section: int = 0) -> ImageSlot:
@@ -101,3 +103,40 @@ def test_exemplars_prefer_similar_posts() -> None:
     assert chosen[0].id == 2
     assert all(s.kind == "own" for s in chosen)
     assert sum(s.word_count for s in chosen) <= 9000
+
+
+def test_strip_image_captions_removes_credit_lines_next_to_images() -> None:
+    markdown = "\n".join(
+        [
+            "# Nobody Has a Single Source of Truth",
+            "*Did your source of truth disagree with finance again?*",
+            "",
+            "{{image:hero}}",
+            "",
+            "Photo by [TODO: photographer name] on Unsplash",
+            "",
+            "Made with Unsplash is a real sentence I keep, far from any image.",
+            "",
+            "Source: internal survey",
+            "{{image:img2}}",
+            "*Visualization: Shelby Temple, made with Tableau; data: made-up example numbers*",
+            "",
+            "The chart above shows why. Images are great, but this paragraph is prose.",
+            "",
+            "{{image:meme}}",
+        ]
+    )
+    cleaned = strip_image_captions(markdown)
+
+    assert "Photo by" not in cleaned
+    assert "Visualization:" not in cleaned
+    assert "Source: internal survey" not in cleaned
+    # Prose, the subtitle (italic, right above the hero) and placeholders stay.
+    assert "*Did your source of truth disagree with finance again?*" in cleaned
+    assert "Made with Unsplash is a real sentence" in cleaned
+    assert "The chart above shows why." in cleaned
+    assert all(f"{{{{image:{s}}}}}" in cleaned for s in ("hero", "img2", "meme"))
+
+
+def test_merge_titles_dedupes_case_insensitively() -> None:
+    assert merge_titles(["A Title", " "], ["a title", "Another"]) == ["A Title", "Another"]

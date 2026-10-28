@@ -245,6 +245,7 @@ class ProjectCreate(BaseModel):
 
 class ProjectUpdate(BaseModel):
     title: str | None = None
+    pinned_titles: list[str] | None = None
     markdown: str | None = None
     prompt: str | None = None
     dials: Dials | None = None
@@ -320,6 +321,7 @@ class ProjectOut(BaseModel):
     fidelity: dict[str, Any] | None
     authenticity: dict[str, Any] | None
     social: dict[str, Any] | None
+    pinned_titles: list[str]
     voice_soul_version: int | None
     error: str | None
     images: list[ImageOut]

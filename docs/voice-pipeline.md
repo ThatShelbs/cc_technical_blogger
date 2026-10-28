@@ -43,9 +43,11 @@ Every version is kept. Editing it in the app saves a new version.
 
 1. **Exemplars**: the two or three of the author's own posts most similar to the brief (TF-IDF) are included in full, within a word budget, never truncated.
 2. **Plan**: five title options in the author's style, subtitle, hook, sections, closing, joke, and image slots (hero first, meme last).
-3. **Draft**: streamed to the UI, with `{{image:slot}}` placeholders.
+3. **Draft**: streamed to the UI, with `{{image:slot}}` placeholders. Placeholders stand alone: the writer is told not to add caption or credit lines, and `strip_image_captions` removes any it adds anyway ("Photo by ... on Unsplash", "Visualization: ..."), because each image gets its own caption and credit.
 4. **Critique**: an editor scores voice, tone, structure, humor match, education match, skimmability and image placement, with the measured style comparison, and lists concrete fixes.
 5. **Revise**: the draft is rewritten to address the critique (0-2 passes; default 1).
+
+After writing, the **Title** card lets the author edit the title text, pin options they like, and ask for **New options**: Claude replaces every option except the selected and pinned ones (`regenerate_titles`, `prompts/titles.md`). Pinned titles also survive *Regenerate post*.
 
 ## Measuring voice fidelity
 

@@ -33,7 +33,16 @@ from proseferno.images import ImageProviderError, to_png
 from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_soul
-from proseferno.writer import Dials, WriterError, generate_article, resolve, rewrite_passage, set_title
+from proseferno.writer import (
+    Dials,
+    WriterError,
+    generate_article,
+    merge_titles,
+    regenerate_titles,
+    resolve,
+    rewrite_passage,
+    set_title,
+)
 from proseferno.writer.social import write_linkedin_post
 
 router = APIRouter(prefix="/api")
@@ -167,6 +176,8 @@ def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, se
     if body.title is not None and body.title.strip():
         project.title = body.title.strip()
         project.markdown = set_title(project.markdown, project.title) if project.markdown else project.markdown
+    if body.pinned_titles is not None:
+        project.pinned_titles = merge_titles(body.pinned_titles)
     if body.prompt is not None:
         project.prompt = body.prompt
     if body.dials is not None:
@@ -208,6 +219,18 @@ async def rewrite(project_id: int, body: RewriteIn, session: SessionDep, service
             selection=body.selection,
             instruction=body.instruction,
         )
+    except (WriterError, LLMError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    session.expire_all()
+    return project_out(session, project_or_404(session, project_id), services)
+
+
+@router.post("/projects/{project_id}/titles", response_model=ProjectOut)
+async def new_title_options(project_id: int, session: SessionDep, services: ServicesDep) -> ProjectOut:
+    """Have Claude replace the title options; the current and pinned titles are kept."""
+    project_or_404(session, project_id)
+    try:
+        await regenerate_titles(llm=services.llm, settings=services.settings, engine=services.engine, project_id=project_id)
     except (WriterError, LLMError) as exc:
         raise HTTPException(422, str(exc)) from exc
     session.expire_all()

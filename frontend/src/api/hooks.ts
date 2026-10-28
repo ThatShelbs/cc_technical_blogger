@@ -235,6 +235,11 @@ export function useProjectMutations(projectId?: number) {
       mutationFn: (body: { selection: string; instruction: string }) => api.post<ProjectOut>(`/api/projects/${projectId}/rewrite`, body),
       onSuccess: setProject,
     }),
+    /** Replace the title options; the current and pinned titles are kept. */
+    regenerateTitles: useMutation({
+      mutationFn: () => api.post<ProjectOut>(`/api/projects/${projectId}/titles`),
+      onSuccess: setProject,
+    }),
     /** Re-run the AI-generation detection report on the current text. */
     checkAuthenticity: useMutation({
       mutationFn: () => api.post<ProjectOut>(`/api/projects/${projectId}/authenticity`),

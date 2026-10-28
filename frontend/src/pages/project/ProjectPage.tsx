@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Eye, FileDown, PencilLine, RefreshCw, Save, Wand2 } from 'lucide-react'
+import { Eye, FileDown, PencilLine, Pin, RefreshCw, Save, Wand2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 
@@ -8,7 +8,7 @@ import { keys, useProject, useProjectMutations } from '../../api/hooks'
 import type { ProjectOut } from '../../api/types.gen'
 import { useJob, type Critique } from '../../api/useJob'
 import { Article } from '../../components/Article'
-import { Badge, Button, Card, Dialog, Field, Notice, Spinner, Textarea } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { AuthenticityPanel } from './AuthenticityPanel'
 import { ExportDialog } from './ExportDialog'
@@ -59,30 +59,85 @@ function FidelityPanel({ project }: { project: ProjectOut }) {
   )
 }
 
-function TitlePicker({ project }: { project: ProjectOut }) {
-  const { update } = useProjectMutations(project.id)
-  const options = ((project.plan?.title_options as string[] | undefined) ?? []).filter(Boolean)
+export function TitlePicker({ project }: { project: ProjectOut }) {
+  const { update, regenerateTitles } = useProjectMutations(project.id)
+  const [draft, setDraft] = useState(project.title)
+  // When the saved title changes (pick, save, regeneration), reset the edit box to it.
+  const [savedTitle, setSavedTitle] = useState(project.title)
+  if (savedTitle !== project.title) {
+    setSavedTitle(project.title)
+    setDraft(project.title)
+  }
+  const pinned = project.pinned_titles
+  const planned = ((project.plan?.title_options as string[] | undefined) ?? []).filter(Boolean)
+  // A hand-edited title is not one of the options; show it first so it stays selectable and pinnable.
+  const options = project.title && !planned.includes(project.title) ? [project.title, ...planned] : planned
   if (!options.length) return null
+  const dirty = draft.trim() !== '' && draft.trim() !== project.title
+  const togglePin = (title: string) => update.mutate({ pinned_titles: pinned.includes(title) ? pinned.filter((t) => t !== title) : [...pinned, title] })
+
   return (
-    <Card className="space-y-2">
-      <h2 className="font-bold">Title options</h2>
+    <Card className="space-y-3">
+      <h2 className="font-bold">Title</h2>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (dirty) update.mutate({ title: draft.trim() })
+        }}
+      >
+        <Input value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Post title" className="min-w-0 flex-1 text-sm" />
+        <Button type="submit" size="sm" disabled={!dirty} loading={update.isPending && dirty} aria-label="Save title">
+          Save
+        </Button>
+      </form>
+
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-muted">Options</h3>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<RefreshCw className="size-4" />}
+          loading={regenerateTitles.isPending}
+          onClick={() => regenerateTitles.mutate()}
+          title="Keeps your selected and pinned titles"
+        >
+          New options
+        </Button>
+      </div>
       <ul className="space-y-1.5">
-        {options.map((title) => (
-          <li key={title}>
-            <button
-              type="button"
-              onClick={() => update.mutate({ title })}
-              className={cx(
-                'w-full rounded-lg border px-3 py-2 text-left text-sm',
-                title === project.title ? 'border-accent bg-accent-soft font-semibold' : 'border-line hover:bg-surface-2',
-              )}
-              aria-pressed={title === project.title}
-            >
-              {title}
-            </button>
-          </li>
-        ))}
+        {options.map((title) => {
+          const selected = title === project.title
+          const isPinned = pinned.includes(title)
+          return (
+            <li key={title} className="flex items-stretch gap-1">
+              <button
+                type="button"
+                onClick={() => update.mutate({ title })}
+                className={cx(
+                  'min-w-0 flex-1 rounded-lg border px-3 py-2 text-left text-sm',
+                  selected ? 'border-accent bg-accent-soft font-semibold' : 'border-line hover:bg-surface-2',
+                )}
+                aria-pressed={selected}
+              >
+                {title}
+              </button>
+              <button
+                type="button"
+                onClick={() => togglePin(title)}
+                className={cx('shrink-0 rounded-lg px-2', isPinned ? 'text-accent' : 'text-muted hover:text-fg')}
+                aria-pressed={isPinned}
+                aria-label={isPinned ? `Unpin “${title}”` : `Pin “${title}”`}
+                title={isPinned ? 'Pinned: kept when you ask for new options' : 'Pin to keep it when you ask for new options'}
+              >
+                <Pin className={cx('size-4', isPinned && 'fill-current')} aria-hidden />
+              </button>
+            </li>
+          )
+        })}
       </ul>
+      <p className="text-xs text-muted">“New options” keeps your selected and pinned titles.</p>
+      {regenerateTitles.error && <Notice tone="error">{errorText(regenerateTitles.error)}</Notice>}
     </Card>
   )
 }

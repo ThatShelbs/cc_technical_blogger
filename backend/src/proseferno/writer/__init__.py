@@ -4,13 +4,15 @@ from proseferno.writer.pipeline import (
     WrittenPost,
     ensure_placeholders,
     generate_article,
+    merge_titles,
     normalize_slots,
+    regenerate_titles,
     rewrite_passage,
     set_title,
     split_title,
     write_post,
 )
-from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot
+from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
 __all__ = [
     "ArticlePlan",
@@ -18,12 +20,15 @@ __all__ = [
     "Dials",
     "ImageSlot",
     "ResolvedDials",
+    "TitleOptions",
     "WriterError",
     "WrittenPost",
     "classify_topic",
     "ensure_placeholders",
     "generate_article",
+    "merge_titles",
     "normalize_slots",
+    "regenerate_titles",
     "resolve",
     "rewrite_passage",
     "set_title",

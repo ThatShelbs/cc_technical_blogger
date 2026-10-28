@@ -29,7 +29,11 @@ Each image gets a credit from the persona's template (default `Author: {name}; M
 
 > The saddest pie; Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)
 
-Charts read "Made with Claude Opus 5.5 + Vega-Lite", and charts with made-up numbers are labeled *(illustrative data)*. You can edit any caption, credit or alt text.
+Charts read "Made with Claude Opus 5.5 + Vega-Lite", and charts with made-up numbers are labeled *(illustrative data)*. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
+
+## When an image fails
+
+One failed image never fails the post: it shows its error and a **Redraw** button, and the rest of the post is saved as usual. Jobs run in memory, so an image still waiting when the app stopped is marked as failed at the next startup instead of spinning forever.
 
 ## Redraw, new idea, replace, versions
 

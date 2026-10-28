@@ -266,3 +266,72 @@ def test_settings_and_auth(client: TestClient) -> None:
     assert out["ai_detection"] is False and out["revision_passes"] == 2 and out["model"] == "claude-sonnet-5-5"
     assert out["image_tool_label"].startswith("Claude Sonnet 5.5")
     assert client.get("/api/settings").json()["revision_passes"] == 2
+
+
+def ready_post(client: TestClient, sample_docx: bytes) -> dict:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    client.post(f"/api/personas/{pid}/voice-soul")
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"revision_passes": 0}}).json()
+    return client.get(f"/api/projects/{created['project']['id']}").json()
+
+
+def test_title_options_pin_regenerate_and_edit(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    url = f"/api/projects/{project['id']}"
+    assert project["pinned_titles"] == []
+    selected, pinned = project["title"], "Bars > Pies"
+
+    out = client.patch(url, json={"pinned_titles": [pinned, pinned.upper()]}).json()
+    assert out["pinned_titles"] == [pinned]
+
+    out = client.post(f"{url}/titles").json()
+    options = out["plan"]["title_options"]
+    assert options[:2] == [selected, pinned] and len(options) == 5
+    assert "Stop Baking Pies" not in options  # an unpinned option was replaced
+    assert out["title"] == selected
+    call = next(c for c in fake_llm.calls if c["task"] == "title options")
+    assert "Write 3 new title options" in call["prompt"] and "Stop Baking Pies" in call["prompt"]
+
+    # Editing the title rewrites the heading; pins survive regenerating the whole post.
+    out = client.patch(url, json={"title": "Pie Charts Are Mostly Lame"}).json()
+    assert out["markdown"].startswith("# Pie Charts Are Mostly Lame")
+    client.post(f"{url}/generate")
+    out = client.get(url).json()
+    assert out["pinned_titles"] == [pinned] and out["plan"]["title_options"][0] == pinned
+
+
+def test_a_broken_image_does_not_fail_the_post(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    original = fake_llm.structured
+
+    async def flaky(**kwargs):  # type: ignore[no-untyped-def]
+        if kwargs["task"] == "diagram image design":
+            raise ValueError("Streaming is required for operations that may take longer than 10 minutes.")
+        return await original(**kwargs)
+
+    monkeypatch.setattr(fake_llm, "structured", flaky)
+    project = ready_post(client, sample_docx)
+
+    assert project["status"] == "ready"
+    statuses = {img["kind"]: img["status"] for img in project["images"]}
+    assert statuses == {"hero": "ready", "diagram": "error", "chart": "ready", "meme": "ready"}
+    diagram = next(img for img in project["images"] if img["kind"] == "diagram")
+    assert "Redraw" in diagram["error"]
+
+
+def test_orphaned_pending_images_are_failed(client: TestClient, sample_docx: bytes, services) -> None:  # type: ignore[no-untyped-def]
+    from sqlmodel import Session
+
+    from proseferno.db import ProjectImage
+
+    project = ready_post(client, sample_docx)
+    image_id = project["images"][0]["id"]
+    with Session(services.engine) as session:
+        row = session.get(ProjectImage, image_id)
+        row.status = "pending"
+        session.add(row)
+        session.commit()
+
+    assert services.images.fail_pending() == 1
+    image = client.get(f"/api/projects/{project['id']}").json()["images"][0]
+    assert image["status"] == "error" and "Redraw" in image["error"]

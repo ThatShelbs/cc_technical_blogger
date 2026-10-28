@@ -49,13 +49,14 @@ test('first run: persona, writing sample, voice soul, post, editor, export, them
   await expect(page.getByText('Writing your post')).toBeVisible()
 
   // Editor with inline, credited images
-  await expect(page.getByRole('heading', { name: 'Title options' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByRole('heading', { name: 'Title', exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByRole('button', { name: /New options/ })).toBeVisible()
   await expect(page.locator('figure img')).toHaveCount(4)
   await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()
   await shot(page, 'editor-day')
 
   // Pick another title
-  await page.getByRole('button', { name: 'Stop Baking Pies' }).click()
+  await page.getByRole('button', { name: 'Stop Baking Pies', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Stop Baking Pies' }).first()).toBeVisible()
 
   // Export dialog offers platform bundles

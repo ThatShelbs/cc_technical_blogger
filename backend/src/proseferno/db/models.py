@@ -96,6 +96,9 @@ class Project(SQLModel, table=True):
     authenticity: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     # Platform companions, e.g. {"linkedin_post": "..."}.
     social: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    # Title options the author pinned: kept when new options are generated and across regenerations.
+    # The SQL default lets add_missing_columns backfill existing rows with [].
+    pinned_titles: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     voice_soul_version: int | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)

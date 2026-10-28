@@ -47,12 +47,15 @@ class ClaudeLLM:
         usage: UsageSink | None = None,
     ) -> T:
         client = self._client_factory()
+        # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
+        # requests whose max_tokens could take longer than 10 minutes.
         with _translate_errors(task):
-            response = await client.beta.messages.parse(
+            async with client.beta.messages.stream(
                 **self._common(system, effort, max_tokens),
                 messages=[{"role": "user", "content": prompt}],
                 output_format=schema,
-            )
+            ) as stream:
+                response = await stream.get_final_message()
         self._check(response, task)
         self._record(response, usage)
         parsed = response.parsed_output
@@ -210,3 +213,5 @@ class _translate_errors:
             raise LLMError(f"Claude API error {exc.status_code} during {self.task}. Try again shortly.") from exc
         if isinstance(exc, anthropic.APIConnectionError):
             raise LLMError("Could not reach Claude. Check your internet connection.") from exc
+        if isinstance(exc, anthropic.AnthropicError):
+            raise LLMError(f"Claude request failed during {self.task}: {exc}") from exc

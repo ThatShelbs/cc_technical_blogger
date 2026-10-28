@@ -23,7 +23,7 @@ from proseferno.llm import LLM, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_soul, format_exemplars, select_exemplars
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
-from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot
+from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
 
 class WriterError(ValueError):
@@ -74,7 +74,42 @@ def ensure_placeholders(markdown: str, slots: list[ImageSlot]) -> str:
     valid = {s.slot_id for s in slots}
     text = "\n".join(lines)
     text = PLACEHOLDER_RE.sub(lambda m: m.group(0) if m.group(1) in valid else "", text)
+    text = strip_image_captions(text)
     return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+
+
+# A caption or credit line the writer copied from the author's habits ("Photo by X on Unsplash",
+# "Visualization: Jane, made with Tableau"). Images carry their own caption and credit.
+_CAPTION_RE = re.compile(
+    r"^[*_\s>]*(?:photo|image|illustration|visuali[sz]ation|chart|diagram|graphic|figure|fig\.|source|credit|screenshot|meme)s?"
+    r"\b\s*(?:by\b|from\b|:|-|–|—|\|)"
+    r"|unsplash|made with|\[todo:\s*(?:photographer|image|credit|caption)",
+    re.IGNORECASE,
+)
+_EMPHASIS_LINE_RE = re.compile(r"^\s*(\*[^*].*[^*]\*|_[^_].*[^_]_|\*\*.+\*\*)\s*$")
+
+
+def _is_caption(line: str, *, allow_emphasis: bool) -> bool:
+    if not line.strip() or len(line.split()) > 30 or line.lstrip().startswith(("#", "```", "{{")):
+        return False
+    return bool(_CAPTION_RE.search(line)) or (allow_emphasis and bool(_EMPHASIS_LINE_RE.match(line)))
+
+
+def strip_image_captions(markdown: str) -> str:
+    """Drop caption/credit lines written next to image placeholders."""
+    lines = markdown.split("\n")
+    drop: set[int] = set()
+    for i, line in enumerate(lines):
+        if not PLACEHOLDER_RE.fullmatch(line.strip()):
+            continue
+        after = next((j for j in range(i + 1, len(lines)) if lines[j].strip()), None)
+        if after is not None and _is_caption(lines[after], allow_emphasis=True):
+            drop.add(after)
+        # Above the image only obvious credits: an italic line there is usually the subtitle.
+        before = next((j for j in range(i - 1, -1, -1) if lines[j].strip()), None)
+        if before is not None and _is_caption(lines[before], allow_emphasis=False):
+            drop.add(before)
+    return "\n".join(line for i, line in enumerate(lines) if i not in drop)
 
 
 def _after_title_block(lines: list[str]) -> int:
@@ -157,6 +192,7 @@ async def generate_article(
                 row.error = str(exc)[:2000]
                 session.add(row)
                 session.commit()
+        images.fail_pending(project_id)
         raise
 
 
@@ -310,7 +346,13 @@ async def _generate(
         dials=dials,
         reporter=ctx,
         on_plan=lambda plan: _save(
-            engine, project_id, plan=plan.model_dump(), title=plan.chosen_title, subtitle=plan.subtitle, voice_soul_version=soul.version
+            engine,
+            project_id,
+            # Pinned titles survive "Regenerate post" and lead the new options.
+            plan={**plan.model_dump(), "title_options": merge_titles(project.pinned_titles or [], plan.title_options)},
+            title=plan.chosen_title,
+            subtitle=plan.subtitle,
+            voice_soul_version=soul.version,
         ),
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured),
     )
@@ -385,6 +427,67 @@ async def rewrite_passage(
     new_markdown = project.markdown.replace(selection, replacement.strip(), 1)
     _save(engine, project_id, markdown=new_markdown)
     return new_markdown
+
+
+TITLE_OPTION_COUNT = 5
+
+
+def merge_titles(*groups: list[str]) -> list[str]:
+    """Concatenate title lists, dropping blanks and case-insensitive duplicates (first wins)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for title in (t.strip() for group in groups for t in group):
+        if title and title.casefold() not in seen:
+            seen.add(title.casefold())
+            out.append(title)
+    return out
+
+
+async def regenerate_titles(*, llm: LLM, settings: Settings, engine: Engine, project_id: int) -> list[str]:
+    """Replace the title options the author did not keep; the current and pinned titles stay."""
+    with Session(engine) as session:
+        project = session.get(Project, project_id)
+        if project is None:
+            raise WriterError("Project not found.")
+        soul = current_voice_soul(session, project.persona_id)
+        samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
+    if soul is None:
+        raise WriterError("This persona has no voice soul yet.")
+    plan = dict(project.plan or {})
+    keep = merge_titles([project.title], project.pinned_titles or [])
+    rejected = [t for t in plan.get("title_options", []) if t.casefold() not in {k.casefold() for k in keep}]
+    count = max(1, TITLE_OPTION_COUNT - len(keep))
+
+    system = writer_system(soul.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    result = await llm.structured(
+        task="title options",
+        system=system,
+        prompt=render(
+            "titles",
+            count=count,
+            prompt=project.prompt,
+            outline=_outline(project.markdown) or project.prompt,
+            keep="\n".join(f"- {t}" for t in keep) or "(none)",
+            rejected="\n".join(f"- {t}" for t in rejected) or "(none)",
+        ),
+        schema=TitleOptions,
+        effort=settings.effort_plan,
+        max_tokens=8000,
+    )
+    fresh = [t for t in merge_titles(result.title_options) if t.casefold() not in {r.casefold() for r in rejected}]
+    options = merge_titles(keep, fresh)[: max(TITLE_OPTION_COUNT, len(keep))]
+    plan["title_options"] = options
+    _save(engine, project_id, plan=plan)
+    return options
+
+
+def _outline(markdown: str) -> str:
+    """Title, subtitle, headings and the opening paragraph: enough to title the post without resending it."""
+    lines = [line for line in markdown.splitlines() if line.strip() and not PLACEHOLDER_RE.fullmatch(line.strip())]
+    head = lines[:2]
+    body = [line for line in lines[2:] if not line.startswith(("#", "```"))]
+    headings = [line for line in lines if line.startswith("## ")]
+    return "\n".join([*head, *(body[:1]), "", *headings]).strip()
 
 
 def _settings_text(dials: ResolvedDials) -> dict[str, Any]:
