@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,11 +20,13 @@ from proseferno.images import PLACEHOLDER_RE, ImageService
 from proseferno.ingest import parse_markdown
 from proseferno.ingest.stylometrics import compute, fidelity
 from proseferno.jobs import JobContext
-from proseferno.llm import LLM, SystemBlock
+from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
+
+log = logging.getLogger(__name__)
 
 
 class WriterError(ValueError):
@@ -275,37 +278,43 @@ async def write_post(
     # 3. Critique and revise (the editor also sees the AI-writing tells the scan found)
     profile = author_profile(samples, voice_profile.baseline_stylometrics)
     critique: Critique | None = None
-    for round_number in range(dials.revision_passes):
-        await reporter.progress(0.45 + 0.1 * round_number, "Editor reviewing the draft for voice fidelity and AI tells")
-        critique = await llm.structured(
-            task="critique",
-            system=system,
-            prompt=render(
-                "critique",
-                draft=draft,
-                fidelity=json.dumps(measured, indent=1),
-                ai_tells=scan(draft, profile).tells_text(),
-                **settings_text,
-            ),
-            schema=Critique,
-            effort=settings.effort_critique,
-            usage=reporter.add_usage,
-        )
-        await reporter.emit("critique", critique.model_dump())
-        if critique.overall >= 9 and not critique.revision_instructions:
-            break
-        await reporter.progress(0.5 + 0.1 * round_number, "Revising to sound more like you")
+    try:
+        for round_number in range(dials.revision_passes):
+            await reporter.progress(0.45 + 0.1 * round_number, "Editor reviewing the draft for voice fidelity and AI tells")
+            critique = await llm.structured(
+                task="critique",
+                system=system,
+                prompt=render(
+                    "critique",
+                    draft=draft,
+                    fidelity=json.dumps(measured, indent=1),
+                    ai_tells=scan(draft, profile).tells_text(),
+                    **settings_text,
+                ),
+                schema=Critique,
+                effort=settings.effort_critique,
+                usage=reporter.add_usage,
+            )
+            await reporter.emit("critique", critique.model_dump())
+            if critique.overall >= 9 and not critique.revision_instructions:
+                break
+            await reporter.progress(0.5 + 0.1 * round_number, "Revising to sound more like you")
+            await reporter.emit("draft_reset", {})
+            draft = await llm.text(
+                task="revision",
+                system=system,
+                prompt=render("revise", draft=draft, critique=json.dumps(critique.model_dump(), indent=1)),
+                effort=settings.effort_draft,
+                on_delta=stream_delta,
+                usage=reporter.add_usage,
+            )
+            draft = ensure_placeholders(draft, slots)
+            measured = measure(draft, voice_profile.baseline_stylometrics)
+    except LLMError as exc:
+        # The first draft is already good enough to keep; a failed editing pass should not lose it.
+        log.warning("Editing pass failed; keeping the current draft: %s", exc)
         await reporter.emit("draft_reset", {})
-        draft = await llm.text(
-            task="revision",
-            system=system,
-            prompt=render("revise", draft=draft, critique=json.dumps(critique.model_dump(), indent=1)),
-            effort=settings.effort_draft,
-            on_delta=stream_delta,
-            usage=reporter.add_usage,
-        )
-        draft = ensure_placeholders(draft, slots)
-        measured = measure(draft, voice_profile.baseline_stylometrics)
+        await reporter.emit("draft_delta", {"text": draft})
 
     # 4. AI-generation detection report
     await reporter.progress(0.66, "Checking how human the post reads")
