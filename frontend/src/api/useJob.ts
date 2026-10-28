@@ -28,6 +28,8 @@ export interface JobState {
   plan: Record<string, unknown> | null
   critique: Critique | null
   imagesReady: number[]
+  /** What the job returned, once it succeeded. */
+  result: Record<string, unknown> | null
 }
 
 export const initialJobState: JobState = {
@@ -40,6 +42,7 @@ export const initialJobState: JobState = {
   plan: null,
   critique: null,
   imagesReady: [],
+  result: null,
 }
 
 interface JobEvent {
@@ -71,6 +74,7 @@ export function reduceJob(state: JobState, event: JobEvent): JobState {
         ...state,
         status,
         error: (data.error as string | null) ?? null,
+        result: (data.result as Record<string, unknown> | null) ?? state.result,
         progress: status === 'succeeded' ? 1 : state.progress,
       }
     }

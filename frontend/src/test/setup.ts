@@ -18,3 +18,11 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: () => {},
   }),
 })
+
+// jsdom has no modal dialogs; open and close them like a browser would.
+HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+  this.open = true
+}
+HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+  this.open = false
+}

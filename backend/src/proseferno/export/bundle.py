@@ -21,15 +21,24 @@ from proseferno.export.render import (
     standalone_html,
     strip_title,
 )
+from proseferno.export.x import HEADER_SIZE as X_HEADER_SIZE
+from proseferno.export.x import teaser_post
 from proseferno.storage import slugify
 from proseferno.writer import split_title
 
-Platform = Literal["medium", "substack", "linkedin", "gumroad", "markdown"]
-PLATFORMS: tuple[Platform, ...] = ("medium", "substack", "linkedin", "gumroad", "markdown")
+Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
+PLATFORMS: tuple[Platform, ...] = ("medium", "substack", "linkedin", "x", "gumroad", "markdown")
 
 # Thumbnail sizes: Medium and Substack crop previews from a wide image; 1200x630 is the
-# common social-card size and suits Gumroad covers too. LinkedIn article covers are 1920x1080.
-THUMBNAIL_SIZE = {"medium": (1400, 788), "substack": (1200, 630), "linkedin": (1920, 1080), "gumroad": (1280, 720), "markdown": (1000, 420)}
+# common social-card size and suits Gumroad covers too. LinkedIn article covers are 1920x1080; X Article headers are 5:2.
+THUMBNAIL_SIZE = {
+    "medium": (1400, 788),
+    "substack": (1200, 630),
+    "linkedin": (1920, 1080),
+    "x": X_HEADER_SIZE,
+    "gumroad": (1280, 720),
+    "markdown": (1000, 420),
+}
 
 INSTRUCTIONS = {
     "medium": """Publishing on Medium
@@ -67,6 +76,19 @@ Document carousel
 5. carousel.pdf is a swipeable 1080x1350 document post: "Start a post" > "Add a document".
    carousel.pptx is the same deck, editable in PowerPoint, Keynote or Google Slides.
 """,
+    "x": """Publishing an X Article
+=======================
+1. On X, open Articles and start a new article. Upload thumbnail.png (1500x600, 5:2) as the header image.
+2. Paste the title into the title field: {title}
+3. In Proseferno's export dialog, click "Copy for X" and paste into the article body
+   (## headings become X headings). If an image does not come through, upload it from
+   images/ and add its caption from post.md. X Articles have no code blocks or tables,
+   so check any code and paste long snippets as images or links.
+
+Teaser post
+4. teaser-post.txt announces the article in under 280 characters. Publish the article,
+   then share it from the article page with this text.
+""",
     "gumroad": """Publishing on Gumroad
 =====================
 post.pdf is a print-ready version of the post for a Gumroad product or post attachment.
@@ -86,7 +108,7 @@ def copy_html(project: Project, images: list[ProjectImage], image_dir: Path, pla
     if platform == "medium":
         # Medium: title h1, subtitle h2, sections h3 (large heading), subsections h4 (small heading).
         return body_html(project.markdown, figures, src=data_uri, heading_shift=1)
-    if platform in ("substack", "linkedin"):
+    if platform in ("substack", "linkedin", "x"):
         # The title (and subtitle) go in the platform's own fields; ## and ### map to its two heading sizes.
         return body_html(strip_title(project.markdown), figures, src=data_uri, include_title=True)
     return body_html(project.markdown, figures, src=data_uri)
@@ -139,6 +161,9 @@ def build_bundle(
             slides = carousel_slides(project.markdown, figures, author)
             zf.writestr("carousel.pdf", carousel_pdf(slides, title))
             zf.writestr("carousel.pptx", carousel_pptx(slides))
+
+        if platform == "x":
+            zf.writestr("teaser-post.txt", teaser_post(project.markdown) + "\n")
 
         zf.writestr("README.txt", INSTRUCTIONS[platform].format(title=title, subtitle=subtitle, tags=tags))
     return f"{slug}-{platform}.zip", buffer.getvalue()

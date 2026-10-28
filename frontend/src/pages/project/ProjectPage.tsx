@@ -1,19 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Eye, FileDown, PencilLine, Pin, RefreshCw, Save, Wand2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 
 import { errorText } from '../../api/client'
-import { keys, useProject, useProjectMutations } from '../../api/hooks'
-import type { ProjectOut } from '../../api/types.gen'
-import { useJob, type Critique } from '../../api/useJob'
+import { keys, usePersonas, useProject, useProjectMutations } from '../../api/hooks'
+import type { JobOut, ProjectOut } from '../../api/types.gen'
+import { useJob, type Critique, type JobState } from '../../api/useJob'
 import { Article } from '../../components/Article'
-import { Badge, Button, Card, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { AuthenticityPanel } from './AuthenticityPanel'
 import { ExportDialog } from './ExportDialog'
 import { GenerationView } from './GenerationView'
 import { ImageCard } from './ImageCard'
+import { PostSettingsDialog } from './PostSettingsDialog'
+import { BriefCard, HistoryCard, ReviseCard } from './RevisePanel'
 
 const SCORE_LABELS: [keyof Critique, string][] = [
   ['voice', 'Sounds like you'],
@@ -143,8 +145,10 @@ export function TitlePicker({ project }: { project: ProjectOut }) {
 }
 
 function DialsSummary({ project }: { project: ProjectOut }) {
+  const { data: personas } = usePersonas()
   const d = project.resolved_dials as Record<string, string | number>
   if (!d || !d.target_words) return null
+  const persona = personas?.find((p) => p.id === project.persona_id)
   return (
     <Card className="space-y-1 text-sm">
       <h2 className="mb-1 font-bold">Settings used</h2>
@@ -163,12 +167,31 @@ function DialsSummary({ project }: { project: ProjectOut }) {
       <p>
         <span className="text-muted">Topic:</span> {d.topic} · <span className="text-muted">For:</span> {String(d.platform)}
       </p>
-      {project.voice_profile_version && <p className="text-muted">Voice profile v{project.voice_profile_version}</p>}
+      {d.audience && (
+        <p>
+          <span className="text-muted">Audience:</span> {d.audience}
+        </p>
+      )}
+      <p className="text-muted">
+        {persona ? `${persona.name} · ` : ''}
+        {project.voice_profile_version ? `voice profile v${project.voice_profile_version}` : ''}
+      </p>
     </Card>
   )
 }
 
-function Editor({ project, onRegenerate }: { project: ProjectOut; onRegenerate: () => void }) {
+interface EditorProps {
+  project: ProjectOut
+  /** Shown above the post, e.g. tweak progress or what the last tweak changed. */
+  banner?: ReactNode
+  /** A tweak is running: the post stays visible but cannot be changed. */
+  busy: boolean
+  onRegenerate: () => void
+  onOpenSettings: () => void
+  onTweakStarted: (job: JobOut) => void
+}
+
+function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakStarted }: EditorProps) {
   const { update, rewrite } = useProjectMutations(project.id)
   const [mode, setMode] = useState<'preview' | 'markdown'>('preview')
   const [text, setText] = useState(project.markdown)
@@ -194,6 +217,7 @@ function Editor({ project, onRegenerate }: { project: ProjectOut; onRegenerate: 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-4">
+        {banner}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="inline-flex rounded-lg border border-line bg-surface p-1" role="tablist" aria-label="Editor mode">
             {(
@@ -223,7 +247,7 @@ function Editor({ project, onRegenerate }: { project: ProjectOut; onRegenerate: 
                   size="sm"
                   variant="secondary"
                   icon={<Wand2 className="size-4" />}
-                  disabled={!selection.trim() || dirty}
+                  disabled={!selection.trim() || dirty || busy}
                   onClick={() => setRewriteOpen(true)}
                   title={dirty ? 'Save your edits first' : 'Select text in the editor first'}
                 >
@@ -232,7 +256,7 @@ function Editor({ project, onRegenerate }: { project: ProjectOut; onRegenerate: 
                 <Button
                   size="sm"
                   icon={<Save className="size-4" />}
-                  disabled={!dirty}
+                  disabled={!dirty || busy}
                   loading={update.isPending}
                   onClick={() => update.mutate({ markdown: text })}
                 >
@@ -274,23 +298,13 @@ function Editor({ project, onRegenerate }: { project: ProjectOut; onRegenerate: 
       </div>
 
       <aside className="space-y-4">
+        <ReviseCard project={project} dirty={dirty} busy={busy} onTweakStarted={onTweakStarted} onOpenSettings={onOpenSettings} onRegenerate={onRegenerate} />
+        <HistoryCard project={project} busy={busy} dirty={dirty} />
         <TitlePicker project={project} />
         <AuthenticityPanel project={project} />
         <FidelityPanel project={project} />
+        <BriefCard project={project} onEdit={onOpenSettings} disabled={busy} />
         <DialsSummary project={project} />
-        <Card className="space-y-2">
-          <h2 className="font-bold">Start over</h2>
-          <p className="text-sm text-muted">Write the whole post again from the same prompt and settings. Your current text and images are replaced.</p>
-          <Button
-            variant="secondary"
-            icon={<RefreshCw className="size-4" />}
-            onClick={() => {
-              if (confirm('Regenerate the whole post? The current text and images will be replaced.')) onRegenerate()
-            }}
-          >
-            Regenerate post
-          </Button>
-        </Card>
       </aside>
 
       <ExportDialog
@@ -342,19 +356,52 @@ export function ProjectPage() {
   const qc = useQueryClient()
   const { data: project, isLoading, error } = useProject(id)
   const { generate } = useProjectMutations(id)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // The last finished job, kept after the URL is cleared so its outcome can be shown.
+  const [finished, setFinished] = useState<{ kind: string; state: JobState } | null>(null)
   const jobId = params.get('job') ?? project?.active_job_id ?? null
+  const jobKind = params.get('kind') ?? project?.active_job_kind ?? 'generate_post'
 
-  const job = useJob(jobId, () => {
+  const job = useJob(jobId, (state) => {
     void qc.invalidateQueries({ queryKey: keys.project(id) })
     void qc.invalidateQueries({ queryKey: keys.projects })
+    setFinished({ kind: jobKind, state })
     setParams({}, { replace: true })
   })
 
   if (isLoading) return <Spinner />
   if (error || !project) return <Notice tone="error">{error ? errorText(error) : 'Post not found.'}</Notice>
 
-  const generating = !!jobId && job.status !== 'succeeded' && job.status !== 'failed'
-  const regenerate = () => generate.mutate(undefined, { onSuccess: (j) => setParams({ job: j.id }, { replace: true }) })
+  const running = !!jobId && job.status !== 'succeeded' && job.status !== 'failed'
+  const generating = running && jobKind !== 'tweak_post'
+  const tweaking = running && jobKind === 'tweak_post'
+  const follow = (j: JobOut) => {
+    setFinished(null)
+    setParams({ job: j.id, kind: j.kind }, { replace: true })
+  }
+  const regenerate = () => generate.mutate(undefined, { onSuccess: follow })
+  const failed = finished?.state.status === 'failed' ? finished : null
+
+  let banner: ReactNode = null
+  if (tweaking) {
+    banner = (
+      <Card className="space-y-2">
+        <p className="text-sm font-semibold">Applying your feedback…</p>
+        <ProgressBar value={job.progress} label="Feedback progress" />
+        <p className="text-xs text-muted">{job.message || 'Starting'}</p>
+      </Card>
+    )
+  } else if (finished?.kind === 'tweak_post' && finished.state.status === 'succeeded') {
+    const result = finished.state.result ?? {}
+    const skipped = (result.skipped as string[] | undefined) ?? []
+    banner = (
+      <Notice tone="success" title="Feedback applied">
+        {String(result.summary ?? 'Done.')}
+        {skipped.length > 0 && ` ${skipped.length} edit${skipped.length > 1 ? 's' : ''} could not be placed; try quoting the sentence you mean.`} Not quite
+        right? Use “Undo last change”.
+      </Notice>
+    )
+  }
 
   return (
     <>
@@ -367,14 +414,14 @@ export function ProjectPage() {
           {generating ? 'Writing…' : project.status}
         </Badge>
       </div>
-      {job.status === 'failed' && (
+      {failed && (
         <div className="mb-6">
-          <Notice tone="error" title="Generation stopped">
-            {job.error}
+          <Notice tone="error" title={failed.kind === 'tweak_post' ? 'Could not apply your feedback' : 'Generation stopped'}>
+            {failed.state.error}
           </Notice>
         </div>
       )}
-      {project.status === 'error' && !generating && job.status !== 'failed' && project.error && (
+      {project.status === 'error' && !generating && !failed && project.error && (
         <div className="mb-6">
           <Notice tone="error" title="The last generation failed">
             {project.error}
@@ -384,16 +431,37 @@ export function ProjectPage() {
       {generating ? (
         <GenerationView job={job} />
       ) : project.markdown ? (
-        <Editor project={project} onRegenerate={regenerate} />
+        <Editor
+          project={project}
+          banner={banner}
+          busy={tweaking}
+          onRegenerate={regenerate}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onTweakStarted={follow}
+        />
       ) : (
         <Card className="space-y-4">
           <p className="whitespace-pre-wrap text-muted">{project.prompt}</p>
           {generate.error && <Notice tone="error">{errorText(generate.error)}</Notice>}
-          <Button variant="flame" onClick={regenerate} loading={generate.isPending}>
-            Write this post
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="flame" onClick={regenerate} loading={generate.isPending}>
+              Write this post
+            </Button>
+            <Button variant="secondary" onClick={() => setSettingsOpen(true)}>
+              Edit brief & settings
+            </Button>
+          </div>
         </Card>
       )}
+      <PostSettingsDialog
+        project={project}
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onStarted={(j) => {
+          setSettingsOpen(false)
+          follow(j)
+        }}
+      />
     </>
   )
 }

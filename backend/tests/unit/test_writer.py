@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from proseferno.db import Persona, Sample
+from proseferno.db import Persona, Project, Sample
 from proseferno.voice import rank_by_similarity, select_exemplars
 from proseferno.writer import (
+    MAX_REVISIONS,
     Dials,
     ImageSlot,
+    TextEdit,
+    apply_edits,
     classify_topic,
     ensure_placeholders,
+    finish_text,
     merge_titles,
     normalize_slots,
+    push_revision,
     resolve,
     set_title,
     split_title,
@@ -140,3 +145,48 @@ def test_strip_image_captions_removes_credit_lines_next_to_images() -> None:
 
 def test_merge_titles_dedupes_case_insensitively() -> None:
     assert merge_titles(["A Title", " "], ["a title", "Another"]) == ["A Title", "Another"]
+
+
+def test_audience_and_x_platform_resolve() -> None:
+    resolved = resolve(Dials(audience="  data science managers ", platform="x"), Persona(name="Me"), "x", default_revisions=1)
+    assert resolved.audience == "data science managers" and resolved.platform == "x"
+    assert "X Article" in resolved.platform_guide
+    assert resolve(Dials(), Persona(name="Me"), "x", default_revisions=1).audience == ""
+
+
+def test_apply_edits_exact_whitespace_tolerant_and_skipped() -> None:
+    post = "# T\n\nFirst line here.\nIt wraps.\n\n{{image:img2}}\n\nLast line."
+    edits = [
+        TextEdit(find="Last line.", replace="Final line."),
+        TextEdit(find="First line here. It wraps.", replace="One line now."),
+        TextEdit(find="Not in the post", replace="x"),
+        TextEdit(find="same", replace="same"),
+    ]
+    out, applied, skipped = apply_edits(post, edits)
+    assert applied == 2 and skipped == ["Not in the post"]
+    assert out == "# T\n\nOne line now.\n\n{{image:img2}}\n\nFinal line."
+
+
+def test_finish_text_restores_a_dropped_placeholder() -> None:
+    plan = {
+        "image_slots": [
+            slot("hero", "hero", -1).model_dump(),
+            slot("img2", "diagram", 0).model_dump(),
+            slot("meme", "meme", 0).model_dump(),
+        ]
+    }
+    post = "# T\n\n*Sub*\n\n{{image:hero}}\n\n## One\n\nText.\n\n{{image:meme}}\n"
+    out, _, _ = apply_edits(post, [TextEdit(find="Text.", replace="New text.")])
+    fixed = finish_text(out, plan)
+    assert "{{image:img2}}" in fixed and "New text." in fixed
+    assert finish_text("anything", None) == "anything"
+
+
+def test_revisions_are_newest_first_and_capped() -> None:
+    project = Project(persona_id=1, prompt="p", markdown="v0")
+    push_revision(Project(persona_id=1, prompt="p"), "empty posts are not kept", "edit")
+    for i in range(MAX_REVISIONS + 3):
+        push_revision(project, f"change {i}", "tweak")
+        project.markdown = f"v{i + 1}"
+    assert len(project.revisions) == MAX_REVISIONS
+    assert project.revisions[0]["label"] == f"change {MAX_REVISIONS + 2}" and project.revisions[0]["markdown"] == f"v{MAX_REVISIONS + 2}"

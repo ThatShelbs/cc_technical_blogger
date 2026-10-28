@@ -4,21 +4,9 @@ import { Link, useNavigate } from 'react-router'
 
 import { errorText } from '../api/client'
 import { useActivePersona, useProjectMutations } from '../api/hooks'
-import {
-  PLATFORMS,
-  STYLE_DIALS,
-  TOPICS,
-  autoImageCount,
-  buildDials,
-  emptyDials,
-  personaStyle,
-  styleLabel,
-  type DialsState,
-  type Education,
-  type IncludeCode,
-  type Platform,
-} from './dials'
-import { Button, Card, Field, Notice, PageHeader, Select, Slider, Textarea } from '../components/ui'
+import { PLATFORMS, buildDials, emptyDials, shownDials, type DialsState, type Platform } from './dials'
+import { DialsFields } from '../components/DialsFields'
+import { Button, Card, Field, Notice, PageHeader, Select, Textarea } from '../components/ui'
 
 const EXAMPLE = `Why most A/B tests at big companies are underpowered
 - story: the test that "won" and then quietly lost
@@ -36,12 +24,8 @@ export function NewProjectPage() {
   const set = (patch: Partial<DialsState>) => setDials((d) => ({ ...d, ...patch }))
 
   // What each control shows: the user's choice, else the persona's default.
-  const targetWords = dials.targetWords ?? persona?.default_target_words ?? 1500
-  const imageCount = dials.imageCount ?? persona?.default_image_count ?? null
-  const humor = dials.humor ?? persona?.default_humor ?? 5
-  const education = dials.education ?? (persona?.default_education as Education | undefined) ?? 'intermediate'
+  const { targetWords, imageCount, humor } = shownDials(dials, persona)
   const platform = dials.platform ?? (persona?.default_platform as Platform | undefined) ?? 'medium'
-  const includeCode = dials.includeCode ?? (persona?.default_include_code as IncludeCode | undefined) ?? 'auto'
   const changed = Object.keys(buildDials(dials)).length > 0
 
   const ready = !!persona?.voice_profile_version
@@ -123,61 +107,7 @@ export function NewProjectPage() {
             </p>
           ) : (
             <div className="space-y-5">
-              <Slider
-                label="Target length"
-                min={500}
-                max={5000}
-                step={100}
-                value={targetWords}
-                onChange={(v) => set({ targetWords: v })}
-                format={(v) => `${v.toLocaleString()} words`}
-              />
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={imageCount === null}
-                    onChange={(e) => set({ imageCount: e.target.checked ? null : autoImageCount(targetWords) })}
-                    className="accent-[var(--app-accent)]"
-                  />
-                  Choose the number of images automatically
-                </label>
-                {imageCount !== null && <Slider label="Images" min={2} max={12} value={imageCount} onChange={(v) => set({ imageCount: v })} />}
-              </div>
-              <Slider label="Humor" min={0} max={10} value={humor} onChange={(v) => set({ humor: v })} format={(v) => `${v}/10`} />
-              {STYLE_DIALS.map(({ key, label, low, high }) => (
-                <Slider
-                  key={key}
-                  label={label}
-                  min={0}
-                  max={10}
-                  value={dials.style[key] ?? personaStyle(persona, key)}
-                  onChange={(v) => set({ style: { ...dials.style, [key]: v } })}
-                  format={(v) => styleLabel(v, low, high)}
-                />
-              ))}
-              <Field label="Education level" htmlFor="education">
-                <Select id="education" value={education} onChange={(e) => set({ education: e.target.value as Education })}>
-                  <option value="beginner">Beginner: explain everything</option>
-                  <option value="intermediate">Intermediate: practical how and why</option>
-                  <option value="expert">Expert: trade-offs and depth</option>
-                </Select>
-              </Field>
-              <Field label="Topic" htmlFor="topic">
-                <Select id="topic" value={dials.topic} onChange={(e) => set({ topic: e.target.value })}>
-                  <option value="">Detect automatically</option>
-                  {TOPICS.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Code snippets and prompts" htmlFor="code">
-                <Select id="code" value={includeCode} onChange={(e) => set({ includeCode: e.target.value as IncludeCode })}>
-                  <option value="auto">Where they help</option>
-                  <option value="yes">Yes, include them</option>
-                  <option value="no">No code</option>
-                </Select>
-              </Field>
+              <DialsFields dials={dials} onChange={set} persona={persona} />
               <Button variant="ghost" size="sm" icon={<RotateCcw className="size-4" />} disabled={!changed} onClick={() => setDials(emptyDials)}>
                 Reset to persona defaults
               </Button>

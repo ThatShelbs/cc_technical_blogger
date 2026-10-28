@@ -10,6 +10,7 @@ $plan
 
 Settings:
 - About $target_words words (excluding code)
+- Audience: $audience
 - Humor level $humor/10: $humor_guide
 - Education level ($education): $education_guide
 - Code snippets / LLM prompts: $include_code

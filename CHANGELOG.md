@@ -6,6 +6,10 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Added
 
+- **Three ways to revise a post**: *Tweak with feedback* (Claude makes surgical edits and keeps the rest of the text and images, redrawing only an image the feedback names), *Edit brief & settings* (see and refine the original brief or the outline Claude planned, change any dial, the platform or the persona, then regenerate), and *Regenerate post*.
+- Text version history: *Undo last change* and *Restore* for the last ten versions (before each tweak, passage rewrite, manual save or restore).
+- **X** as a platform: X Article writing conventions and an export with a 1500×600 header and a teaser post under 280 characters.
+- **Audience** dial: say who the post is for; empty means the author's usual readers.
 - **Claude subscription connection**: run Proseferno on your Claude Pro or Max plan instead of API credits. Proseferno runs your own Claude Code CLI headless (`claude -p`), the route Anthropic's policy allows for subscriptions, and never handles Claude credentials. Choose it in Settings → Claude, which shows your plan, Claude Code version and sign-in.
 - AI-generation detection: a 0-100 "reads as human" score on every post (a scan calibrated to the author's own samples plus a Claude judge), a full report with flagged passages and one-click *Humanize*, *Re-check* after edits, AI tells fed into the editor pass, and `evals/ai_detection.py`.
 - LinkedIn: platform-aware writing, copy-ready article HTML, a 1920×1080 cover, a feed post (template or written by Claude in the persona's voice, under 3,000 characters), and a swipeable document carousel as PDF and editable PPTX.
@@ -26,6 +30,7 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Fixed
 
+- Reloading a post while one of its images was redrawing showed the full-page generation view.
 - Post generation no longer fails on a transient mid-stream Claude error during critique ("Claude API error 200"). Such errors are retried, and if the editing pass still fails, the draft is kept.
 - A low Anthropic API credit balance now says so plainly instead of showing a raw 400 error.
 - Writing-sample cards collapsed into a narrow column with one word per line (form controls could not override their full width).

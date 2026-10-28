@@ -97,9 +97,13 @@ class JobManager:
                 raise KeyError(job_id)
             return job
 
-    def active_for(self, *, persona_id: int | None = None, project_id: int | None = None) -> list[Job]:
+    def active_for(
+        self, *, persona_id: int | None = None, project_id: int | None = None, kinds: tuple[str, ...] | None = None
+    ) -> list[Job]:
         with Session(self.engine) as session:
             query = select(Job).where(Job.status.in_(["queued", "running"]))  # type: ignore[attr-defined]
+            if kinds is not None:
+                query = query.where(Job.kind.in_(kinds))  # type: ignore[attr-defined]
             if persona_id is not None:
                 query = query.where(Job.persona_id == persona_id)
             if project_id is not None:

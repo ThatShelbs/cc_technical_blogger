@@ -33,11 +33,12 @@ It is specialized for technical writing about data science, Python, data visuali
 - **Voice profile.** A versioned `voice_profile.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing. Regenerate or edit it any time.
 - **Optional web research** on current best practices for titles, storytelling, skimmable structure, humor, insight, credibility and teaching.
 - **Personas.** Create several (different names, different voices); exactly one is on at a time. Switch personas and pin any earlier voice profile version from the sidebar, name versions, rename personas, or branch a version into a new, separately named persona.
-- **One prompt per post.** Type a sentence or a bullet outline. Everything else has smart defaults from the persona: length, image count, humor, education level, storytelling, opinion strength, formality, technical depth, skimmability, code, topic, platform. Open *Customize* to change any of them for one post.
+- **One prompt per post.** Type a sentence or a bullet outline. Everything else has smart defaults from the persona: length, image count, humor, education level, storytelling, opinion strength, formality, technical depth, skimmability, code, topic, audience, platform. Open *Customize* to change any of them for one post.
 - **Voice-fidelity loop.** Plan → streamed draft → an editor critiques the draft against your voice profile and example posts → revision. You see a measured style score and the editor's scores. Edit the title, pin the options you like, and ask Claude for new ones.
+- **Three ways to revise.** *Tweak with feedback*: type what to change and Claude makes surgical edits, keeping the rest of your text and images (and redrawing only an image you mention). *Edit brief & settings*: see the brief or outline the post was written from, borrow the outline Claude planned, change any dial, the platform or the persona, and regenerate. Or *Regenerate post* as is. *Undo* any tweak, rewrite or edit from the last ten versions.
 - **Reads-as-human score.** Every post gets an AI-generation detection report from 0 (would be flagged as AI) to 100 (authentic human prose): a scan calibrated to your own writing plus a Claude judge, with one-click *Humanize* for the passages a detector would catch.
 - **Images that earn their place, drawn by Claude.** A hero illustration that doubles as the thumbnail, concept icons, clarifying diagrams, data visualizations, screenshot placeholders, and a closing meme, all authored by Claude as SVG or Vega-Lite, rendered locally, placed inline and credited ("Author: You; Made with Claude Opus 5.5 (SVG)"). No other image service, nothing to set up. **Redraw** any image for a new take, **Replace** it with your own, or roll back through its versions.
-- **Export** for Medium, Substack, LinkedIn (article, feed post and a PDF/PowerPoint document carousel), Gumroad (PDF), or Markdown/Word, as a zip or copy-and-paste HTML with images embedded.
+- **Export** for Medium, Substack, LinkedIn (article, feed post and a PDF/PowerPoint document carousel), X (an X Article with a 5:2 header and a teaser post), Gumroad (PDF), or Markdown/Word, as a zip or copy-and-paste HTML with images embedded.
 - **Day and night themes** in an inferno palette, a one-click Windows launcher, and a demo mode to try everything without API keys.
 
 ## Quick start
@@ -111,10 +112,10 @@ backend/                           FastAPI + uv (Python 3.13)
     api/        HTTP routes (auth, settings, personas, samples, voice, projects, images, export, jobs/SSE)
     ingest/     Parsers, Medium clean-up, stylometrics
     voice/      Sample analysis, research, voice profile synthesis, exemplar selection
-    writer/     Dials, plan, draft, critique/revise, LinkedIn feed post
+    writer/     Dials, plan, draft, critique/revise, feedback tweaks, text history, LinkedIn feed post
     authenticity/  AI-generation detection: calibrated scan + Claude judge
     images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
-    export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), Gumroad (PDF), Markdown/Word bundles
+    export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles
     llm/        Claude client, sign-in resolution
     prompts/    Every prompt, as readable Markdown
   tests/        pytest (fake Claude)

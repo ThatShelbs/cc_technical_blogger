@@ -50,3 +50,19 @@ class Critique(BaseModel):
     strengths: list[str]
     issues: list[str] = Field(description="Specific problems, quoting the offending text.")
     revision_instructions: list[str] = Field(description="Concrete edits to make, most important first.")
+
+
+class TextEdit(BaseModel):
+    find: str = Field(description="Text copied exactly from the post, long enough to appear only once.")
+    replace: str = Field(description="The new text for that span (empty to delete it).")
+
+
+class ImageChange(BaseModel):
+    slot_id: str = Field(description="The image to redraw, e.g. 'img2'.")
+    brief: str = Field(description="What the redrawn image should show.")
+
+
+class PostEdits(BaseModel):
+    summary: str = Field(description="One or two plain sentences telling the author what changed.")
+    edits: list[TextEdit] = Field(description="Surgical text edits, in order; only what the feedback asks for.")
+    image_changes: list[ImageChange] = Field(description="Images to redraw because the feedback is about them; usually empty.")

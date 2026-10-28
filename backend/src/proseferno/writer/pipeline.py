@@ -24,6 +24,7 @@ from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
+from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
 log = logging.getLogger(__name__)
@@ -231,7 +232,7 @@ async def write_post(
     """Plan -> streamed draft -> critique/revise. Text only; images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
     system = writer_system(voice_profile.markdown, format_exemplars(exemplars))
-    settings_text = _settings_text(dials)
+    settings_text = prompt_settings(dials)
 
     # 1. Plan
     await reporter.progress(0.03, "Planning the post")
@@ -363,7 +364,8 @@ async def _generate(
             subtitle=plan.subtitle,
             voice_profile_version=voice_profile.version,
         ),
-        on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured),
+        # The old text versions belong to the old images, so a regeneration starts a fresh history.
+        on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured, revisions=[]),
     )
     draft, plan, slots = post.markdown, post.plan, post.plan.image_slots
 
@@ -434,7 +436,15 @@ async def rewrite_passage(
         max_tokens=16000,
     )
     new_markdown = project.markdown.replace(selection, replacement.strip(), 1)
-    _save(engine, project_id, markdown=new_markdown)
+    with Session(engine) as session:
+        row = session.get(Project, project_id)
+        if row is None:
+            raise WriterError("Project not found.")
+        push_revision(row, f"Rewrite: {instruction or 'sound more like me'}", "rewrite")
+        row.markdown = new_markdown
+        row.updated_at = utcnow()
+        session.add(row)
+        session.commit()
     return new_markdown
 
 
@@ -499,7 +509,7 @@ def _outline(markdown: str) -> str:
     return "\n".join([*head, *(body[:1]), "", *headings]).strip()
 
 
-def _settings_text(dials: ResolvedDials) -> dict[str, Any]:
+def prompt_settings(dials: ResolvedDials) -> dict[str, Any]:
     include_code = {
         "auto": "include where they genuinely help the reader",
         "yes": "include key code snippets and/or LLM prompts",
@@ -507,6 +517,7 @@ def _settings_text(dials: ResolvedDials) -> dict[str, Any]:
     }[dials.include_code]
     return {
         "topic": dials.topic,
+        "audience": dials.audience or "the author's usual readers",
         "target_words": dials.target_words,
         "humor": dials.humor,
         "humor_guide": dials.humor_guide,

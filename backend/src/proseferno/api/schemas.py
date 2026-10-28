@@ -257,8 +257,29 @@ class ProjectUpdate(BaseModel):
     title: str | None = None
     pinned_titles: list[str] | None = None
     markdown: str | None = None
-    prompt: str | None = None
+    prompt: str | None = Field(None, min_length=3)
     dials: Dials | None = None
+    persona_id: int | None = None
+
+
+class GenerateIn(BaseModel):
+    """Optional changes to apply before regenerating; anything left out keeps the post's current value."""
+
+    prompt: str | None = Field(None, min_length=3)
+    dials: Dials | None = None
+    persona_id: int | None = None
+
+
+class TweakIn(BaseModel):
+    feedback: str = Field(min_length=3, max_length=4000)
+
+
+class RevisionOut(BaseModel):
+    index: int
+    label: str
+    kind: str
+    created_at: str
+    word_count: int
 
 
 class ImageHistoryOut(BaseModel):
@@ -332,10 +353,12 @@ class ProjectOut(BaseModel):
     authenticity: dict[str, Any] | None
     social: dict[str, Any] | None
     pinned_titles: list[str]
+    revisions: list[RevisionOut]
     voice_profile_version: int | None
     error: str | None
     images: list[ImageOut]
     active_job_id: str | None
+    active_job_kind: str | None
     created_at: datetime
     updated_at: datetime
 

@@ -59,6 +59,27 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await page.getByRole('button', { name: 'Stop Baking Pies', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Stop Baking Pies' }).first()).toBeVisible()
 
+  // Tweak with feedback keeps the post and its images, then undo it
+  await page.getByLabel(/Tweak with feedback/).fill('Add a joke to the opening')
+  await page.getByRole('button', { name: 'Apply feedback' }).click()
+  await expect(page.getByText('Feedback applied')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/nobody stopped them/)).toBeVisible()
+  await expect(page.locator('figure img')).toHaveCount(4)
+  await page.getByRole('button', { name: 'Undo last change' }).click()
+  await expect(page.getByText(/nobody stopped them/)).toHaveCount(0)
+
+  // Brief & settings: the original brief, the planned outline, every dial
+  await page.getByRole('button', { name: 'Edit brief & settings' }).click()
+  const settings = page.getByRole('dialog', { name: 'Brief & settings' })
+  await expect(settings.getByLabel(/Brief or outline/)).toHaveValue('Why pie charts are lame and what to use instead')
+  await settings.getByRole('button', { name: /Outline Claude planned/ }).click()
+  await settings.getByRole('button', { name: 'Use as my outline' }).click()
+  await expect(settings.getByLabel(/Brief or outline/)).toHaveValue(/- Why People Love Pies/)
+  await expect(settings.getByLabel('Publishing on')).toBeVisible()
+  await expect(settings.getByLabel(/Audience/)).toBeVisible()
+  await shot(page, 'post-settings')
+  await settings.getByRole('button', { name: 'Close' }).click()
+
   // Export dialog offers platform bundles
   await page.getByRole('button', { name: 'Export' }).click()
   await page.getByRole('radio', { name: 'Gumroad' }).click()

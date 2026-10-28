@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from proseferno.db import Persona
 
 Education = Literal["beginner", "intermediate", "expert"]
-Platform = Literal["medium", "substack", "linkedin", "gumroad", "markdown"]
+Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
 IncludeCode = Literal["auto", "yes", "no"]
 
 TOPICS: dict[str, list[str]] = {
@@ -156,6 +156,11 @@ PLATFORM_GUIDE: dict[str, str] = {
         "instead of tables); bold one key takeaway per section; speak to practitioners and leaders; end with a question that "
         "invites comments."
     ),
+    "x": (
+        "X Article (long-form post on X): the first line must hook, because it is all the timeline shows; keep paragraphs to "
+        "one to three sentences; use descriptive `##` headings; bold sparingly; X Articles have no tables or code blocks, so use "
+        "lists instead of tables and keep code to a few short lines; end with a line that invites replies."
+    ),
     "gumroad": "Gumroad: a polished, self-contained piece that reads well as a PDF.",
     "markdown": "Developer blogs (dev.to, Hashnode, Ghost): practical, code-friendly, with clear headings.",
 }
@@ -174,6 +179,8 @@ class Dials(BaseModel):
     technical_depth: int | None = Field(None, ge=0, le=10)
     skimmability: int | None = Field(None, ge=0, le=10)
     topic: str | None = None
+    # Who the post is for, in the author's words ("data science managers at big companies"); empty = their usual readers.
+    audience: str | None = Field(None, max_length=200)
     platform: Platform | None = None
     include_code: IncludeCode | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
@@ -193,6 +200,7 @@ class ResolvedDials(BaseModel):
     skimmability: int
     style_guide: str
     topic: str
+    audience: str
     platform: Platform
     platform_guide: str
     include_code: IncludeCode
@@ -248,6 +256,7 @@ def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: i
         **styles,
         style_guide=style_guide(styles),
         topic=dials.topic or classify_topic(prompt),
+        audience=(dials.audience or "").strip(),
         platform=platform,
         platform_guide=PLATFORM_GUIDE[platform],
         include_code=include_code,

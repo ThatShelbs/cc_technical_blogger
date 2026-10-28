@@ -6,6 +6,7 @@ import type {
   AuthTestOut,
   CopyHtmlOut,
   Dials,
+  GenerateIn,
   Health,
   ImageOut,
   JobOut,
@@ -235,7 +236,18 @@ export function useProjectMutations(projectId?: number) {
       mutationFn: (body: ProjectUpdate) => api.patch<ProjectOut>(`/api/projects/${projectId}`, body),
       onSuccess: setProject,
     }),
-    generate: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/generate`) }),
+    /** Write the whole post again; with a body, first apply a new brief, dials or persona. */
+    generate: useMutation({
+      mutationFn: (body?: GenerateIn) => api.post<JobOut>(`/api/projects/${projectId}/generate`, body),
+      onSuccess: () => qc.invalidateQueries({ queryKey: keys.project(projectId ?? 0) }),
+    }),
+    /** Apply the author's feedback with surgical edits; text and images that are not mentioned stay. */
+    tweak: useMutation({ mutationFn: (feedback: string) => api.post<JobOut>(`/api/projects/${projectId}/tweak`, { feedback }) }),
+    /** Bring back an earlier text version (index 0 = undo the last change). */
+    restoreRevision: useMutation({
+      mutationFn: (index: number) => api.post<ProjectOut>(`/api/projects/${projectId}/revisions/${index}/restore`),
+      onSuccess: setProject,
+    }),
     rewrite: useMutation({
       mutationFn: (body: { selection: string; instruction: string }) => api.post<ProjectOut>(`/api/projects/${projectId}/rewrite`, body),
       onSuccess: setProject,

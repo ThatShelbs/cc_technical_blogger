@@ -14,13 +14,14 @@ export const TOPICS = [
 ]
 
 export type Education = 'beginner' | 'intermediate' | 'expert'
-export type Platform = 'medium' | 'substack' | 'linkedin' | 'gumroad' | 'markdown'
+export type Platform = 'medium' | 'substack' | 'linkedin' | 'x' | 'gumroad' | 'markdown'
 export type IncludeCode = 'auto' | 'yes' | 'no'
 
 export const PLATFORMS: [Platform, string][] = [
   ['medium', 'Medium'],
   ['substack', 'Substack'],
   ['linkedin', 'LinkedIn'],
+  ['x', 'X (Article)'],
   ['gumroad', 'Gumroad'],
   ['markdown', 'Markdown (dev.to, Hashnode, Ghost)'],
 ]
@@ -53,6 +54,8 @@ export interface DialsState {
   education: Education | null
   style: Partial<Record<StyleKey, number>>
   topic: string
+  /** Who the post is for; empty = the author's usual readers */
+  audience: string
   /** null = use the persona's default */
   platform: Platform | null
   includeCode: IncludeCode | null
@@ -65,6 +68,7 @@ export const emptyDials: DialsState = {
   education: null,
   style: {},
   topic: '',
+  audience: '',
   platform: null,
   includeCode: null,
 }
@@ -81,9 +85,31 @@ export function buildDials(state: DialsState): Dials {
     if (value !== undefined) dials[key] = value
   }
   if (state.topic) dials.topic = state.topic
+  if (state.audience.trim()) dials.audience = state.audience.trim()
   if (state.platform !== null) dials.platform = state.platform
   if (state.includeCode !== null) dials.include_code = state.includeCode
   return dials
+}
+
+/** The inverse of buildDials: a saved post's dials back into form state. */
+export function dialsToState(dials: Dials | Record<string, unknown> | null | undefined): DialsState {
+  const d = (dials ?? {}) as Dials
+  const style: DialsState['style'] = {}
+  for (const { key } of STYLE_DIALS) {
+    const value = d[key]
+    if (typeof value === 'number') style[key] = value
+  }
+  return {
+    targetWords: d.target_words ?? null,
+    imageCount: d.image_count ?? null,
+    humor: d.humor ?? null,
+    education: d.education ?? null,
+    style,
+    topic: d.topic ?? '',
+    audience: d.audience ?? '',
+    platform: d.platform ?? null,
+    includeCode: d.include_code ?? null,
+  }
 }
 
 /** The value a dial shows: the user's choice, else the persona default. */
@@ -93,4 +119,16 @@ export function personaStyle(persona: PersonaOut | undefined, key: StyleKey): nu
 
 export function autoImageCount(targetWords: number): number {
   return Math.max(2, Math.min(12, Math.round(targetWords / 350)))
+}
+
+/** What a dial shows: the user's choice, else the persona's default. */
+export function shownDials(dials: DialsState, persona: PersonaOut | undefined) {
+  const targetWords = dials.targetWords ?? persona?.default_target_words ?? 1500
+  return {
+    targetWords,
+    imageCount: dials.imageCount ?? persona?.default_image_count ?? null,
+    humor: dials.humor ?? persona?.default_humor ?? 5,
+    education: dials.education ?? (persona?.default_education as Education | undefined) ?? 'intermediate',
+    includeCode: dials.includeCode ?? (persona?.default_include_code as IncludeCode | undefined) ?? 'auto',
+  }
 }

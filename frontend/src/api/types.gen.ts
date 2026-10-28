@@ -51,9 +51,16 @@ export interface Dials {
   technical_depth?: number | null;
   skimmability?: number | null;
   topic?: string | null;
-  platform?: "medium" | "substack" | "linkedin" | "gumroad" | "markdown" | null;
+  audience?: string | null;
+  platform?: "medium" | "substack" | "linkedin" | "x" | "gumroad" | "markdown" | null;
   include_code?: "auto" | "yes" | "no" | null;
   revision_passes?: number | null;
+}
+
+export interface GenerateIn {
+  prompt?: string | null;
+  dials?: Dials | null;
+  persona_id?: number | null;
 }
 
 export interface Health {
@@ -173,7 +180,7 @@ export interface PersonaUpdate {
   default_technical_depth?: number | null;
   default_skimmability?: number | null;
   default_include_code?: "auto" | "yes" | "no" | null;
-  default_platform?: "medium" | "substack" | "linkedin" | "gumroad" | "markdown" | null;
+  default_platform?: "medium" | "substack" | "linkedin" | "x" | "gumroad" | "markdown" | null;
   name?: string | null;
   display_name?: string | null;
   research_enabled?: boolean | null;
@@ -210,10 +217,12 @@ export interface ProjectOut {
   authenticity: Record<string, unknown> | null;
   social: Record<string, unknown> | null;
   pinned_titles: string[];
+  revisions: RevisionOut[];
   voice_profile_version: number | null;
   error: string | null;
   images: ImageOut[];
   active_job_id: string | null;
+  active_job_kind: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -236,6 +245,7 @@ export interface ProjectUpdate {
   markdown?: string | null;
   prompt?: string | null;
   dials?: Dials | null;
+  persona_id?: number | null;
 }
 
 export interface RedrawIn {
@@ -244,6 +254,14 @@ export interface RedrawIn {
 
 export interface RevertIn {
   index: number;
+}
+
+export interface RevisionOut {
+  index: number;
+  label: string;
+  kind: string;
+  created_at: string;
+  word_count: number;
 }
 
 export interface RewriteIn {
@@ -314,6 +332,10 @@ export interface SettingsOut {
   seed_samples_dir: string;
   version: string;
   demo: boolean;
+}
+
+export interface TweakIn {
+  feedback: string;
 }
 
 export interface UploadResult {

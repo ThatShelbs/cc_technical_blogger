@@ -51,5 +51,7 @@ def test_voice_soul_data_is_carried_over_to_voice_profile(tmp_path: Path) -> Non
         assert conn.exec_driver_sql("SELECT label, markdown FROM voiceprofile").one() == ("Punchier", "# Voice Soul: mine")
         assert conn.exec_driver_sql("SELECT pinned_voice_profile_version FROM persona").scalar_one() == 2
         assert conn.exec_driver_sql("SELECT voice_profile_version FROM project").scalar_one() == 3
+        # Columns added later are backfilled with their defaults.
+        assert conn.exec_driver_sql("SELECT pinned_titles, revisions FROM project").one() == ("[]", "[]")
     assert (tmp_path / "personas" / "1" / "voice_profile" / "voice_profile.v2.md").read_text(encoding="utf-8") == "# Voice Soul: mine"
     assert not old_dir.exists()

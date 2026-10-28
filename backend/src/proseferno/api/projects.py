@@ -12,6 +12,7 @@ from sqlmodel import Session, col, delete, select
 from proseferno.api.deps import ServicesDep, SessionDep, image_or_404, persona_or_404, project_or_404
 from proseferno.api.schemas import (
     CopyHtmlOut,
+    GenerateIn,
     ImageHistoryOut,
     ImageOut,
     ImageUpdate,
@@ -24,7 +25,9 @@ from proseferno.api.schemas import (
     ProjectUpdate,
     RedrawIn,
     RevertIn,
+    RevisionOut,
     RewriteIn,
+    TweakIn,
 )
 from proseferno.authenticity import analyze, author_profile
 from proseferno.db import Persona, Project, ProjectImage, Sample, utcnow
@@ -34,15 +37,22 @@ from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_profile
 from proseferno.writer import (
+    TEXT_JOBS,
     Dials,
     WriterError,
+    finish_text,
     generate_article,
     merge_titles,
+    push_revision,
     regenerate_titles,
     resolve,
     rewrite_passage,
     set_title,
+    split_title,
+    tweak_post,
+    word_count,
 )
+from proseferno.writer.pipeline import measure
 from proseferno.writer.social import write_linkedin_post
 
 router = APIRouter(prefix="/api")
@@ -87,19 +97,46 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
         if persona
         else {}
     )
-    active = services.jobs.active_for(project_id=project.id)
+    # Only text jobs: an image redraw is followed by its own card, not the whole page.
+    active = services.jobs.active_for(project_id=project.id, kinds=TEXT_JOBS)
+    revisions = [
+        RevisionOut(
+            index=i,
+            label=str(entry.get("label", "")),
+            kind=str(entry.get("kind", "edit")),
+            created_at=str(entry.get("created_at", "")),
+            word_count=word_count(str(entry.get("markdown", ""))),
+        )
+        for i, entry in enumerate(project.revisions or [])
+    ]
     return ProjectOut(
-        **project.model_dump(),
+        **project.model_dump(exclude={"revisions"}),
+        revisions=revisions,
         resolved_dials=resolved,
         images=[image_out(i) for i in project_images(session, project.id)],
         active_job_id=active[0].id if active else None,
+        active_job_kind=active[0].kind if active else None,
     )
 
 
+def _check_idle(services: Services, project_id: int) -> None:
+    if services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS):
+        raise HTTPException(409, "Claude is still working on this post. Wait for it to finish.")
+
+
+def _writable_persona(session: Session, persona_id: int) -> Persona:
+    persona = persona_or_404(session, persona_id)
+    if current_voice_profile(session, persona_id) is None:
+        raise HTTPException(422, f"Persona '{persona.name}' has no voice profile yet. Generate it first.")
+    return persona
+
+
 async def start_generation(services: Services, project_id: int) -> str:
-    active = services.jobs.active_for(project_id=project_id)
-    if active:
+    active = services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS)
+    if active and active[0].kind == "generate_post":
         return active[0].id
+    if active:
+        raise HTTPException(409, "Claude is still applying your feedback. Wait for it to finish.")
     job = await services.jobs.start(
         "generate_post",
         lambda ctx: generate_article(
@@ -171,7 +208,8 @@ def get_project(project_id: int, session: SessionDep, services: ServicesDep) -> 
 @router.patch("/projects/{project_id}", response_model=ProjectOut)
 def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, services: ServicesDep) -> ProjectOut:
     project = project_or_404(session, project_id)
-    if body.markdown is not None:
+    if body.markdown is not None and body.markdown != project.markdown:
+        push_revision(project, "Before your edit", "edit")
         project.markdown = body.markdown
     if body.title is not None and body.title.strip():
         project.title = body.title.strip()
@@ -179,9 +217,12 @@ def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, se
     if body.pinned_titles is not None:
         project.pinned_titles = merge_titles(body.pinned_titles)
     if body.prompt is not None:
-        project.prompt = body.prompt
+        project.prompt = body.prompt.strip()
     if body.dials is not None:
         project.dials = body.dials.model_dump(exclude_none=True)
+    if body.persona_id is not None and body.persona_id != project.persona_id:
+        _writable_persona(session, body.persona_id)
+        project.persona_id = body.persona_id
     project.updated_at = utcnow()
     session.add(project)
     session.commit()
@@ -199,12 +240,73 @@ def delete_project(project_id: int, session: SessionDep, services: ServicesDep) 
 
 
 @router.post("/projects/{project_id}/generate", response_model=JobOut, status_code=202)
-async def generate(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
+async def generate(project_id: int, session: SessionDep, services: ServicesDep, body: GenerateIn | None = None) -> JobOut:
+    """Write the whole post again; with a body, first apply a new brief, dials or persona."""
     project = project_or_404(session, project_id)
-    if current_voice_profile(session, project.persona_id) is None:
-        raise HTTPException(422, "This persona has no voice profile yet. Generate it first.")
+    body = body or GenerateIn()
+    persona_id = body.persona_id if body.persona_id is not None else project.persona_id
+    _writable_persona(session, persona_id)
+    if body.persona_id is not None or body.prompt is not None or body.dials is not None:
+        _check_idle(services, project_id)
+        project.persona_id = persona_id
+        if body.prompt is not None:
+            project.prompt = body.prompt.strip()
+        if body.dials is not None:
+            project.dials = body.dials.model_dump(exclude_none=True)
+        project.updated_at = utcnow()
+        session.add(project)
+        session.commit()
     job_id = await start_generation(services, project_id)
     return JobOut(**services.jobs.get(job_id).model_dump())
+
+
+@router.post("/projects/{project_id}/tweak", response_model=JobOut, status_code=202)
+async def tweak(project_id: int, body: TweakIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Apply the author's feedback with surgical edits, keeping the rest of the text and the images."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post before tweaking it.")
+    _writable_persona(session, project.persona_id)
+    _check_idle(services, project_id)
+    job = await services.jobs.start(
+        "tweak_post",
+        lambda ctx: tweak_post(
+            engine=services.engine,
+            llm=services.llm,
+            settings=services.settings,
+            images=services.images,
+            project_id=project_id,
+            feedback=body.feedback,
+            ctx=ctx,
+        ),
+        project_id=project_id,
+    )
+    return JobOut(**job.model_dump())
+
+
+@router.post("/projects/{project_id}/revisions/{index}/restore", response_model=ProjectOut)
+def restore_revision(project_id: int, index: int, session: SessionDep, services: ServicesDep) -> ProjectOut:
+    """Bring back an earlier text version; the current text becomes a version too, so this can be undone."""
+    project = project_or_404(session, project_id)
+    revisions = list(project.revisions or [])
+    if not 0 <= index < len(revisions):
+        raise HTTPException(404, "No such version.")
+    _check_idle(services, project_id)
+    entry = revisions.pop(index)
+    project.revisions = revisions
+    push_revision(project, f"Before restoring: {entry.get('label', '')}", "restore")
+    project.markdown = finish_text(str(entry.get("markdown", "")), project.plan)
+    title, subtitle = split_title(project.markdown)
+    project.title = title or str(entry.get("title", "")) or project.title
+    project.subtitle = subtitle or str(entry.get("subtitle", "")) or project.subtitle
+    voice_profile = current_voice_profile(session, project.persona_id)
+    if voice_profile is not None:
+        project.fidelity = measure(project.markdown, voice_profile.baseline_stylometrics)
+    project.updated_at = utcnow()
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return project_out(session, project, services)
 
 
 @router.post("/projects/{project_id}/rewrite", response_model=ProjectOut)
