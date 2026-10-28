@@ -2,15 +2,24 @@ import { CheckCircle2, ExternalLink, ImageIcon, KeyRound, LogIn, Sparkles } from
 import { useState } from 'react'
 
 import { errorText } from '../api/client'
-import { useAuthActions, useAuthStatus, useHealth, useSettings } from '../api/hooks'
-import type { AuthStatusOut } from '../api/types.gen'
+import { useAuthActions, useAuthStatus, useHealth, useSettings, useUpdateSettings } from '../api/hooks'
+import type { AuthStatusOut, SettingsOut } from '../api/types.gen'
+import { cx } from '../lib/cx'
 import { Badge, Button, Card, Field, Input, Notice } from './ui'
+
+type Connection = SettingsOut['claude_connection']
+
+const CONNECTIONS: [Connection, string, string][] = [
+  ['api', 'Anthropic API', 'Billed to Claude Console credits'],
+  ['subscription', 'Claude subscription', 'Your Pro or Max plan, through Claude Code'],
+]
 
 const SOURCE_LABEL: Record<string, string> = {
   app_api_key: 'API key saved in Proseferno',
   env_api_key: 'ANTHROPIC_API_KEY environment variable',
   env_auth_token: 'ANTHROPIC_AUTH_TOKEN environment variable',
   claude_sign_in: 'Signed in with Claude',
+  claude_subscription: 'Claude subscription',
   none: 'Not connected',
 }
 
@@ -18,10 +27,14 @@ export function ClaudeConnect() {
   const { data: status, isLoading } = useAuthStatus()
   const health = useHealth()
   const actions = useAuthActions()
+  const { data: settings } = useSettings()
+  const updateSettings = useUpdateSettings()
   const [key, setKey] = useState('')
   const [showKey, setShowKey] = useState(false)
 
   if (isLoading || !status) return <Card>Checking your Claude connection…</Card>
+  const connection = settings?.claude_connection ?? status.connection
+  const onApi = connection === 'api'
 
   return (
     <Card className="space-y-4">
@@ -42,13 +55,32 @@ export function ClaudeConnect() {
         )}
       </div>
 
+      <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How Proseferno uses Claude">
+        {CONNECTIONS.map(([value, label, hint]) => (
+          <button
+            key={value}
+            role="radio"
+            aria-checked={connection === value}
+            disabled={updateSettings.isPending}
+            onClick={() => connection !== value && updateSettings.mutate({ claude_connection: value })}
+            className={cx('rounded-lg border p-3 text-left', connection === value ? 'border-accent bg-accent-soft' : 'border-line hover:bg-surface-2')}
+          >
+            <span className="block text-sm font-semibold">{label}</span>
+            <span className="block text-xs text-muted">{hint}</span>
+          </button>
+        ))}
+      </div>
+      {updateSettings.error && <Notice tone="error">{errorText(updateSettings.error)}</Notice>}
+
       {health.data?.demo ? (
         <Notice>Demo mode is on: Claude is simulated, so there is nothing to connect.</Notice>
-      ) : (
+      ) : onApi ? (
         <ConnectionDetails status={status} actions={actions} showKey={showKey} setShowKey={setShowKey} />
+      ) : (
+        <SubscriptionDetails status={status} actions={actions} />
       )}
 
-      {showKey && !health.data?.demo && (
+      {onApi && showKey && !health.data?.demo && (
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -64,8 +96,74 @@ export function ClaudeConnect() {
           </Button>
         </form>
       )}
-      <p className="text-xs text-muted">&ldquo;Sign in with Claude&rdquo; uses your Claude Console account (API billing), not a Claude.ai chat subscription.</p>
+      {onApi ? (
+        <p className="text-xs text-muted">
+          &ldquo;Sign in with Claude&rdquo; uses your Claude Console account (API billing). To use a Pro or Max plan instead, choose Claude subscription.
+        </p>
+      ) : (
+        <p className="text-xs text-muted">
+          Proseferno runs your own Claude Code, signed in through Anthropic&apos;s sign-in, and never sees your Claude credentials. Usage counts toward your
+          plan&apos;s limits.{' '}
+          <a className="underline" href="https://code.claude.com/docs/en/legal-and-compliance" target="_blank" rel="noreferrer">
+            Anthropic&apos;s usage policy
+          </a>
+        </p>
+      )}
     </Card>
+  )
+}
+
+function SubscriptionDetails({ status, actions }: { status: AuthStatusOut; actions: ReturnType<typeof useAuthActions> }) {
+  const usable = status.claude_code_signed_in && status.claude_code_auth_method === 'claude.ai'
+  return (
+    <>
+      <p className="text-sm">
+        {status.detail}
+        {status.claude_code_version && <span className="text-muted"> Claude Code {status.claude_code_version}.</span>}
+      </p>
+      {status.warnings.map((w) => (
+        <Notice key={w} tone="warn">
+          {w}
+        </Notice>
+      ))}
+
+      <div className="flex flex-wrap gap-2">
+        {!status.claude_code_installed ? (
+          <a
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-line px-4 text-sm font-semibold hover:bg-surface-2"
+            href="https://code.claude.com/docs/en/setup"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Install Claude Code <ExternalLink className="size-4" aria-hidden />
+          </a>
+        ) : (
+          !usable && (
+            <Button
+              icon={<LogIn className="size-4" />}
+              onClick={() => actions.claudeCodeLogin.mutate()}
+              loading={status.login_in_progress || actions.claudeCodeLogin.isPending}
+            >
+              {status.login_in_progress ? 'Finish signing in in your browser…' : 'Sign in with Claude'}
+            </Button>
+          )
+        )}
+        {status.claude_code_installed && (
+          <Button variant="ghost" loading={actions.test.isPending} onClick={() => actions.test.mutate()}>
+            Test connection
+          </Button>
+        )}
+      </div>
+
+      {actions.test.data && <Notice tone={actions.test.data.ok ? 'success' : 'error'}>{actions.test.data.message}</Notice>}
+      {actions.claudeCodeLogin.error && <Notice tone="error">{errorText(actions.claudeCodeLogin.error)}</Notice>}
+      {status.login_in_progress && (
+        <Notice>
+          A browser window opened for Claude sign-in. Choose your Claude account (Pro or Max). This page updates when you finish.
+          {status.login_output && <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-xs">{status.login_output}</pre>}
+        </Notice>
+      )}
+    </>
   )
 }
 

@@ -17,6 +17,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
+# "api": Anthropic API (Console credits). "subscription": the user's Claude Pro/Max plan via Claude Code.
+Connection = Literal["api", "subscription"]
 
 
 class Settings(BaseSettings):
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
     frontend_dist: Path = REPO_ROOT / "frontend" / "dist"
 
     # Claude
+    claude_connection: Connection = "api"
     model: str = "claude-opus-5-5"
     use_fallbacks: bool = True
     effort_analyze: Effort = "low"

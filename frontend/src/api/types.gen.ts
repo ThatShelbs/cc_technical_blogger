@@ -13,6 +13,13 @@ export interface AuthStatusOut {
   login_in_progress: boolean;
   login_output: string;
   warnings: string[];
+  connection: "api" | "subscription";
+  claude_code_installed: boolean;
+  claude_code_version: string | null;
+  claude_code_signed_in: boolean;
+  claude_code_auth_method: string | null;
+  claude_code_email: string | null;
+  subscription_type: string | null;
 }
 
 export interface AuthTestOut {
@@ -289,6 +296,7 @@ export interface SeedSamplesOut {
 }
 
 export interface SettingsIn {
+  claude_connection?: "api" | "subscription" | null;
   model?: string | null;
   use_fallbacks?: boolean | null;
   revision_passes?: number | null;
@@ -296,6 +304,7 @@ export interface SettingsIn {
 }
 
 export interface SettingsOut {
+  claude_connection: "api" | "subscription";
   model: string;
   use_fallbacks: boolean;
   revision_passes: number;

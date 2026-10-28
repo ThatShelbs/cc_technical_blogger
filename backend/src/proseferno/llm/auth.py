@@ -6,6 +6,10 @@ Resolution order, first match wins:
 2. ``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` in the environment.
 3. The active ``ant auth login`` profile (browser OAuth with Claude Console; works with org SSO).
 
+That is the "api" connection. The "subscription" connection instead runs the user's
+own Claude Code CLI (see ``llm/claude_code.py``); this class reports its sign-in
+status and can start Claude Code's own ``claude auth login``.
+
 Note: an environment API key silently shadows a signed-in profile. ``status()``
 reports which source won so the Settings page can explain it.
 """
@@ -23,10 +27,12 @@ from typing import Literal
 
 from anthropic import AsyncAnthropic
 
+from proseferno.config import Connection
 from proseferno.llm.base import LLMNotConfiguredError
+from proseferno.llm.claude_code import INSTALL_URL, ClaudeCodeCLI
 from proseferno.secrets import ANTHROPIC_API_KEY, SecretStore
 
-Source = Literal["app_api_key", "env_api_key", "env_auth_token", "claude_sign_in", "none"]
+Source = Literal["app_api_key", "env_api_key", "env_auth_token", "claude_sign_in", "claude_subscription", "none"]
 
 
 @dataclass
@@ -39,6 +45,13 @@ class AuthStatus:
     login_in_progress: bool = False
     login_output: str = ""
     warnings: list[str] = field(default_factory=list)
+    connection: Connection = "api"
+    claude_code_installed: bool = False
+    claude_code_version: str | None = None
+    claude_code_signed_in: bool = False
+    claude_code_auth_method: str | None = None
+    claude_code_email: str | None = None
+    subscription_type: str | None = None
 
 
 def anthropic_config_dir(env: dict[str, str] | os._Environ[str] = os.environ) -> Path:
@@ -70,12 +83,14 @@ class ClaudeAuth:
         env: dict[str, str] | os._Environ[str] = os.environ,
         ant_path: str | None = None,
         discover_ant: bool = True,
+        claude_code: ClaudeCodeCLI | None = None,
     ) -> None:
         self.secrets = secrets
         self.env = env
         self._ant_path = ant_path
         # Tests turn discovery off so they can never launch the real CLI.
         self._discover_ant = discover_ant
+        self.claude_code = claude_code or ClaudeCodeCLI(discover=discover_ant)
         self._login: subprocess.Popen[str] | None = None
         self._login_output: list[str] = []
 
@@ -104,7 +119,9 @@ class ClaudeAuth:
     def login_in_progress(self) -> bool:
         return self._login is not None and self._login.poll() is None
 
-    def status(self) -> AuthStatus:
+    def status(self, connection: Connection = "api") -> AuthStatus:
+        if connection == "subscription":
+            return self._subscription_status()
         warnings: list[str] = []
 
         def make(signed_in: bool, source: Source, detail: str) -> AuthStatus:
@@ -134,6 +151,38 @@ class ClaudeAuth:
         if self.ant_path is None:
             return make(False, "none", "Not signed in. Install the Anthropic CLI to use 'Sign in with Claude', or paste an API key.")
         return make(False, "none", "Not signed in.")
+
+    def _subscription_status(self) -> AuthStatus:
+        cc = self.claude_code.status(max_age=1.0 if self.login_in_progress() else 5.0)
+        warnings: list[str] = []
+        if not cc.installed:
+            detail = f"Claude Code is not installed. Install it from {INSTALL_URL}, then sign in."
+        elif cc.error:
+            detail = cc.error
+        elif not cc.logged_in:
+            detail = "Claude Code is installed but not signed in."
+        elif not cc.uses_subscription:
+            detail = f"Claude Code is signed in with {cc.auth_method}, not a Claude subscription."
+            warnings.append("Calls will be billed the way Claude Code is signed in, not to a Pro/Max plan.")
+        else:
+            plan = (cc.subscription_type or "Claude").capitalize()
+            detail = f"Using your Claude {plan} plan through Claude Code ({cc.email or 'signed in'})."
+        return AuthStatus(
+            signed_in=cc.logged_in,
+            source="claude_subscription",
+            detail=detail,
+            ant_installed=self.ant_path is not None,
+            login_in_progress=self.login_in_progress(),
+            login_output="".join(self._login_output)[-4000:],
+            warnings=warnings,
+            connection="subscription",
+            claude_code_installed=cc.installed,
+            claude_code_version=cc.version,
+            claude_code_signed_in=cc.logged_in,
+            claude_code_auth_method=cc.auth_method,
+            claude_code_email=cc.email,
+            subscription_type=cc.subscription_type,
+        )
 
     # -- client ------------------------------------------------------------
 
@@ -174,6 +223,14 @@ class ClaudeAuth:
         )
         threading.Thread(target=self._pump_login_output, daemon=True).start()
 
+    def start_claude_code_login(self) -> None:
+        """Run Claude Code's own ``claude auth login`` (browser sign-in to the user's Claude plan)."""
+        if self.login_in_progress():
+            return
+        self._login_output = []
+        self._login = self.claude_code.start_login()
+        threading.Thread(target=self._pump_login_output, daemon=True).start()
+
     def logout(self) -> None:
         ant = self.ant_path
         if ant is not None:
@@ -185,3 +242,4 @@ class ClaudeAuth:
             return
         for line in proc.stdout:
             self._login_output.append(line)
+        self.claude_code.forget_status()

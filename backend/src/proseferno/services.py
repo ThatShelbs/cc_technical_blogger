@@ -15,11 +15,13 @@ from proseferno.jobs import JobManager
 from proseferno.llm import LLM
 from proseferno.llm.auth import ClaudeAuth
 from proseferno.llm.claude import ClaudeLLM
+from proseferno.llm.claude_code import ClaudeCodeLLM
+from proseferno.llm.router import RoutingLLM
 from proseferno.secrets import KeyringSecretStore, SecretStore
 from proseferno.storage import Storage
 
 # Settings the user can change in the app; persisted in the app_setting table.
-RUNTIME_SETTINGS = ("model", "use_fallbacks", "revision_passes", "ai_detection")
+RUNTIME_SETTINGS = ("claude_connection", "model", "use_fallbacks", "revision_passes", "ai_detection")
 
 
 @dataclass
@@ -71,7 +73,11 @@ def build_services(
         llm = llm or FakeLLM(delay=0.03)
     secrets = secrets or KeyringSecretStore(settings.keyring_service)
     auth = auth or ClaudeAuth(secrets)
-    llm = llm or ClaudeLLM(settings, auth.build_client)
+    llm = llm or RoutingLLM(
+        settings,
+        api=ClaudeLLM(settings, auth.build_client),
+        subscription=ClaudeCodeLLM(settings, auth.claude_code),
+    )
     images = ImageService(engine=engine, llm=llm, settings=settings, storage=storage)
     jobs = JobManager(engine, inline=inline_jobs)
     return Services(

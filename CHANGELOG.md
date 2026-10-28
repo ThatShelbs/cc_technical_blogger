@@ -6,6 +6,7 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Added
 
+- **Claude subscription connection**: run Proseferno on your Claude Pro or Max plan instead of API credits. Proseferno runs your own Claude Code CLI headless (`claude -p`), the route Anthropic's policy allows for subscriptions, and never handles Claude credentials. Choose it in Settings → Claude, which shows your plan, Claude Code version and sign-in.
 - AI-generation detection: a 0-100 "reads as human" score on every post (a scan calibrated to the author's own samples plus a Claude judge), a full report with flagged passages and one-click *Humanize*, *Re-check* after edits, AI tells fed into the editor pass, and `evals/ai_detection.py`.
 - LinkedIn: platform-aware writing, copy-ready article HTML, a 1920×1080 cover, a feed post (template or written by Claude in the persona's voice, under 3,000 characters), and a swipeable document carousel as PDF and editable PPTX.
 - Persona switcher in the sidebar: switch personas and pin any earlier voice soul version.
@@ -25,6 +26,8 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Fixed
 
+- Post generation no longer fails on a transient mid-stream Claude error during critique ("Claude API error 200"). Such errors are retried, and if the editing pass still fails, the draft is kept.
+- A low Anthropic API credit balance now says so plainly instead of showing a raw 400 error.
 - Writing-sample cards collapsed into a narrow column with one word per line (form controls could not override their full width).
 
 ## [0.1.0] - 2026-10-20

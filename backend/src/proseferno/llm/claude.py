@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import anthropic
@@ -47,15 +48,18 @@ class ClaudeLLM:
         usage: UsageSink | None = None,
     ) -> T:
         client = self._client_factory()
-        # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
-        # requests whose max_tokens could take longer than 10 minutes.
-        with _translate_errors(task):
+
+        async def attempt() -> Any:
+            # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
+            # requests whose max_tokens could take longer than 10 minutes.
             async with client.beta.messages.stream(
                 **self._common(system, effort, max_tokens),
                 messages=[{"role": "user", "content": prompt}],
                 output_format=schema,
             ) as stream:
-                response = await stream.get_final_message()
+                return await stream.get_final_message()
+
+        response = await _with_retries(task, attempt)
         self._check(response, task)
         self._record(response, usage)
         parsed = response.parsed_output
@@ -75,15 +79,22 @@ class ClaudeLLM:
         usage: UsageSink | None = None,
     ) -> str:
         client = self._client_factory()
-        with _translate_errors(task):
+        streamed = False
+
+        async def attempt() -> Any:
+            nonlocal streamed
             async with client.beta.messages.stream(
                 **self._common(system, effort, max_tokens),
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
                 async for chunk in stream.text_stream:
+                    streamed = streamed or bool(chunk)
                     if on_delta is not None:
                         await on_delta(chunk)
-                final = await stream.get_final_message()
+                return await stream.get_final_message()
+
+        # Retrying after text reached the reader would duplicate it.
+        final = await _with_retries(task, attempt, can_retry=lambda: not streamed)
         self._check(final, task)
         self._record(final, usage)
         return "".join(block.text for block in final.content if block.type == "text")
@@ -102,13 +113,16 @@ class ClaudeLLM:
         tools: Any = [{"type": WEB_SEARCH_TOOL, "name": "web_search", "max_uses": max_searches}]
         response: Any = None
         for _ in range(6):
-            with _translate_errors("web research"):
+
+            async def attempt() -> Any:
                 async with client.beta.messages.stream(
                     **self._common(system, effort, 32000),
                     messages=messages,
                     tools=tools,
                 ) as stream:
-                    response = await stream.get_final_message()
+                    return await stream.get_final_message()
+
+            response = await _with_retries("web research", attempt)
             self._record(response, usage)
             if response.stop_reason != "pause_turn":
                 break
@@ -175,6 +189,32 @@ class ClaudeLLM:
         )
 
 
+_RETRY_DELAYS = (2.0, 6.0, 15.0)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """Overloaded/5xx, mid-stream error events (reported as status 200) and dropped connections."""
+    if isinstance(exc, anthropic.APIConnectionError):
+        return True
+    if isinstance(exc, anthropic.APIStatusError):
+        return exc.status_code == 200 or exc.status_code in (408, 409, 429) or exc.status_code >= 500
+    return False
+
+
+async def _with_retries(task: str, attempt: Callable[[], Awaitable[Any]], can_retry: Callable[[], bool] = lambda: True) -> Any:
+    """Run one streamed request, retrying transient failures the SDK cannot (it only retries before the stream starts)."""
+    for delay in (*_RETRY_DELAYS, None):
+        try:
+            with _translate_errors(task):
+                return await attempt()
+        except LLMError as exc:
+            cause = exc.__cause__
+            if delay is None or cause is None or not _is_transient(cause) or not can_retry():
+                raise
+            log.warning("%s failed (%s); retrying in %.0fs", task, cause, delay)
+            await asyncio.sleep(delay)
+
+
 def _system_param(blocks: list[SystemBlock]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for block in blocks:
@@ -207,10 +247,16 @@ class _translate_errors:
             raise LLMError(f"Model not found: check the model setting ({exc.message}).") from exc
         if isinstance(exc, anthropic.RateLimitError):
             raise LLMError("Claude rate limit reached. Wait a minute and try again.") from exc
+        if isinstance(exc, anthropic.BadRequestError) and "credit balance" in str(exc.message).lower():
+            raise LLMError(
+                "Your Anthropic API credit balance is too low. Proseferno bills the Claude API (Console), "
+                "not your Claude Pro plan. Add credits at console.anthropic.com under Plans & Billing."
+            ) from exc
         if isinstance(exc, anthropic.BadRequestError):
             raise LLMError(f"Claude rejected the {self.task} request: {exc.message}") from exc
         if isinstance(exc, anthropic.APIStatusError):
-            raise LLMError(f"Claude API error {exc.status_code} during {self.task}. Try again shortly.") from exc
+            detail = f": {exc.message}" if getattr(exc, "message", "") else ""
+            raise LLMError(f"Claude API error {exc.status_code} during {self.task}{detail}. Try again shortly.") from exc
         if isinstance(exc, anthropic.APIConnectionError):
             raise LLMError("Could not reach Claude. Check your internet connection.") from exc
         if isinstance(exc, anthropic.AnthropicError):

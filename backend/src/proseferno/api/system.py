@@ -32,7 +32,7 @@ def health(services: ServicesDep) -> Health:
 
 
 def _status(services: ServicesDep) -> AuthStatusOut:
-    return AuthStatusOut(**dataclasses.asdict(services.auth.status()))
+    return AuthStatusOut(**dataclasses.asdict(services.auth.status(services.settings.claude_connection)))
 
 
 @router.get("/auth/status", response_model=AuthStatusOut)
@@ -47,6 +47,18 @@ def auth_login(services: ServicesDep) -> AuthStatusOut:
         raise HTTPException(409, "Sign-in is disabled in demo mode.")
     try:
         services.auth.start_login()
+    except FileNotFoundError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _status(services)
+
+
+@router.post("/auth/claude-code/login", response_model=AuthStatusOut)
+def claude_code_login(services: ServicesDep) -> AuthStatusOut:
+    """Start Claude Code's own sign-in, which uses the person's Claude Pro/Max plan."""
+    if services.settings.demo:
+        raise HTTPException(409, "Sign-in is disabled in demo mode.")
+    try:
+        services.auth.start_claude_code_login()
     except FileNotFoundError as exc:
         raise HTTPException(409, str(exc)) from exc
     return _status(services)
@@ -75,6 +87,11 @@ async def test_auth(services: ServicesDep) -> AuthTestOut:
     """Check the credentials with a free metadata call (no tokens used)."""
     if services.settings.demo:
         return AuthTestOut(ok=True, message="Demo mode: Claude is simulated.")
+    if services.settings.claude_connection == "subscription":
+        services.auth.claude_code.forget_status()
+        status = services.auth.status("subscription")
+        ok = status.claude_code_signed_in and status.claude_code_auth_method == "claude.ai"
+        return AuthTestOut(ok=ok, message=status.detail)
     try:
         client = services.auth.build_client()
         model = await client.models.retrieve(services.settings.model)
@@ -95,6 +112,7 @@ async def test_auth(services: ServicesDep) -> AuthTestOut:
 def _settings_out(services: ServicesDep) -> SettingsOut:
     s = services.settings
     return SettingsOut(
+        claude_connection=s.claude_connection,
         model=s.model,
         use_fallbacks=s.use_fallbacks,
         revision_passes=s.revision_passes,
@@ -114,7 +132,7 @@ def get_settings(services: ServicesDep) -> SettingsOut:
 
 @router.put("/settings", response_model=SettingsOut)
 def update_settings(body: SettingsIn, services: ServicesDep) -> SettingsOut:
-    for key in ("model", "use_fallbacks", "revision_passes", "ai_detection"):
+    for key in ("claude_connection", "model", "use_fallbacks", "revision_passes", "ai_detection"):
         value = getattr(body, key)
         if value is not None:
             services.save_runtime_setting(key, value.strip() if isinstance(value, str) else value)

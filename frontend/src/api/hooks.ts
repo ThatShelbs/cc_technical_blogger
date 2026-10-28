@@ -58,6 +58,7 @@ export function useAuthActions() {
   const update = (status: AuthStatusOut) => qc.setQueryData(keys.auth, status)
   return {
     login: useMutation({ mutationFn: () => api.post<AuthStatusOut>('/api/auth/login'), onSuccess: update }),
+    claudeCodeLogin: useMutation({ mutationFn: () => api.post<AuthStatusOut>('/api/auth/claude-code/login'), onSuccess: update }),
     logout: useMutation({ mutationFn: () => api.post<AuthStatusOut>('/api/auth/logout'), onSuccess: update }),
     saveKey: useMutation({
       mutationFn: (apiKey: string) => api.put<AuthStatusOut>('/api/auth/api-key', { api_key: apiKey }),
@@ -74,7 +75,11 @@ export function useUpdateSettings() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: SettingsIn) => api.put<SettingsOut>('/api/settings', body),
-    onSuccess: (data) => qc.setQueryData(keys.settings, data),
+    onSuccess: (data, body) => {
+      qc.setQueryData(keys.settings, data)
+      // The sign-in status depends on which connection is chosen.
+      if (body.claude_connection) void qc.invalidateQueries({ queryKey: keys.auth })
+    },
   })
 }
 

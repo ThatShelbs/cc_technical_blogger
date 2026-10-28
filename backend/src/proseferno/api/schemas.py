@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from proseferno.config import Connection
 from proseferno.writer.dials import Dials, IncludeCode, Platform
 
 Education = Literal["beginner", "intermediate", "expert"]
@@ -31,6 +32,13 @@ class AuthStatusOut(BaseModel):
     login_in_progress: bool
     login_output: str
     warnings: list[str]
+    connection: Connection
+    claude_code_installed: bool
+    claude_code_version: str | None
+    claude_code_signed_in: bool
+    claude_code_auth_method: str | None
+    claude_code_email: str | None
+    subscription_type: str | None
 
 
 class ApiKeyIn(BaseModel):
@@ -43,6 +51,7 @@ class AuthTestOut(BaseModel):
 
 
 class SettingsOut(BaseModel):
+    claude_connection: Connection
     model: str
     use_fallbacks: bool
     revision_passes: int
@@ -55,6 +64,7 @@ class SettingsOut(BaseModel):
 
 
 class SettingsIn(BaseModel):
+    claude_connection: Connection | None = None
     model: str | None = None
     use_fallbacks: bool | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
