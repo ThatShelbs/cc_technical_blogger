@@ -25,11 +25,16 @@ const PLATFORMS = [
     name: 'LinkedIn',
     tip: 'Paste into “Write article” with the 1920×1080 cover. The zip adds a feed post and a swipeable document carousel (PDF + editable PowerPoint).',
   },
+  {
+    id: 'x',
+    name: 'X',
+    tip: 'Start an X Article, upload the 1500×600 header, paste the title, then paste the body. The zip adds a teaser post under 280 characters.',
+  },
   { id: 'gumroad', name: 'Gumroad', tip: 'The zip includes a print-ready PDF plus an HTML version and a cover image.' },
   { id: 'markdown', name: 'Markdown', tip: 'Front matter for dev.to, Hashnode, Ghost or a static site, plus a Word version.' },
 ] as const
 
-const COPYABLE = new Set(['medium', 'substack', 'linkedin'])
+const COPYABLE = new Set(['medium', 'substack', 'linkedin', 'x'])
 
 function useCopied() {
   const [copied, setCopied] = useState<string | null>(null)

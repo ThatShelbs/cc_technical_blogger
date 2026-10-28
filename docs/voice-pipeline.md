@@ -49,6 +49,18 @@ Every version is kept. Editing it in the app saves a new version.
 
 After writing, the **Title** card lets the author edit the title text, pin options they like, and ask for **New options**: Claude replaces every option except the selected and pinned ones (`regenerate_titles`, `prompts/titles.md`). Pinned titles also survive *Regenerate post*.
 
+## 7. Revising a post
+
+The **Revise** card offers three ways to change a written post:
+
+- **Tweak with feedback** (`writer/tweak.py`, `prompts/tweak.md`). The author writes what to change. Claude returns a `PostEdits` object: a one-line summary, surgical `find`/`replace` edits copied from the post, and, only when the feedback is about a specific image, a new brief for that image. Edits are applied in order (exact match, then a whitespace-tolerant match); edits that cannot be placed are skipped and reported. Untouched text stays byte-for-byte the same, missing image placeholders are restored, the style score and reads-as-human report are refreshed, and only the named images are redrawn. The prompt tells Claude to change nothing the feedback does not ask for.
+- **Edit brief & settings** shows the brief or outline the post was written from, the outline Claude planned (with *Use as my outline* to copy it into the brief for editing), the persona, the platform and every dial. *Regenerate with these settings* saves them and writes the post again (`POST /api/projects/{id}/generate` with a body). Nothing is saved until then, so *Settings used* always describes the current post.
+- **Regenerate post** writes it again with the same brief and settings.
+
+![The Brief & settings dialog](screenshots/post-settings.png)
+
+Tweaks, passage rewrites, manual saves and restores keep the previous text (`Project.revisions`, newest first, last ten). **Undo last change** or **Restore** brings a version back, and the current text is kept as a version too. A full regeneration starts a new history, because old text refers to the old images.
+
 ## Measuring voice fidelity
 
 `backend/evals/voice_fidelity.py` answers "can a careful reader tell?":

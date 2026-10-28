@@ -352,3 +352,60 @@ def test_orphaned_pending_images_are_failed(client: TestClient, sample_docx: byt
     assert services.images.fail_pending() == 1
     image = client.get(f"/api/projects/{project['id']}").json()["images"][0]
     assert image["status"] == "error" and "Redraw" in image["error"]
+
+
+def test_regenerate_with_settings_tweak_and_undo(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    url = f"/api/projects/{project['id']}"
+    images_before = {i["slot_id"]: (i["id"], i["url"]) for i in project["images"]}
+
+    # Tweak: one structured call, surgical edit, images untouched, revision recorded.
+    fake_llm.calls.clear()
+    assert client.post(f"{url}/tweak", json={"feedback": "Add a joke to the opening"}).status_code == 202
+    out = client.get(url).json()
+    assert "nobody stopped them" in out["markdown"] and out["markdown"] != project["markdown"]
+    assert "post tweak" in fake_llm.tasks() and "draft" not in fake_llm.tasks() and "post plan" not in fake_llm.tasks()
+    assert {i["slot_id"]: (i["id"], i["url"]) for i in out["images"]} == images_before
+    assert out["revisions"][0]["kind"] == "tweak" and out["revisions"][0]["label"] == "Add a joke to the opening"
+
+    # A tweak about an image redraws only that image.
+    client.post(f"{url}/tweak", json={"feedback": "The diagram should show the hidden slices"})
+    out = client.get(url).json()
+    changed = {i["slot_id"] for i in out["images"] if (i["id"], i["url"]) != images_before[i["slot_id"]]}
+    assert changed == {"img2"}
+
+    # Undo restores the earlier text, and the restore itself is undoable.
+    restored = client.post(f"{url}/revisions/0/restore").json()
+    assert restored["markdown"] == project["markdown"] or "nobody stopped them" in restored["markdown"]
+    assert restored["revisions"][0]["kind"] == "restore"
+    assert client.post(f"{url}/revisions/99/restore").status_code == 404
+
+    # Regenerate with new settings and another persona; history starts fresh.
+    other = create_persona(client, "Other")
+    assert client.post(f"{url}/generate", json={"persona_id": other["id"]}).status_code == 422
+    upload(client, other["id"], sample_docx)
+    client.post(f"/api/personas/{other['id']}/voice-profile")
+    response = client.post(
+        f"{url}/generate",
+        json={
+            "persona_id": other["id"],
+            "prompt": "Pie charts, refined",
+            "dials": {"platform": "x", "audience": "analysts", "revision_passes": 0},
+        },
+    )
+    assert response.status_code == 202, response.text
+    out = client.get(url).json()
+    assert out["persona_id"] == other["id"] and out["prompt"] == "Pie charts, refined"
+    assert out["resolved_dials"]["platform"] == "x" and out["resolved_dials"]["audience"] == "analysts"
+    assert out["revisions"] == [] and out["active_job_kind"] is None
+
+    names = set(zipfile.ZipFile(io.BytesIO(client.get(f"{url}/export/x").content)).namelist())
+    assert {"post.html", "post.md", "thumbnail.png", "teaser-post.txt", "README.txt"} <= names
+
+
+def test_tweak_needs_a_post(client: TestClient, sample_docx: bytes) -> None:
+    persona = create_persona(client)
+    upload(client, persona["id"], sample_docx)
+    client.post(f"/api/personas/{persona['id']}/voice-profile")
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "generate": False}).json()
+    assert client.post(f"/api/projects/{created['project']['id']}/tweak", json={"feedback": "shorter"}).status_code == 409

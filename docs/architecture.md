@@ -45,10 +45,10 @@ flowchart TB
 | `llm/` | The `LLM` protocol; `RoutingLLM`, which sends each call to the connection chosen in Settings; `ClaudeLLM` for the Anthropic API (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching, retries); `ClaudeCodeLLM` for a Claude subscription, which runs the user's own `claude -p` with JSON output; and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
-| `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, LinkedIn feed post. |
+| `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
 | `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, memes, placeholders, credits, redraw history. |
-| `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX). |
+| `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
 | `prompts/` | All prompts as Markdown templates. |
 | `demo.py` | Fake Claude used by tests and `--demo`. |
 
@@ -63,6 +63,7 @@ flowchart TB
 | New title options | structured output (`TitleOptions`) | medium |
 | Draft / revise | streamed text | high |
 | Critique | structured output (`Critique`) | medium |
+| Tweak with feedback | structured output (`PostEdits`) | medium |
 | AI-detection judge | structured output (`AIDetectionJudgement`) | low |
 | LinkedIn feed post | structured output (`LinkedInPost`) | medium |
 | Design an image | structured output (`SvgSpec`, `SvgMemeSpec`, `ChartSpec`) | medium |
@@ -71,7 +72,7 @@ Structured outputs are streamed too (`messages.stream(output_format=...)`): the 
 
 On the Claude subscription connection the same calls go through `claude -p` (`--json-schema` for structured outputs, `stream-json` for streamed text, the `WebSearch` tool for research); see [configuration](configuration.md#using-your-claude-subscription-pro-or-max).
 
-All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice profile → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix.
+All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice profile → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix. Feedback tweaks send the same prefix, so a tweak soon after generating (or another tweak) reads it from the cache, and they return only find/replace edits rather than the whole post, so output stays small.
 
 ## Frontend
 

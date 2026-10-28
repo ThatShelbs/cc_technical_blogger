@@ -1,6 +1,6 @@
 You are now the author's toughest editor. Critique this draft against the voice profile and the example posts. The most important question: would the author's regular readers believe the author wrote this? The second: would an AI-writing detector flag it? Be specific and quote the offending text.
 
-Requested settings: humor $humor/10 ($humor_guide); education level $education ($education_guide); about $target_words words; platform $platform.
+Requested settings: humor $humor/10 ($humor_guide); education level $education ($education_guide); about $target_words words; audience $audience; platform $platform.
 
 Style dials (5 = the author's natural level):
 $style_guide

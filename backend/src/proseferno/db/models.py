@@ -99,6 +99,8 @@ class Project(SQLModel, table=True):
     # Title options the author pinned: kept when new options are generated and across regenerations.
     # The SQL default lets add_missing_columns backfill existing rows with [].
     pinned_titles: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # Earlier text versions, newest first (see writer.revisions): what "Undo" restores. Cleared by a full regeneration.
+    revisions: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     voice_profile_version: int | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)

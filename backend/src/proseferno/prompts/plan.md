@@ -6,6 +6,7 @@ $prompt
 
 Settings:
 - Topic area: $topic
+- Audience: $audience
 - Target length: about $target_words words
 - Humor level $humor/10: $humor_guide
 - Education level ($education): $education_guide

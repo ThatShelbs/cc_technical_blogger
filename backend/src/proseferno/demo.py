@@ -215,6 +215,8 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             ],
             "tags": ["Data Visualization", "Charts"],
         }
+    if name == "PostEdits":
+        return _post_edits(prompt)
     if name == "TitleOptions":
         # Shuffled so "New options" visibly changes the list in demo mode.
         return {"title_options": random.sample(DEMO_TITLES, 5)}
@@ -266,6 +268,31 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
     if name == "Judgement":
         return {"reasoning": "Passage A has the author's wry asides.", "authentic": "A", "confidence": 3, "similarity": 7}
     raise AssertionError(f"FakeLLM has no payload for {name}")
+
+
+DEMO_TWEAK = " Honestly, they are mostly round because nobody stopped them."
+
+
+def _post_edits(prompt: str) -> dict[str, Any]:
+    """One small edit to the post in the prompt: append a sentence to its first body paragraph."""
+    feedback = prompt.split("<feedback>", 1)[-1].split("</feedback>", 1)[0].lower()
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    paragraph = next(
+        (
+            line.strip()
+            for line in post.splitlines()
+            if line.strip() and not line.lstrip().startswith(("#", "*", "{{", "```", "-", ">", "|"))
+        ),
+        "",
+    )
+    image_changes = []
+    if "image" in feedback or "diagram" in feedback:
+        image_changes = [{"slot_id": "img2", "brief": "A flow diagram of how a pie chart hides the difference between slices"}]
+    return {
+        "summary": "Added a wry aside to the opening." + (" Redrew the diagram with a new idea." if image_changes else ""),
+        "edits": [{"find": paragraph, "replace": paragraph + DEMO_TWEAK}] if paragraph else [],
+        "image_changes": image_changes,
+    }
 
 
 def png_bytes(width: int = 64, height: int = 48, color: str = "#ed6925") -> bytes:

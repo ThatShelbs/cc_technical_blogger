@@ -8,6 +8,7 @@ from pptx import Presentation
 from proseferno.demo import DRAFT, png_bytes
 from proseferno.export.linkedin import POST_LIMIT, carousel_pdf, carousel_pptx, carousel_slides, fit_post, hashtags, template_post
 from proseferno.export.render import Figure
+from proseferno.export.x import teaser_post
 
 
 def figures(tmp_path: Path) -> dict[str, Figure]:
@@ -49,3 +50,14 @@ def test_carousel_pdf_and_pptx(tmp_path: Path) -> None:
     deck = Presentation(io.BytesIO(carousel_pptx(slides)))
     assert len(deck.slides) == len(slides)
     assert any("Why People Love Pies" in shape.text_frame.text for shape in deck.slides[1].shapes if shape.has_text_frame)
+
+
+def test_x_teaser_fits_one_post() -> None:
+    post = (
+        "# Pie Charts Are Lame\n\n*A roast.*\n\n{{image:hero}}\n\n"
+        + "Pie charts have a fan club and I am not in it. " * 20
+        + "\n\n## Next\n\nMore."
+    )
+    text = teaser_post(post)
+    assert len(text) <= 280 and text.endswith("“Pie Charts Are Lame”") and text.startswith("Pie charts have a fan club")
+    assert teaser_post("# Only a title\n") == "New article: “Only a title”"
