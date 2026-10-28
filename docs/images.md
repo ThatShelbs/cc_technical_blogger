@@ -16,7 +16,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 
 ## Design and rendering
 
-For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice soul, and the persona's visual style, then returns a structured design: SVG markup or a chart spec, plus alt text and a caption in the author's caption style. The art direction prompt (`prompts/image_system.md`) asks for layered compositions, gradients, soft shadows and the inferno palette, so hero and illustration images look like finished editorial art rather than clip art.
+For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice profile, and the persona's visual style, then returns a structured design: SVG markup or a chart spec, plus alt text and a caption in the author's caption style. The art direction prompt (`prompts/image_system.md`) asks for layered compositions, gradients, soft shadows and the inferno palette, so hero and illustration images look like finished editorial art rather than clip art.
 
 Nothing a model writes is executed:
 

@@ -58,8 +58,8 @@ def test_image_context_marks_position() -> None:
 
 
 def test_image_guidance_extracts_section() -> None:
-    soul = "# V\n\n## Images & Captions\nCaptions say Source.\n\n## Lexicon\nwords"
-    assert image_guidance(soul) == "Captions say Source."
+    voice_profile = "# V\n\n## Images & Captions\nCaptions say Source.\n\n## Lexicon\nwords"
+    assert image_guidance(voice_profile) == "Captions say Source."
 
 
 def test_model_label() -> None:

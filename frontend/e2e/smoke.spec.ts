@@ -17,7 +17,7 @@ test.beforeAll(() => {
   if (capture) mkdirSync(SCREENSHOTS, { recursive: true })
 })
 
-test('first run: persona, writing sample, voice soul, post, editor, export, themes', async ({ page }) => {
+test('first run: persona, writing sample, voice profile, post, editor, export, themes', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('proseferno-theme', 'light'))
   await page.goto('/')
 
@@ -36,11 +36,11 @@ test('first run: persona, writing sample, voice soul, post, editor, export, them
   await expect(page.getByText('Added 1 sample.')).toBeVisible()
   await page.getByRole('button', { name: 'Continue' }).click()
 
-  // Voice soul (streams, then shows the measured baseline)
-  await page.getByRole('button', { name: 'Generate my voice soul' }).click()
+  // Voice profile (streams, then shows the measured baseline)
+  await page.getByRole('button', { name: 'Generate my voice profile' }).click()
   await expect(page.getByText('Version 1')).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText('Words per sentence')).toBeVisible()
-  await shot(page, 'voice-soul')
+  await shot(page, 'voice-profile')
 
   // New post from a single sentence
   await page.getByRole('button', { name: 'Write my first post' }).click()

@@ -17,7 +17,7 @@ Two independent checks, combined (60% judge, 40% scan; the scan alone when the j
    stock AI vocabulary ("delve", "game-changer", "it's important to note"), formulaic constructions ("it's not X, it's Y", "not just X, but Y", "Here's the thing"), uniform sentence rhythm (low variation in sentence length), uniform paragraph shapes, em dashes beyond your own rate, essay transitions ("Moreover,", "Furthermore,"), reflexive rule-of-three lists, "**Term:** explanation" bullet lists, emoji in headings, a stock summary ending, and fewer contractions than you normally use.
 2. **The Claude judge** (`authenticity/detector.py`, prompts `detect_system.md` and `detect.md`): reads the post the way a detector and a skeptical editor would, confirms or overrules the scan, and quotes the passages most likely to be flagged with a suggestion for each.
 
-The scan is **calibrated to you**: it learns from your own writing samples which "tells" are really your habits. If you use em dashes or the word "robust" in your own posts, the scan does not hold them against you. The judge sees your voice soul for the same reason.
+The scan is **calibrated to you**: it learns from your own writing samples which "tells" are really your habits. If you use em dashes or the word "robust" in your own posts, the scan does not hold them against you. The judge sees your voice profile for the same reason.
 
 ## Fixing flagged passages
 

@@ -35,7 +35,7 @@ from proseferno.authenticity import analyze, author_profile
 from proseferno.config import Settings, get_settings
 from proseferno.db import Persona, Project, Sample
 from proseferno.services import build_services
-from proseferno.voice import current_voice_soul
+from proseferno.voice import current_voice_profile
 
 
 def _mean(values: list[int]) -> float | None:
@@ -54,7 +54,7 @@ async def run(args: argparse.Namespace) -> int:
         if persona is None or persona.id is None:
             print("Persona not found. Use --persona NAME (or turn a persona on in the app).")
             return 2
-        soul = current_voice_soul(session, persona.id)
+        voice_profile = current_voice_profile(session, persona.id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == persona.id)))
         projects = [p for p in session.exec(select(Project).where(Project.persona_id == persona.id)) if p.markdown]
     own = [s for s in samples if s.kind == "own" and s.markdown][: args.max_samples]
@@ -78,8 +78,8 @@ async def run(args: argparse.Namespace) -> int:
             llm=services.llm,
             settings=settings,
             markdown=markdown,
-            voice_soul=soul.markdown if soul else "",
-            profile=author_profile(calibration, soul.baseline_stylometrics if soul else None),
+            voice_profile=voice_profile.markdown if voice_profile else "",
+            profile=author_profile(calibration, voice_profile.baseline_stylometrics if voice_profile else None),
             use_judge=args.judge,
             usage=add_usage,
         )
@@ -100,7 +100,7 @@ async def run(args: argparse.Namespace) -> int:
     tells = Counter(label for r in rows if r["kind"] == "generated" for label in r["tells"])
     summary = {
         "persona": persona.name,
-        "voice_soul_version": soul.version if soul else None,
+        "voice_profile_version": voice_profile.version if voice_profile else None,
         "judge": args.judge,
         "model": settings.model,
         "real_mean": _mean(real),
@@ -118,7 +118,7 @@ async def run(args: argparse.Namespace) -> int:
     report = [
         f"# AI-detection eval: {persona.name}",
         "",
-        f"- Voice soul v{summary['voice_soul_version']}; {'scan + Claude judge' if args.judge else 'scan only'}",
+        f"- Voice profile v{summary['voice_profile_version']}; {'scan + Claude judge' if args.judge else 'scan only'}",
         "- Score: 100 = authentic human prose, 0 = almost certainly flagged as AI-generated",
         f"- **Real posts: {summary['real_mean']}** (calibration; should be high)",
         f"- **Generated posts: {summary['generated_mean']}** "

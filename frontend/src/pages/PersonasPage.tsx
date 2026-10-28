@@ -41,7 +41,7 @@ export function PersonasPage() {
     <>
       <PageHeader
         title="Personas"
-        subtitle="Each persona has its own writing samples and voice soul. Exactly one is on at a time."
+        subtitle="Each persona has its own writing samples and voice profile. Exactly one is on at a time."
         actions={
           <Button icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
             New persona
@@ -81,7 +81,11 @@ export function PersonasPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge>{persona.own_samples} of my posts</Badge>
               <Badge>{persona.influence_samples} influences</Badge>
-              {persona.voice_soul_version ? <Badge tone="success">Voice soul v{persona.voice_soul_version}</Badge> : <Badge tone="danger">No voice soul</Badge>}
+              {persona.voice_profile_version ? (
+                <Badge tone="success">Voice profile v{persona.voice_profile_version}</Badge>
+              ) : (
+                <Badge tone="danger">No voice profile</Badge>
+              )}
             </div>
             <div className="mt-4">
               <Link to={`/personas/${persona.id}`} className="text-sm font-semibold text-primary hover:underline">

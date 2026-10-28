@@ -58,25 +58,25 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     bad = upload(client, pid, b"not a docx", name="broken.docx")
     assert bad["added"] == [] and bad["errors"]
 
-    # Projects need a voice soul first.
+    # Projects need a voice profile first.
     assert client.post("/api/projects", json={"prompt": "Pie charts"}).status_code == 422
 
-    # Voice soul (with research).
+    # Voice profile (with research).
     client.patch(f"/api/personas/{pid}", json={"research_enabled": True})
-    job = client.post(f"/api/personas/{pid}/voice-soul").json()
+    job = client.post(f"/api/personas/{pid}/voice-profile").json()
     assert job["status"] == "succeeded", job
-    soul = client.get(f"/api/personas/{pid}/voice-soul").json()
-    assert soul["version"] == 1 and soul["markdown"].startswith("# Voice Soul")
-    assert "Sources" in soul["best_practices"]
+    voice_profile = client.get(f"/api/personas/{pid}/voice-profile").json()
+    assert voice_profile["version"] == 1 and voice_profile["markdown"].startswith("# Voice Profile")
+    assert "Sources" in voice_profile["best_practices"]
     assert client.get(f"/api/personas/{pid}").json()["visual_style"].startswith("warm flat")
     assert fake_llm.tasks().count("sample analysis") == 2
 
     # Regenerating reuses cached analyses and keeps history.
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile")
     assert fake_llm.tasks().count("sample analysis") == 2
-    edited = client.put(f"/api/personas/{pid}/voice-soul", json={"markdown": "# Voice Soul: edited by hand, with care"}).json()
+    edited = client.put(f"/api/personas/{pid}/voice-profile", json={"markdown": "# Voice Profile: edited by hand, with care"}).json()
     assert edited["version"] == 3 and edited["edited_by_user"]
-    assert len(client.get(f"/api/personas/{pid}/voice-soul/versions").json()) == 3
+    assert len(client.get(f"/api/personas/{pid}/voice-profile/versions").json()) == 3
 
     # Generate a post with only a prompt (smart defaults).
     created = client.post("/api/projects", json={"prompt": "Why pie charts are lame and what to use instead"})
@@ -106,7 +106,7 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     critique_call = next(c for c in fake_llm.calls if c.get("task") == "critique")
     assert "AI-writing tells found by an automated scan" in critique_call["prompt"]
     assert "draft" in fake_llm.tasks() and "revision" in fake_llm.tasks()
-    # The writer saw the voice soul and the user's own example post.
+    # The writer saw the voice profile and the user's own example post.
     draft_call = next(c for c in fake_llm.calls if c.get("task") == "draft")
     system_text = "\n".join(block.text for block in draft_call["system"])
     assert "edited by hand" in system_text and "Pie Charts Are Lame" in system_text
@@ -184,44 +184,44 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
 def test_persona_versions_rename_and_duplicate(client: TestClient, sample_docx: bytes) -> None:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
-    client.post(f"/api/personas/{pid}/voice-soul", json={"label": "First take"})
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile", json={"label": "First take"})
+    client.post(f"/api/personas/{pid}/voice-profile")
     persona = client.get(f"/api/personas/{pid}").json()
-    assert persona["voice_soul_version"] == 2 and persona["latest_voice_soul_version"] == 2
-    assert [v["label"] for v in persona["voice_soul_versions"]] == ["", "First take"]
+    assert persona["voice_profile_version"] == 2 and persona["latest_voice_profile_version"] == 2
+    assert [v["label"] for v in persona["voice_profile_versions"]] == ["", "First take"]
 
     # Pin an older version: new posts use it, and the persona reports it.
-    pinned = client.patch(f"/api/personas/{pid}", json={"pinned_voice_soul_version": 1}).json()
-    assert pinned["voice_soul_version"] == 1 and pinned["voice_soul_label"] == "First take"
-    assert client.get(f"/api/personas/{pid}/voice-soul").json()["version"] == 1
-    assert client.get(f"/api/personas/{pid}/voice-soul?version=2").json()["in_use"] is False
-    assert client.patch(f"/api/personas/{pid}", json={"pinned_voice_soul_version": 9}).status_code == 404
+    pinned = client.patch(f"/api/personas/{pid}", json={"pinned_voice_profile_version": 1}).json()
+    assert pinned["voice_profile_version"] == 1 and pinned["voice_profile_label"] == "First take"
+    assert client.get(f"/api/personas/{pid}/voice-profile").json()["version"] == 1
+    assert client.get(f"/api/personas/{pid}/voice-profile?version=2").json()["in_use"] is False
+    assert client.patch(f"/api/personas/{pid}", json={"pinned_voice_profile_version": 9}).status_code == 404
     created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"image_count": 2, "revision_passes": 0}}).json()
     assert (
-        created["project"]["voice_soul_version"] == 1
-        or client.get(f"/api/projects/{created['project']['id']}").json()["voice_soul_version"] == 1
+        created["project"]["voice_profile_version"] == 1
+        or client.get(f"/api/projects/{created['project']['id']}").json()["voice_profile_version"] == 1
     )
 
     # Naming a version; a new version is used automatically (unpins).
-    assert client.patch(f"/api/personas/{pid}/voice-soul/2", json={"label": "Punchier"}).json()["label"] == "Punchier"
-    client.put(f"/api/personas/{pid}/voice-soul", json={"markdown": "# Voice Soul: hand edited version here", "label": "Edited"})
+    assert client.patch(f"/api/personas/{pid}/voice-profile/2", json={"label": "Punchier"}).json()["label"] == "Punchier"
+    client.put(f"/api/personas/{pid}/voice-profile", json={"markdown": "# Voice Profile: hand edited version here", "label": "Edited"})
     persona = client.get(f"/api/personas/{pid}").json()
-    assert persona["voice_soul_version"] == 3 and persona["pinned_voice_soul_version"] is None
+    assert persona["voice_profile_version"] == 3 and persona["pinned_voice_profile_version"] is None
 
     # Rename, then branch a separately named persona from version 2.
     assert client.patch(f"/api/personas/{pid}", json={"name": "  Shelby (work)  "}).json()["name"] == "Shelby (work)"
-    copy = client.post(f"/api/personas/{pid}/duplicate", json={"name": "Shelby (playful)", "voice_soul_version": 2})
+    copy = client.post(f"/api/personas/{pid}/duplicate", json={"name": "Shelby (playful)", "voice_profile_version": 2})
     assert copy.status_code == 201, copy.text
     copy = copy.json()
     assert copy["name"] == "Shelby (playful)" and not copy["is_active"] and copy["own_samples"] == 1
-    assert copy["voice_soul_version"] == 1 and copy["voice_soul_label"] == "Punchier"
+    assert copy["voice_profile_version"] == 1 and copy["voice_profile_label"] == "Punchier"
     assert len(client.get("/api/personas").json()) == 2
 
 
 def test_persona_default_dials(client: TestClient, sample_docx: bytes) -> None:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile")
     out = client.patch(
         f"/api/personas/{pid}",
         json={"default_target_words": 900, "default_image_count": 3, "default_opinion": 9, "default_platform": "linkedin"},
@@ -271,7 +271,7 @@ def test_settings_and_auth(client: TestClient) -> None:
 def ready_post(client: TestClient, sample_docx: bytes) -> dict:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile")
     created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"revision_passes": 0}}).json()
     return client.get(f"/api/projects/{created['project']['id']}").json()
 

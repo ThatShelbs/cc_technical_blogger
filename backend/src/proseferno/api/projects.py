@@ -32,7 +32,7 @@ from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, link
 from proseferno.images import ImageProviderError, to_png
 from proseferno.llm import LLMError
 from proseferno.services import Services
-from proseferno.voice import current_voice_soul
+from proseferno.voice import current_voice_profile
 from proseferno.writer import (
     Dials,
     WriterError,
@@ -146,8 +146,8 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
             raise HTTPException(422, "Create a persona and turn it on first.")
         persona = active
     assert persona.id is not None
-    if body.generate and current_voice_soul(session, persona.id) is None:
-        raise HTTPException(422, f"Persona '{persona.name}' has no voice soul yet. Generate it first.")
+    if body.generate and current_voice_profile(session, persona.id) is None:
+        raise HTTPException(422, f"Persona '{persona.name}' has no voice profile yet. Generate it first.")
     project = Project(
         persona_id=persona.id,
         prompt=body.prompt.strip(),
@@ -201,8 +201,8 @@ def delete_project(project_id: int, session: SessionDep, services: ServicesDep) 
 @router.post("/projects/{project_id}/generate", response_model=JobOut, status_code=202)
 async def generate(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
     project = project_or_404(session, project_id)
-    if current_voice_soul(session, project.persona_id) is None:
-        raise HTTPException(422, "This persona has no voice soul yet. Generate it first.")
+    if current_voice_profile(session, project.persona_id) is None:
+        raise HTTPException(422, "This persona has no voice profile yet. Generate it first.")
     job_id = await start_generation(services, project_id)
     return JobOut(**services.jobs.get(job_id).model_dump())
 
@@ -243,14 +243,14 @@ async def check_authenticity(project_id: int, session: SessionDep, services: Ser
     project = project_or_404(session, project_id)
     if not project.markdown:
         raise HTTPException(409, "Generate the post first.")
-    soul = current_voice_soul(session, project.persona_id)
+    voice_profile = current_voice_profile(session, project.persona_id)
     samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
     project.authenticity = await analyze(
         llm=services.llm,
         settings=services.settings,
         markdown=project.markdown,
-        voice_soul=soul.markdown if soul else "",
-        profile=author_profile(samples, soul.baseline_stylometrics if soul else None),
+        voice_profile=voice_profile.markdown if voice_profile else "",
+        profile=author_profile(samples, voice_profile.baseline_stylometrics if voice_profile else None),
         use_judge=services.settings.ai_detection,
     )
     session.add(project)
@@ -303,8 +303,8 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
     project = project_or_404(session, image.project_id)
     # Detached copy: the job outlives this request's database session.
     persona = Persona.model_validate(persona_or_404(session, project.persona_id).model_dump())
-    soul = current_voice_soul(session, project.persona_id)
-    markdown, title, voice = project.markdown, project.title, soul.markdown if soul else ""
+    voice_profile = current_voice_profile(session, project.persona_id)
+    markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
 
     async def run(ctx):  # type: ignore[no-untyped-def]
         await ctx.progress(0.1, "Redrawing image")
@@ -313,7 +313,7 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
             persona=persona,
             title=title,
             markdown=markdown,
-            voice_soul=voice,
+            voice_profile=voice,
             redraw=True,
             rethink=body.rethink,
             usage=ctx.add_usage,

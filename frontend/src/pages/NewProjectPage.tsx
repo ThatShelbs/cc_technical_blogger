@@ -44,7 +44,7 @@ export function NewProjectPage() {
   const includeCode = dials.includeCode ?? (persona?.default_include_code as IncludeCode | undefined) ?? 'auto'
   const changed = Object.keys(buildDials(dials)).length > 0
 
-  const ready = !!persona?.voice_soul_version
+  const ready = !!persona?.voice_profile_version
   const submit = () =>
     create.mutate(
       { prompt, dials: buildDials(dials), persona_id: persona?.id },
@@ -57,16 +57,16 @@ export function NewProjectPage() {
         title="New post"
         subtitle={
           persona
-            ? `Writing as ${persona.name}${persona.voice_soul_version ? ` · voice soul v${persona.voice_soul_version}${persona.voice_soul_label ? ` (${persona.voice_soul_label})` : ''}` : ''}`
+            ? `Writing as ${persona.name}${persona.voice_profile_version ? ` · voice profile v${persona.voice_profile_version}${persona.voice_profile_label ? ` (${persona.voice_profile_label})` : ''}` : ''}`
             : undefined
         }
       />
       {!isLoading && !ready && (
         <div className="mb-6">
-          <Notice tone="warn" title={persona ? `${persona.name} has no voice soul yet` : 'No persona is turned on'}>
+          <Notice tone="warn" title={persona ? `${persona.name} has no voice profile yet` : 'No persona is turned on'}>
             {persona ? (
               <Link className="font-semibold underline" to={`/personas/${persona.id}`}>
-                Add your writing and generate the voice soul first.
+                Add your writing and generate the voice profile first.
               </Link>
             ) : (
               <Link className="font-semibold underline" to="/welcome">

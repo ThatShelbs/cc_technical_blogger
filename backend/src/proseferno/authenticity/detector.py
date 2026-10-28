@@ -85,7 +85,7 @@ async def analyze(
     llm: LLM,
     settings: Settings,
     markdown: str,
-    voice_soul: str,
+    voice_profile: str,
     profile: AuthorProfile,
     use_judge: bool = True,
     usage: UsageSink | None = None,
@@ -98,7 +98,7 @@ async def analyze(
         judgement = await llm.structured(
             task="ai detection",
             system=[SystemBlock(raw("detect_system"), cache=True)],
-            prompt=render("detect", voice_soul=voice_soul or "_No voice soul._", scan=scan_result.tells_text(), post=markdown),
+            prompt=render("detect", voice_profile=voice_profile or "_No voice profile._", scan=scan_result.tells_text(), post=markdown),
             schema=AIDetectionJudgement,
             effort=settings.effort_detect,
             usage=usage,

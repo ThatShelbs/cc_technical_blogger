@@ -2,7 +2,7 @@
 
 Proseferno succeeds only if posts sound like their author. This page explains each step and how to measure the result.
 
-![A generated voice soul with the measured style baseline](screenshots/voice-soul.png)
+![A generated voice profile with the measured style baseline](screenshots/voice-profile.png)
 
 ## 1. Ingestion
 
@@ -21,11 +21,11 @@ The cleaned post is stored as Markdown with `[IMAGE]` and `[CAPTION]` markers so
 
 `ingest/stylometrics.py` computes deterministic numbers per post: sentence and paragraph length, share of one-sentence paragraphs, reading ease, question and exclamation rates, first-person and second-person rates, contractions, em dashes, parentheticals, words per heading, words per image, opening style, and recurring phrases. They are averaged into the persona's **baseline**.
 
-These numbers ground the voice soul in fact and power the **style score** on every draft.
+These numbers ground the voice profile in fact and power the **style score** on every draft.
 
 ## 3. Analysis
 
-Each sample gets a structured analysis (`voice/schemas.py: SampleAnalysis`): hook, title pattern, structure, voice traits with verbatim evidence, tone, rhythm, relationship with the reader, humor devices, storytelling, teaching and credibility moves, image and caption habits, closing, signature phrases, and the passages that sound most like the author. Analyses are cached on the sample, so regenerating a voice soul only analyzes new samples.
+Each sample gets a structured analysis (`voice/schemas.py: SampleAnalysis`): hook, title pattern, structure, voice traits with verbatim evidence, tone, rhythm, relationship with the reader, humor devices, storytelling, teaching and credibility moves, image and caption habits, closing, signature phrases, and the passages that sound most like the author. Analyses are cached on the sample, so regenerating a voice profile only analyzes new samples.
 
 Influence samples are analyzed for **techniques to borrow**, never identity.
 
@@ -33,9 +33,9 @@ Influence samples are analyzed for **techniques to borrow**, never identity.
 
 When a persona has web research turned on, Claude searches for current guidance on titles, storytelling, skimmable structure, humor, insight, credibility and teaching, and writes a cited best-practices guide. It is reused for 30 days.
 
-## 5. Voice soul
+## 5. Voice profile
 
-`prompts/voice_synthesize.md` turns the baseline, analyses and research into `voice_soul.md` with fixed sections: Soul · Voice & Tone · Signature Moves · Structure Blueprint · Titles & Subtitles · Humor · Teaching Style · Credibility & Trust · Images & Captions (including a one-line **visual style** for generated images) · Lexicon (including a *never use* list of generic AI-writing tells) · Do / Don't · Voice Anchors (verbatim passages).
+`prompts/voice_synthesize.md` turns the baseline, analyses and research into `voice_profile.md` with fixed sections: Soul · Voice & Tone · Signature Moves · Structure Blueprint · Titles & Subtitles · Humor · Teaching Style · Credibility & Trust · Images & Captions (including a one-line **visual style** for generated images) · Lexicon (including a *never use* list of generic AI-writing tells) · Do / Don't · Voice Anchors (verbatim passages).
 
 Every version is kept. Editing it in the app saves a new version.
 
@@ -76,4 +76,4 @@ uv run python evals/voice_fidelity.py --demo --yes
 
 The report also lists each post's scan score from the [AI-detection](ai-detection.md) check, so you can see whether generated posts read as human as the real ones.
 
-Note: the voice soul's *Voice Anchors* may quote a held-out post. For the strictest test, regenerate the voice soul without the held-out posts first.
+Note: the voice profile's *Voice Anchors* may quote a held-out post. For the strictest test, regenerate the voice profile without the held-out posts first.

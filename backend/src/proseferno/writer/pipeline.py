@@ -14,14 +14,14 @@ from sqlmodel import Session, col, delete, select
 
 from proseferno.authenticity import analyze, author_profile, scan
 from proseferno.config import Settings
-from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceSoul, utcnow
+from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceProfile, utcnow
 from proseferno.images import PLACEHOLDER_RE, ImageService
 from proseferno.ingest import parse_markdown
 from proseferno.ingest.stylometrics import compute, fidelity
 from proseferno.jobs import JobContext
 from proseferno.llm import LLM, SystemBlock
 from proseferno.prompts import raw, render
-from proseferno.voice import current_voice_soul, format_exemplars, select_exemplars
+from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
@@ -30,11 +30,11 @@ class WriterError(ValueError):
     pass
 
 
-def writer_system(voice_soul: str, exemplars: str) -> list[SystemBlock]:
+def writer_system(voice_profile: str, exemplars: str) -> list[SystemBlock]:
     """Stable prefix shared by every call in a project, cached after the exemplars."""
     return [
         SystemBlock(raw("writer_system")),
-        SystemBlock(f"# Voice soul\n\n{voice_soul}"),
+        SystemBlock(f"# Voice profile\n\n{voice_profile}"),
         SystemBlock(exemplars, cache=True),
     ]
 
@@ -170,7 +170,7 @@ async def generate_article(
         if project is None:
             raise WriterError("Project not found.")
         persona = session.get(Persona, project.persona_id)
-        soul = current_voice_soul(session, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
         project.status = "generating"
         project.error = None
@@ -179,11 +179,11 @@ async def generate_article(
         session.refresh(project)
     if persona is None:
         raise WriterError("The project's persona no longer exists.")
-    if soul is None:
-        raise WriterError("Generate a voice soul for this persona before writing a post.")
+    if voice_profile is None:
+        raise WriterError("Generate a voice profile for this persona before writing a post.")
 
     try:
-        return await _generate(engine, llm, settings, images, project, persona, soul, samples, ctx)
+        return await _generate(engine, llm, settings, images, project, persona, voice_profile, samples, ctx)
     except Exception as exc:
         with Session(engine) as session:
             row = session.get(Project, project_id)
@@ -217,7 +217,7 @@ async def write_post(
     *,
     llm: LLM,
     settings: Settings,
-    soul: VoiceSoul,
+    voice_profile: VoiceProfile,
     samples: list[Sample],
     prompt: str,
     dials: ResolvedDials,
@@ -227,7 +227,7 @@ async def write_post(
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise. Text only; images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
-    system = writer_system(soul.markdown, format_exemplars(exemplars))
+    system = writer_system(voice_profile.markdown, format_exemplars(exemplars))
     settings_text = _settings_text(dials)
 
     # 1. Plan
@@ -268,12 +268,12 @@ async def write_post(
         usage=reporter.add_usage,
     )
     draft = ensure_placeholders(draft, slots)
-    measured = measure(draft, soul.baseline_stylometrics)
+    measured = measure(draft, voice_profile.baseline_stylometrics)
     if on_draft:
         on_draft(draft, measured)
 
     # 3. Critique and revise (the editor also sees the AI-writing tells the scan found)
-    profile = author_profile(samples, soul.baseline_stylometrics)
+    profile = author_profile(samples, voice_profile.baseline_stylometrics)
     critique: Critique | None = None
     for round_number in range(dials.revision_passes):
         await reporter.progress(0.45 + 0.1 * round_number, "Editor reviewing the draft for voice fidelity and AI tells")
@@ -305,7 +305,7 @@ async def write_post(
             usage=reporter.add_usage,
         )
         draft = ensure_placeholders(draft, slots)
-        measured = measure(draft, soul.baseline_stylometrics)
+        measured = measure(draft, voice_profile.baseline_stylometrics)
 
     # 4. AI-generation detection report
     await reporter.progress(0.66, "Checking how human the post reads")
@@ -313,7 +313,7 @@ async def write_post(
         llm=llm,
         settings=settings,
         markdown=draft,
-        voice_soul=soul.markdown,
+        voice_profile=voice_profile.markdown,
         profile=profile,
         use_judge=settings.ai_detection,
         usage=reporter.add_usage,
@@ -330,7 +330,7 @@ async def _generate(
     images: ImageService,
     project: Project,
     persona: Persona,
-    soul: VoiceSoul,
+    voice_profile: VoiceProfile,
     samples: list[Sample],
     ctx: JobContext,
 ) -> dict[str, Any]:
@@ -340,7 +340,7 @@ async def _generate(
     post = await write_post(
         llm=llm,
         settings=settings,
-        soul=soul,
+        voice_profile=voice_profile,
         samples=samples,
         prompt=project.prompt,
         dials=dials,
@@ -352,7 +352,7 @@ async def _generate(
             plan={**plan.model_dump(), "title_options": merge_titles(project.pinned_titles or [], plan.title_options)},
             title=plan.chosen_title,
             subtitle=plan.subtitle,
-            voice_soul_version=soul.version,
+            voice_profile_version=voice_profile.version,
         ),
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured),
     )
@@ -384,7 +384,7 @@ async def _generate(
                 persona=persona,
                 title=title or plan.chosen_title,
                 markdown=draft,
-                voice_soul=soul.markdown,
+                voice_profile=voice_profile.markdown,
                 usage=ctx.add_usage,
             )
         finished += 1
@@ -410,13 +410,13 @@ async def rewrite_passage(
         project = session.get(Project, project_id)
         if project is None:
             raise WriterError("Project not found.")
-        soul = current_voice_soul(session, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
-    if soul is None:
-        raise WriterError("This persona has no voice soul yet.")
+    if voice_profile is None:
+        raise WriterError("This persona has no voice profile yet.")
     if selection not in project.markdown:
         raise WriterError("The selected passage was not found in the post. It may have changed; select it again.")
-    system = writer_system(soul.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
     replacement = await llm.text(
         task="passage rewrite",
         system=system,
@@ -449,16 +449,16 @@ async def regenerate_titles(*, llm: LLM, settings: Settings, engine: Engine, pro
         project = session.get(Project, project_id)
         if project is None:
             raise WriterError("Project not found.")
-        soul = current_voice_soul(session, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
-    if soul is None:
-        raise WriterError("This persona has no voice soul yet.")
+    if voice_profile is None:
+        raise WriterError("This persona has no voice profile yet.")
     plan = dict(project.plan or {})
     keep = merge_titles([project.title], project.pinned_titles or [])
     rejected = [t for t in plan.get("title_options", []) if t.casefold() not in {k.casefold() for k in keep}]
     count = max(1, TITLE_OPTION_COUNT - len(keep))
 
-    system = writer_system(soul.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
     result = await llm.structured(
         task="title options",
         system=system,

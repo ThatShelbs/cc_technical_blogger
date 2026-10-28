@@ -163,7 +163,7 @@ function DialsSummary({ project }: { project: ProjectOut }) {
       <p>
         <span className="text-muted">Topic:</span> {d.topic} · <span className="text-muted">For:</span> {String(d.platform)}
       </p>
-      {project.voice_soul_version && <p className="text-muted">Voice soul v{project.voice_soul_version}</p>}
+      {project.voice_profile_version && <p className="text-muted">Voice profile v{project.voice_profile_version}</p>}
     </Card>
   )
 }

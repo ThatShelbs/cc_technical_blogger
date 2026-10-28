@@ -23,18 +23,18 @@
 
 ## Why Proseferno
 
-Most AI writing tools produce the same polished, generic voice. Proseferno is built around one idea: **the post must sound like you.** It studies your writing, measures it, writes a field guide to your voice (your *voice soul*), and then has an editor check every draft against that guide before you see it.
+Most AI writing tools produce the same polished, generic voice. Proseferno is built around one idea: **the post must sound like you.** It studies your writing, measures it, writes a field guide to your voice (your *voice profile*), and then has an editor check every draft against that guide before you see it.
 
 It is specialized for technical writing about data science, Python, data visualization, machine learning, causal inference and experimentation, analytics leadership, analytics at large companies, AI/LLMs/agents, ML platforms (AWS, Snowflake), and building with agentic coding tools.
 
 ## Features
 
 - **Learns your voice.** Upload your posts (Word, PDF, Markdown, HTML, or a URL; Medium exports are cleaned up automatically). Add writers you admire as *influences*: Proseferno borrows their techniques, never their identity.
-- **Voice soul.** A versioned `voice_soul.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing. Regenerate or edit it any time.
+- **Voice profile.** A versioned `voice_profile.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing. Regenerate or edit it any time.
 - **Optional web research** on current best practices for titles, storytelling, skimmable structure, humor, insight, credibility and teaching.
-- **Personas.** Create several (different names, different voices); exactly one is on at a time. Switch personas and pin any earlier voice soul version from the sidebar, name versions, rename personas, or branch a version into a new, separately named persona.
+- **Personas.** Create several (different names, different voices); exactly one is on at a time. Switch personas and pin any earlier voice profile version from the sidebar, name versions, rename personas, or branch a version into a new, separately named persona.
 - **One prompt per post.** Type a sentence or a bullet outline. Everything else has smart defaults from the persona: length, image count, humor, education level, storytelling, opinion strength, formality, technical depth, skimmability, code, topic, platform. Open *Customize* to change any of them for one post.
-- **Voice-fidelity loop.** Plan → streamed draft → an editor critiques the draft against your voice soul and example posts → revision. You see a measured style score and the editor's scores. Edit the title, pin the options you like, and ask Claude for new ones.
+- **Voice-fidelity loop.** Plan → streamed draft → an editor critiques the draft against your voice profile and example posts → revision. You see a measured style score and the editor's scores. Edit the title, pin the options you like, and ask Claude for new ones.
 - **Reads-as-human score.** Every post gets an AI-generation detection report from 0 (would be flagged as AI) to 100 (authentic human prose): a scan calibrated to your own writing plus a Claude judge, with one-click *Humanize* for the passages a detector would catch.
 - **Images that earn their place, drawn by Claude.** A hero illustration that doubles as the thumbnail, concept icons, clarifying diagrams, data visualizations, screenshot placeholders, and a closing meme, all authored by Claude as SVG or Vega-Lite, rendered locally, placed inline and credited ("Author: You; Made with Claude Opus 5.5 (SVG)"). No other image service, nothing to set up. **Redraw** any image for a new take, **Replace** it with your own, or roll back through its versions.
 - **Export** for Medium, Substack, LinkedIn (article, feed post and a PDF/PowerPoint document carousel), Gumroad (PDF), or Markdown/Word, as a zip or copy-and-paste HTML with images embedded.
@@ -62,7 +62,7 @@ Then follow the five-step setup guide in the app:
 2. **Images**: nothing to do. Claude draws illustrations, icons, diagrams, charts and memes itself.
 3. **Persona**: give it a name and a byline for image credits.
 4. **Your writing**: drop in three or more of your posts. If you keep them in a `my_writing_examples/` folder in the repo, the app offers to import them in one click (that folder is git-ignored).
-5. **Voice soul**: generate it and read it. Edit anything that is off.
+5. **Voice profile**: generate it and read it. Edit anything that is off.
 
 Then click **New post**, describe the post, and watch it being written.
 
@@ -70,7 +70,7 @@ Then click **New post**, describe the post, and watch it being written.
 
 | Service | Used for | Billing |
 | --- | --- | --- |
-| [Claude](https://platform.claude.com) (default model: Claude Opus 5.5) | Voice analysis, voice soul, planning, drafting, editing, AI-detection judge, every image | Your Claude Console (API) account. *Sign in with Claude* uses Console billing, not a Claude.ai chat subscription. |
+| [Claude](https://platform.claude.com) (default model: Claude Opus 5.5) | Voice analysis, voice profile, planning, drafting, editing, AI-detection judge, every image | Your Claude Console (API) account. *Sign in with Claude* uses Console billing, not a Claude.ai chat subscription. |
 
 You can switch to Claude Sonnet 5.5 (faster, cheaper) or Claude Fable 5.1 (most capable) in **Settings → Advanced**, and choose 0–2 editing passes.
 
@@ -83,13 +83,13 @@ flowchart LR
   B --> D[Claude analyzes<br/>each post]
   E[Influences] --> D
   F[Optional web research] --> G
-  C --> G[Voice soul<br/>voice_soul.md]
+  C --> G[Voice profile<br/>voice_profile.md]
   D --> G
   G --> H[Plan]
   I[Your prompt + dials] --> H
   J[Most similar posts<br/>as full examples] --> K
   H --> K[Draft]
-  K --> L[Editor critique<br/>vs. voice soul]
+  K --> L[Editor critique<br/>vs. voice profile]
   L --> M[Revision]
   M --> Q[AI-detection<br/>report]
   Q --> N[Claude-drawn<br/>images + credits]
@@ -100,7 +100,7 @@ Details: [docs/voice-pipeline.md](docs/voice-pipeline.md). To measure voice qual
 
 ## Privacy
 
-Everything stays on your computer in the `data/` folder: samples, voice souls, posts, images, exports. API keys go into your operating system's keychain (Windows Credential Manager, macOS Keychain, Secret Service), never into files. Content is sent only to Claude, and only when you generate something. Images are drawn by Claude and rendered on your computer.
+Everything stays on your computer in the `data/` folder: samples, voice profiles, posts, images, exports. API keys go into your operating system's keychain (Windows Credential Manager, macOS Keychain, Secret Service), never into files. Content is sent only to Claude, and only when you generate something. Images are drawn by Claude and rendered on your computer.
 
 ## Project layout
 
@@ -110,7 +110,7 @@ backend/                           FastAPI + uv (Python 3.13)
   src/proseferno/
     api/        HTTP routes (auth, settings, personas, samples, voice, projects, images, export, jobs/SSE)
     ingest/     Parsers, Medium clean-up, stylometrics
-    voice/      Sample analysis, research, voice soul synthesis, exemplar selection
+    voice/      Sample analysis, research, voice profile synthesis, exemplar selection
     writer/     Dials, plan, draft, critique/revise, LinkedIn feed post
     authenticity/  AI-generation detection: calibrated scan + Claude judge
     images/     Claude image design, SVG/Vega-Lite renderers, memes, credits

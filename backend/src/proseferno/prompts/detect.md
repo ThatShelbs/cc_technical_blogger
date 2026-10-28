@@ -1,8 +1,8 @@
 Judge whether this post reads as authentic human writing or as AI-generated text.
 
-<voice_soul>
-$voice_soul
-</voice_soul>
+<voice_profile>
+$voice_profile
+</voice_profile>
 
 An automated scan already found these possible tells (confirm or overrule them):
 $scan

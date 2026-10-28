@@ -15,7 +15,7 @@ The author passed on these titles (avoid them and anything close to them):
 $rejected
 
 Rules:
-- Follow the author's title formulas from the voice soul: their length, punctuation, humor and the way they make a promise to the reader.
+- Follow the author's title formulas from the voice profile: their length, punctuation, humor and the way they make a promise to the reader.
 - Each option takes a different angle: a blunt opinion, a question, a number, a confession, a how-to, and so on, as long as the author would plausibly write it.
 - No clickbait the post cannot pay off, and no generic AI-sounding titles.
 

@@ -1,23 +1,23 @@
 from proseferno.voice.exemplars import format_exemplars, rank_by_similarity, select_exemplars
 from proseferno.voice.pipeline import (
     VoiceError,
-    current_voice_soul,
-    generate_voice_soul,
-    latest_voice_soul,
+    current_voice_profile,
+    generate_voice_profile,
+    latest_voice_profile,
     unpin,
-    voice_soul_version,
+    voice_profile_version,
 )
 from proseferno.voice.schemas import SampleAnalysis
 
 __all__ = [
     "SampleAnalysis",
     "VoiceError",
-    "current_voice_soul",
+    "current_voice_profile",
     "format_exemplars",
-    "generate_voice_soul",
-    "latest_voice_soul",
+    "generate_voice_profile",
+    "latest_voice_profile",
     "rank_by_similarity",
     "select_exemplars",
     "unpin",
-    "voice_soul_version",
+    "voice_profile_version",
 ]

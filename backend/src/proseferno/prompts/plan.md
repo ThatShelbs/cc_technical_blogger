@@ -27,4 +27,4 @@ Image slot rules (every image is drawn by Claude as SVG or a Vega-Lite chart, so
   - "screenshot" when a real platform screenshot (UI, console, settings page) would help; the author replaces the placeholder.
   Spread them through the post where they serve the text. Give them ids "img2", "img3", and so on.
 
-Title options must follow the author's title formulas from the voice soul. Choose the strongest as `chosen_title`.
+Title options must follow the author's title formulas from the voice profile. Choose the strongest as `chosen_title`.

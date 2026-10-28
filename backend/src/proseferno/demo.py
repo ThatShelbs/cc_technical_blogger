@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from proseferno.llm.base import Citation, OnDelta, ResearchResult, SystemBlock, UsageSink
 
-VOICE_SOUL = """# Voice Soul: Test Persona
+VOICE_PROFILE = """# Voice Profile: Test Persona
 
 ## Soul
 Curious data person who explains things with a grin.
@@ -95,8 +95,8 @@ class FakeLLM:
         usage: UsageSink | None = None,
     ) -> str:
         self.calls.append({"kind": "text", "task": task, "prompt": prompt, "system": system})
-        if task == "voice soul synthesis":
-            text = VOICE_SOUL
+        if task == "voice profile synthesis":
+            text = VOICE_PROFILE
         elif task == "passage rewrite":
             text = "Bar charts win. Every. Single. Time."
         else:

@@ -25,7 +25,7 @@ export const PLATFORMS: [Platform, string][] = [
   ['markdown', 'Markdown (dev.to, Hashnode, Ghost)'],
 ]
 
-/** 0-10 style dials. 5 = the author's natural level, so the voice soul stays in charge. */
+/** 0-10 style dials. 5 = the author's natural level, so the voice profile stays in charge. */
 export const STYLE_DIALS = [
   { key: 'storytelling', label: 'Storytelling', low: 'Straight explainer', high: 'Story-driven' },
   { key: 'opinion', label: 'Opinion strength', low: 'Balanced', high: 'Bold hot take' },

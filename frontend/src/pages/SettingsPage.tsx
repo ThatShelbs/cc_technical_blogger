@@ -110,7 +110,7 @@ function AdvancedCard() {
         <p>
           <span className="font-semibold">Your data folder:</span> <code className="break-all">{settings.data_dir}</code>
         </p>
-        <p className="mt-1 text-muted">Samples, voice souls, posts and images stay on this computer. Version {settings.version}.</p>
+        <p className="mt-1 text-muted">Samples, voice profiles, posts and images stay on this computer. Version {settings.version}.</p>
       </div>
     </Card>
   )

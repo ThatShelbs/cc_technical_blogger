@@ -42,7 +42,7 @@ from proseferno.ingest import parse_markdown
 from proseferno.ingest.stylometrics import compute, fidelity
 from proseferno.llm import LLM, SystemBlock
 from proseferno.services import build_services
-from proseferno.voice import latest_voice_soul
+from proseferno.voice import latest_voice_profile
 from proseferno.writer import Dials, resolve, write_post
 
 EXCERPT_WORDS = 700
@@ -55,14 +55,14 @@ class PostBrief(BaseModel):
 
 
 class Judgement(BaseModel):
-    reasoning: str = Field(description="Two or three sentences comparing the passages to the voice soul.")
+    reasoning: str = Field(description="Two or three sentences comparing the passages to the voice profile.")
     authentic: Literal["A", "B"] = Field(description="The passage the author wrote.")
     confidence: int = Field(description="1 (a guess) to 5 (certain).")
     similarity: int = Field(description="1-10: how alike the two passages' voices are.")
 
 
 JUDGE_SYSTEM = (
-    "You are an expert editor who knows this author's writing intimately (their voice soul is below). "
+    "You are an expert editor who knows this author's writing intimately (their voice profile is below). "
     "One passage was written by the author; the other by an AI imitating them. Decide which is the author's. "
     "Judge voice, rhythm, humor, word choice and structure, not topic or factual content."
 )
@@ -96,14 +96,14 @@ def excerpt(markdown: str, words: int = EXCERPT_WORDS) -> str:
     return "\n\n".join(out).strip()
 
 
-async def judge(llm: LLM, settings: Settings, soul: str, real: str, generated: str, reporter: Reporter) -> list[bool]:
+async def judge(llm: LLM, settings: Settings, voice_profile: str, real: str, generated: str, reporter: Reporter) -> list[bool]:
     """Ask twice with the order swapped; return whether each verdict picked the real post."""
     verdicts = []
     for real_first in (True, False):
         a, b = (real, generated) if real_first else (generated, real)
         result = await llm.structured(
             task="judge",
-            system=[SystemBlock(JUDGE_SYSTEM), SystemBlock(f"# Voice soul\n\n{soul}", cache=True)],
+            system=[SystemBlock(JUDGE_SYSTEM), SystemBlock(f"# Voice profile\n\n{voice_profile}", cache=True)],
             prompt=f"<passage_a>\n{a}\n</passage_a>\n\n<passage_b>\n{b}\n</passage_b>",
             schema=Judgement,
             effort="high",
@@ -131,10 +131,10 @@ async def run(args: argparse.Namespace) -> int:
         if persona is None or persona.id is None:
             print("Persona not found. Use --persona NAME (or turn a persona on in the app).")
             return 2
-        soul = latest_voice_soul(session, persona.id)
+        voice_profile = latest_voice_profile(session, persona.id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == persona.id)))
-    if soul is None:
-        print(f"Persona '{persona.name}' has no voice soul yet.")
+    if voice_profile is None:
+        print(f"Persona '{persona.name}' has no voice profile yet.")
         return 2
     own = [s for s in samples if s.kind == "own" and 400 <= s.word_count <= args.max_words]
     if len(own) < 2:
@@ -143,7 +143,7 @@ async def run(args: argparse.Namespace) -> int:
     rng = random.Random(args.seed)
     held_out = rng.sample(own, min(args.holdout, len(own) - 1))
 
-    print(f"\nVoice-fidelity eval for '{persona.name}' (voice soul v{soul.version}, model {settings.model})")
+    print(f"\nVoice-fidelity eval for '{persona.name}' (voice profile v{voice_profile.version}, model {settings.model})")
     print(f"Holding out {len(held_out)} post(s): " + ", ".join(f'"{s.title}"' for s in held_out))
     if not args.yes:
         print("\nThis calls the Claude API and costs money (roughly $1-2 per held-out post). Re-run with --yes to proceed.")
@@ -168,20 +168,22 @@ async def run(args: argparse.Namespace) -> int:
             brief.brief,
             default_revisions=settings.revision_passes,
         )
-        post = await write_post(llm=llm, settings=settings, soul=soul, samples=others, prompt=brief.brief, dials=dials, reporter=reporter)
+        post = await write_post(
+            llm=llm, settings=settings, voice_profile=voice_profile, samples=others, prompt=brief.brief, dials=dials, reporter=reporter
+        )
         real_text, generated_text = excerpt(sample.markdown), excerpt(post.markdown)
-        verdicts = await judge(llm, settings, soul.markdown, real_text, generated_text, reporter)
+        verdicts = await judge(llm, settings, voice_profile.markdown, real_text, generated_text, reporter)
         generated_doc = parse_markdown(re.sub(r"\{\{image:[^}]+\}\}", "![x](x)", post.markdown))
         rows.append(
             {
                 "title": sample.title,
                 "brief": brief.brief,
                 "judge_picked_real": verdicts,
-                "style_score_real": fidelity(soul.baseline_stylometrics, sample.stylometrics)["score"],
-                "style_score_generated": fidelity(soul.baseline_stylometrics, compute(generated_doc))["score"],
+                "style_score_real": fidelity(voice_profile.baseline_stylometrics, sample.stylometrics)["score"],
+                "style_score_generated": fidelity(voice_profile.baseline_stylometrics, compute(generated_doc))["score"],
                 # AI-detection scan (free): 100 = reads as human. The held-out post is not in the calibration.
-                "human_score_real": scan(sample.markdown, author_profile(others, soul.baseline_stylometrics)).score,
-                "human_score_generated": scan(post.markdown, author_profile(others, soul.baseline_stylometrics)).score,
+                "human_score_real": scan(sample.markdown, author_profile(others, voice_profile.baseline_stylometrics)).score,
+                "human_score_generated": scan(post.markdown, author_profile(others, voice_profile.baseline_stylometrics)).score,
                 "generated_markdown": post.markdown,
             }
         )
@@ -189,7 +191,7 @@ async def run(args: argparse.Namespace) -> int:
     verdicts = [v for row in rows for v in row["judge_picked_real"]]
     summary = {
         "persona": persona.name,
-        "voice_soul_version": soul.version,
+        "voice_profile_version": voice_profile.version,
         "model": settings.model,
         "held_out": len(rows),
         "judge_accuracy": round(sum(verdicts) / len(verdicts), 3),
@@ -206,7 +208,7 @@ async def run(args: argparse.Namespace) -> int:
     report = [
         f"# Voice-fidelity eval: {persona.name}",
         "",
-        f"- Voice soul v{soul.version}, model `{settings.model}`, {len(rows)} held-out post(s)",
+        f"- Voice profile v{voice_profile.version}, model `{settings.model}`, {len(rows)} held-out post(s)",
         f"- **Judge accuracy: {summary['judge_accuracy']:.0%}** (50% = indistinguishable from the real author; 100% = always spotted)",
         f"- Style score vs. baseline (out of 100): real posts {summary['style_score_real_mean']}, "
         f"generated {summary['style_score_generated_mean']}",

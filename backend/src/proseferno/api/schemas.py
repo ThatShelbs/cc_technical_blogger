@@ -95,11 +95,11 @@ class PersonaUpdate(PersonaDefaults):
     research_enabled: bool | None = None
     visual_style: str | None = None
     credit_template: str | None = None
-    # Which voice soul version new posts use; null = always the latest.
-    pinned_voice_soul_version: int | None = None
+    # Which voice profile version new posts use; null = always the latest.
+    pinned_voice_profile_version: int | None = None
 
 
-class VoiceSoulVersion(BaseModel):
+class VoiceProfileVersion(BaseModel):
     id: int
     version: int
     label: str
@@ -129,11 +129,11 @@ class PersonaOut(BaseModel):
     own_samples: int
     influence_samples: int
     # The version new posts use (pinned, else latest).
-    voice_soul_version: int | None
-    voice_soul_label: str
-    latest_voice_soul_version: int | None
-    pinned_voice_soul_version: int | None
-    voice_soul_versions: list[VoiceSoulVersion]
+    voice_profile_version: int | None
+    voice_profile_label: str
+    latest_voice_profile_version: int | None
+    pinned_voice_profile_version: int | None
+    voice_profile_versions: list[VoiceProfileVersion]
     active_job_id: str | None
     created_at: datetime
 
@@ -141,8 +141,8 @@ class PersonaOut(BaseModel):
 class PersonaDuplicateIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     display_name: str | None = None
-    # Copy this voice soul version as the new persona's v1 (null = start without one).
-    voice_soul_version: int | None = None
+    # Copy this voice profile version as the new persona's v1 (null = start without one).
+    voice_profile_version: int | None = None
     copy_samples: bool = True
 
 
@@ -188,7 +188,7 @@ class SeedSamplesOut(BaseModel):
     files: list[str]
 
 
-class VoiceSoulOut(BaseModel):
+class VoiceProfileOut(BaseModel):
     id: int
     persona_id: int
     version: int
@@ -203,16 +203,16 @@ class VoiceSoulOut(BaseModel):
     created_at: datetime
 
 
-class VoiceSoulEdit(BaseModel):
+class VoiceProfileEdit(BaseModel):
     markdown: str = Field(min_length=20)
     label: str = Field("", max_length=80)
 
 
-class VoiceSoulGenerateIn(BaseModel):
+class VoiceProfileGenerateIn(BaseModel):
     label: str = Field("", max_length=80)
 
 
-class VoiceSoulLabelIn(BaseModel):
+class VoiceProfileLabelIn(BaseModel):
     label: str = Field(max_length=80)
 
 
@@ -322,7 +322,7 @@ class ProjectOut(BaseModel):
     authenticity: dict[str, Any] | None
     social: dict[str, Any] | None
     pinned_titles: list[str]
-    voice_soul_version: int | None
+    voice_profile_version: int | None
     error: str | None
     images: list[ImageOut]
     active_job_id: str | None

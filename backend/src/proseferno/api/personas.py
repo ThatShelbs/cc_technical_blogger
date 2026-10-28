@@ -1,4 +1,4 @@
-"""Personas, writing samples, and voice souls."""
+"""Personas, writing samples, and voice profiles."""
 
 from __future__ import annotations
 
@@ -22,18 +22,18 @@ from proseferno.api.schemas import (
     SeedSamplesOut,
     UploadResult,
     UrlImportIn,
-    VoiceSoulEdit,
-    VoiceSoulGenerateIn,
-    VoiceSoulLabelIn,
-    VoiceSoulOut,
-    VoiceSoulVersion,
+    VoiceProfileEdit,
+    VoiceProfileGenerateIn,
+    VoiceProfileLabelIn,
+    VoiceProfileOut,
+    VoiceProfileVersion,
 )
-from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceSoul, utcnow
+from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceProfile, utcnow
 from proseferno.ingest import SUPPORTED_EXTENSIONS, ParsedDocument, UnsupportedFormatError, fetch_url, parse_file
 from proseferno.ingest.stylometrics import compute
 from proseferno.services import Services
 from proseferno.storage import safe_filename
-from proseferno.voice import current_voice_soul, generate_voice_soul, latest_voice_soul, unpin, voice_soul_version
+from proseferno.voice import current_voice_profile, generate_voice_profile, latest_voice_profile, unpin, voice_profile_version
 
 router = APIRouter(prefix="/api")
 
@@ -50,23 +50,25 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
             select(Sample.kind, func.count()).where(Sample.persona_id == persona.id).group_by(Sample.kind)  # type: ignore[arg-type]
         ).all()
     )
-    souls = session.exec(select(VoiceSoul).where(VoiceSoul.persona_id == persona.id).order_by(col(VoiceSoul.version).desc())).all()
-    current = current_voice_soul(session, persona.id)
+    voice_profiles = session.exec(
+        select(VoiceProfile).where(VoiceProfile.persona_id == persona.id).order_by(col(VoiceProfile.version).desc())
+    ).all()
+    current = current_voice_profile(session, persona.id)
     active = services.jobs.active_for(persona_id=persona.id)
     return PersonaOut(
         **persona.model_dump(exclude={"updated_at"}),
         own_samples=counts.get("own", 0),
         influence_samples=counts.get("influence", 0),
-        voice_soul_version=current.version if current else None,
-        voice_soul_label=current.label if current else "",
-        latest_voice_soul_version=souls[0].version if souls else None,
-        voice_soul_versions=[version_out(s) for s in souls],
+        voice_profile_version=current.version if current else None,
+        voice_profile_label=current.label if current else "",
+        latest_voice_profile_version=voice_profiles[0].version if voice_profiles else None,
+        voice_profile_versions=[version_out(s) for s in voice_profiles],
         active_job_id=active[0].id if active else None,
     )
 
 
-def version_out(soul: VoiceSoul) -> VoiceSoulVersion:
-    return VoiceSoulVersion(**soul.model_dump(include={"id", "version", "label", "edited_by_user", "created_at"}))
+def version_out(voice_profile: VoiceProfile) -> VoiceProfileVersion:
+    return VoiceProfileVersion(**voice_profile.model_dump(include={"id", "version", "label", "edited_by_user", "created_at"}))
 
 
 def sample_out(sample: Sample) -> SampleOut:
@@ -75,12 +77,12 @@ def sample_out(sample: Sample) -> SampleOut:
     )
 
 
-def soul_out(session: Session, soul: VoiceSoul) -> VoiceSoulOut:
-    current = current_voice_soul(session, soul.persona_id)
-    return VoiceSoulOut(
-        **soul.model_dump(exclude={"sample_ids"}),
-        sample_count=len(soul.sample_ids),
-        in_use=current is not None and current.id == soul.id,
+def voice_profile_out(session: Session, voice_profile: VoiceProfile) -> VoiceProfileOut:
+    current = current_voice_profile(session, voice_profile.persona_id)
+    return VoiceProfileOut(
+        **voice_profile.model_dump(exclude={"sample_ids"}),
+        sample_count=len(voice_profile.sample_ids),
+        in_use=current is not None and current.id == voice_profile.id,
     )
 
 
@@ -144,13 +146,13 @@ def get_persona(persona_id: int, session: SessionDep, services: ServicesDep) -> 
 def update_persona(persona_id: int, body: PersonaUpdate, session: SessionDep, services: ServicesDep) -> PersonaOut:
     persona = persona_or_404(session, persona_id)
     changes = body.model_dump(exclude_unset=True)
-    pinned = changes.get("pinned_voice_soul_version")
-    if pinned is not None and voice_soul_version(session, persona_id, pinned) is None:
-        raise HTTPException(404, f"Voice soul v{pinned} does not exist.")
+    pinned = changes.get("pinned_voice_profile_version")
+    if pinned is not None and voice_profile_version(session, persona_id, pinned) is None:
+        raise HTTPException(404, f"Voice profile v{pinned} does not exist.")
     if "default_image_count" in changes and not changes["default_image_count"]:
         changes["default_image_count"] = None  # 0 = automatic
     for key, value in changes.items():
-        if value is None and key not in ("pinned_voice_soul_version", "default_image_count"):
+        if value is None and key not in ("pinned_voice_profile_version", "default_image_count"):
             continue
         setattr(persona, key, value.strip() if isinstance(value, str) else value)
     persona.updated_at = utcnow()
@@ -170,16 +172,18 @@ def activate_persona(persona_id: int, session: SessionDep, services: ServicesDep
 
 @router.post("/personas/{persona_id}/duplicate", response_model=PersonaOut, status_code=201)
 def duplicate_persona(persona_id: int, body: PersonaDuplicateIn, session: SessionDep, services: ServicesDep) -> PersonaOut:
-    """Start a new, separately named persona from this one (its settings, samples and, optionally, a voice soul version)."""
+    """Start a new, separately named persona from this one (its settings, samples and, optionally, a voice profile version)."""
     source = persona_or_404(session, persona_id)
-    soul = None
-    if body.voice_soul_version is not None:
-        soul = voice_soul_version(session, persona_id, body.voice_soul_version)
-        if soul is None:
-            raise HTTPException(404, f"Voice soul v{body.voice_soul_version} does not exist.")
+    voice_profile = None
+    if body.voice_profile_version is not None:
+        voice_profile = voice_profile_version(session, persona_id, body.voice_profile_version)
+        if voice_profile is None:
+            raise HTTPException(404, f"Voice profile v{body.voice_profile_version} does not exist.")
     name = body.name.strip()
     copy = Persona(
-        **source.model_dump(exclude={"id", "name", "display_name", "is_active", "pinned_voice_soul_version", "created_at", "updated_at"}),
+        **source.model_dump(
+            exclude={"id", "name", "display_name", "is_active", "pinned_voice_profile_version", "created_at", "updated_at"}
+        ),
         name=name,
         display_name=(body.display_name or "").strip() or source.display_name or name,
         is_active=False,
@@ -196,22 +200,22 @@ def duplicate_persona(persona_id: int, body: PersonaDuplicateIn, session: Sessio
             session.flush()
             if sample.id is not None and clone.id is not None:
                 id_map[sample.id] = clone.id
-    if soul is not None:
-        markdown = soul.markdown.replace(f"# Voice Soul: {source.name}", f"# Voice Soul: {name}", 1)
+    if voice_profile is not None:
+        markdown = voice_profile.markdown.replace(f"# Voice Profile: {source.name}", f"# Voice Profile: {name}", 1)
         session.add(
-            VoiceSoul(
+            VoiceProfile(
                 persona_id=copy.id,
                 version=1,
-                label=soul.label or f"From {source.name} v{soul.version}",
+                label=voice_profile.label or f"From {source.name} v{voice_profile.version}",
                 markdown=markdown,
-                best_practices=soul.best_practices,
-                sample_ids=[id_map[i] for i in soul.sample_ids if i in id_map],
-                baseline_stylometrics=soul.baseline_stylometrics,
-                model=soul.model,
-                edited_by_user=soul.edited_by_user,
+                best_practices=voice_profile.best_practices,
+                sample_ids=[id_map[i] for i in voice_profile.sample_ids if i in id_map],
+                baseline_stylometrics=voice_profile.baseline_stylometrics,
+                model=voice_profile.model,
+                edited_by_user=voice_profile.edited_by_user,
             )
         )
-        services.storage.voice_soul_path(copy.id, 1).write_text(markdown, encoding="utf-8")
+        services.storage.voice_profile_path(copy.id, 1).write_text(markdown, encoding="utf-8")
     session.commit()
     session.refresh(copy)
     return persona_out(session, copy, services)
@@ -225,7 +229,7 @@ def delete_persona(persona_id: int, session: SessionDep, services: ServicesDep) 
         session.exec(delete(ProjectImage).where(col(ProjectImage.project_id).in_(project_ids)))  # type: ignore[call-overload]
         session.exec(delete(Project).where(col(Project.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(Sample).where(col(Sample.persona_id) == persona_id))  # type: ignore[call-overload]
-    session.exec(delete(VoiceSoul).where(col(VoiceSoul.persona_id) == persona_id))  # type: ignore[call-overload]
+    session.exec(delete(VoiceProfile).where(col(VoiceProfile.persona_id) == persona_id))  # type: ignore[call-overload]
     was_active = persona.is_active
     session.delete(persona)
     session.commit()
@@ -344,11 +348,13 @@ def delete_sample(sample_id: int, session: SessionDep) -> None:
     session.commit()
 
 
-# -- voice soul -----------------------------------------------------------------------
+# -- voice profile -----------------------------------------------------------------------
 
 
-@router.post("/personas/{persona_id}/voice-soul", response_model=JobOut, status_code=202)
-async def start_voice_soul(persona_id: int, session: SessionDep, services: ServicesDep, body: VoiceSoulGenerateIn | None = None) -> JobOut:
+@router.post("/personas/{persona_id}/voice-profile", response_model=JobOut, status_code=202)
+async def start_voice_profile(
+    persona_id: int, session: SessionDep, services: ServicesDep, body: VoiceProfileGenerateIn | None = None
+) -> JobOut:
     persona_or_404(session, persona_id)
     if not session.exec(select(Sample).where(Sample.persona_id == persona_id, Sample.kind == "own")).first():
         raise HTTPException(422, "Add at least one sample of your own writing first.")
@@ -356,8 +362,8 @@ async def start_voice_soul(persona_id: int, session: SessionDep, services: Servi
     if active:
         return JobOut(**active[0].model_dump())
     job = await services.jobs.start(
-        "voice_soul",
-        lambda ctx: generate_voice_soul(
+        "voice_profile",
+        lambda ctx: generate_voice_profile(
             engine=services.engine,
             llm=services.llm,
             settings=services.settings,
@@ -371,45 +377,47 @@ async def start_voice_soul(persona_id: int, session: SessionDep, services: Servi
     return JobOut(**job.model_dump())
 
 
-@router.get("/personas/{persona_id}/voice-soul", response_model=VoiceSoulOut)
-def get_voice_soul(persona_id: int, session: SessionDep, version: int | None = None) -> VoiceSoulOut:
+@router.get("/personas/{persona_id}/voice-profile", response_model=VoiceProfileOut)
+def get_voice_profile(persona_id: int, session: SessionDep, version: int | None = None) -> VoiceProfileOut:
     """The version in use (pinned, else latest), or a specific ``version``."""
     persona_or_404(session, persona_id)
-    soul = current_voice_soul(session, persona_id) if version is None else voice_soul_version(session, persona_id, version)
-    if soul is None:
-        raise HTTPException(404, "No voice soul yet.")
-    return soul_out(session, soul)
+    voice_profile = current_voice_profile(session, persona_id) if version is None else voice_profile_version(session, persona_id, version)
+    if voice_profile is None:
+        raise HTTPException(404, "No voice profile yet.")
+    return voice_profile_out(session, voice_profile)
 
 
-@router.get("/personas/{persona_id}/voice-soul/versions", response_model=list[VoiceSoulVersion])
-def voice_soul_versions(persona_id: int, session: SessionDep) -> list[VoiceSoulVersion]:
+@router.get("/personas/{persona_id}/voice-profile/versions", response_model=list[VoiceProfileVersion])
+def voice_profile_versions(persona_id: int, session: SessionDep) -> list[VoiceProfileVersion]:
     persona_or_404(session, persona_id)
-    souls = session.exec(select(VoiceSoul).where(VoiceSoul.persona_id == persona_id).order_by(col(VoiceSoul.version).desc())).all()
-    return [version_out(s) for s in souls]
+    voice_profiles = session.exec(
+        select(VoiceProfile).where(VoiceProfile.persona_id == persona_id).order_by(col(VoiceProfile.version).desc())
+    ).all()
+    return [version_out(s) for s in voice_profiles]
 
 
-@router.patch("/personas/{persona_id}/voice-soul/{version}", response_model=VoiceSoulOut)
-def label_voice_soul(persona_id: int, version: int, body: VoiceSoulLabelIn, session: SessionDep) -> VoiceSoulOut:
+@router.patch("/personas/{persona_id}/voice-profile/{version}", response_model=VoiceProfileOut)
+def label_voice_profile(persona_id: int, version: int, body: VoiceProfileLabelIn, session: SessionDep) -> VoiceProfileOut:
     """Name a version, e.g. "Punchier, fewer jokes"."""
     persona_or_404(session, persona_id)
-    soul = voice_soul_version(session, persona_id, version)
-    if soul is None:
-        raise HTTPException(404, f"Voice soul v{version} does not exist.")
-    soul.label = body.label.strip()
-    session.add(soul)
+    voice_profile = voice_profile_version(session, persona_id, version)
+    if voice_profile is None:
+        raise HTTPException(404, f"Voice profile v{version} does not exist.")
+    voice_profile.label = body.label.strip()
+    session.add(voice_profile)
     session.commit()
-    session.refresh(soul)
-    return soul_out(session, soul)
+    session.refresh(voice_profile)
+    return voice_profile_out(session, voice_profile)
 
 
-@router.put("/personas/{persona_id}/voice-soul", response_model=VoiceSoulOut)
-def edit_voice_soul(persona_id: int, body: VoiceSoulEdit, session: SessionDep, services: ServicesDep) -> VoiceSoulOut:
+@router.put("/personas/{persona_id}/voice-profile", response_model=VoiceProfileOut)
+def edit_voice_profile(persona_id: int, body: VoiceProfileEdit, session: SessionDep, services: ServicesDep) -> VoiceProfileOut:
     """Save the user's edits as a new version (history is kept)."""
     persona_or_404(session, persona_id)
-    latest = latest_voice_soul(session, persona_id)
+    latest = latest_voice_profile(session, persona_id)
     if latest is None:
-        raise HTTPException(404, "Generate a voice soul before editing it.")
-    soul = VoiceSoul(
+        raise HTTPException(404, "Generate a voice profile before editing it.")
+    voice_profile = VoiceProfile(
         persona_id=persona_id,
         version=latest.version + 1,
         label=body.label.strip(),
@@ -420,9 +428,9 @@ def edit_voice_soul(persona_id: int, body: VoiceSoulEdit, session: SessionDep, s
         model=latest.model,
         edited_by_user=True,
     )
-    session.add(soul)
+    session.add(voice_profile)
     unpin(session, persona_id)
     session.commit()
-    session.refresh(soul)
-    services.storage.voice_soul_path(persona_id, soul.version).write_text(soul.markdown, encoding="utf-8")
-    return soul_out(session, soul)
+    session.refresh(voice_profile)
+    services.storage.voice_profile_path(persona_id, voice_profile.version).write_text(voice_profile.markdown, encoding="utf-8")
+    return voice_profile_out(session, voice_profile)

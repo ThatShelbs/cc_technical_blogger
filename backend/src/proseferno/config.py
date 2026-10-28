@@ -26,7 +26,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Where all user data lives (database, samples, voice souls, images, exports).
+    # Where all user data lives (database, samples, voice profiles, images, exports).
     data_dir: Path = REPO_ROOT / "data"
     host: str = "127.0.0.1"
     port: int = 8732

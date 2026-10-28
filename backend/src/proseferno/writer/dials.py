@@ -93,7 +93,7 @@ EDUCATION_GUIDE = {
 
 
 # 0-10 style dials. They are relative to the author: 4-6 means "as the author naturally writes",
-# so the voice soul stays in charge unless the user deliberately pushes a dial.
+# so the voice profile stays in charge unless the user deliberately pushes a dial.
 STYLE_DIALS: dict[str, tuple[str, dict[range, str]]] = {
     "storytelling": (
         "Storytelling",

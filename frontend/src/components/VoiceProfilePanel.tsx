@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { ApiError, errorText } from '../api/client'
-import { keys, usePersona, usePersonaMutations, useSaveVoiceSoul, useVoiceSoul } from '../api/hooks'
+import { keys, usePersona, usePersonaMutations, useSaveVoiceProfile, useVoiceProfile } from '../api/hooks'
 import type { PersonaOut } from '../api/types.gen'
 import { useJob } from '../api/useJob'
 import { Markdown } from './Article'
@@ -20,7 +20,7 @@ const STAT_LABELS: [string, string, (v: number) => string][] = [
   ['words_per_image', 'Words per image', (v) => v.toFixed(0)],
 ]
 
-/** Generate a new voice soul: as a named version of this persona, or as a brand-new persona. */
+/** Generate a new voice profile: as a named version of this persona, or as a brand-new persona. */
 function GenerateDialog({
   persona,
   open,
@@ -37,12 +37,12 @@ function GenerateDialog({
   const [target, setTarget] = useState<'version' | 'persona'>('version')
   const [label, setLabel] = useState('')
   const [name, setName] = useState('')
-  const pending = mutations.generateVoiceSoul.isPending || mutations.duplicate.isPending
-  const error = mutations.generateVoiceSoul.error ?? mutations.duplicate.error
+  const pending = mutations.generateVoiceProfile.isPending || mutations.duplicate.isPending
+  const error = mutations.generateVoiceProfile.error ?? mutations.duplicate.error
 
   const submit = () => {
     if (target === 'version') {
-      mutations.generateVoiceSoul.mutate(
+      mutations.generateVoiceProfile.mutate(
         { id: persona.id, label },
         {
           onSuccess: (job) => {
@@ -54,10 +54,10 @@ function GenerateDialog({
       return
     }
     mutations.duplicate.mutate(
-      { id: persona.id, body: { name: name.trim(), voice_soul_version: null, copy_samples: true } },
+      { id: persona.id, body: { name: name.trim(), voice_profile_version: null, copy_samples: true } },
       {
         onSuccess: (created) =>
-          mutations.generateVoiceSoul.mutate(
+          mutations.generateVoiceProfile.mutate(
             { id: created.id, label },
             {
               onSuccess: () => {
@@ -71,7 +71,7 @@ function GenerateDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Generate a voice soul">
+    <Dialog open={open} onClose={onClose} title="Generate a voice profile">
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -79,11 +79,11 @@ function GenerateDialog({
           submit()
         }}
       >
-        <div className="grid gap-2" role="radiogroup" aria-label="Save the new voice soul as">
+        <div className="grid gap-2" role="radiogroup" aria-label="Save the new voice profile as">
           {(
             [
               ['version', `A new version of ${persona.name}`, 'Older versions stay in the history; you can switch back any time.'],
-              ['persona', 'A new, separately named persona', 'Copies the samples and settings, then generates its own voice soul.'],
+              ['persona', 'A new, separately named persona', 'Copies the samples and settings, then generates its own voice profile.'],
             ] as const
           ).map(([value, title, hint]) => (
             <button
@@ -149,13 +149,13 @@ function VersionLabel({ personaId, version, label }: { personaId: number; versio
   )
 }
 
-export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; onGenerated?: () => void }) {
+export function VoiceProfilePanel({ personaId, onGenerated }: { personaId: number; onGenerated?: () => void }) {
   const qc = useQueryClient()
   const persona = usePersona(personaId)
   const [version, setVersion] = useState<number | undefined>()
-  const soul = useVoiceSoul(personaId, version)
+  const voiceProfile = useVoiceProfile(personaId, version)
   const mutations = usePersonaMutations()
-  const save = useSaveVoiceSoul(personaId)
+  const save = useSaveVoiceProfile(personaId)
   const [jobId, setJobId] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ markdown: string; label: string } | null>(null)
   const [generateOpen, setGenerateOpen] = useState(false)
@@ -164,16 +164,16 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
   const job = useJob(runningJobId, (state) => {
     setJobId(null)
     void qc.invalidateQueries({ queryKey: ['personas'] })
-    void qc.invalidateQueries({ queryKey: keys.voiceSoulVersions(personaId) })
+    void qc.invalidateQueries({ queryKey: keys.voiceProfileVersions(personaId) })
     setVersion(undefined)
     if (state.status === 'succeeded') onGenerated?.()
   })
 
   const ownSamples = persona.data?.own_samples ?? 0
-  const versions = persona.data?.voice_soul_versions ?? []
-  const missing = soul.error instanceof ApiError && soul.error.status === 404
+  const versions = persona.data?.voice_profile_versions ?? []
+  const missing = voiceProfile.error instanceof ApiError && voiceProfile.error.status === 404
   const running = !!runningJobId && job.status !== 'succeeded' && job.status !== 'failed'
-  const pinned = persona.data?.pinned_voice_soul_version ?? null
+  const pinned = persona.data?.pinned_voice_profile_version ?? null
 
   const pin = (value: number | null) =>
     mutations.pinVersion.mutate(
@@ -181,7 +181,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
       {
         onSuccess: () => {
           setVersion(undefined)
-          void qc.invalidateQueries({ queryKey: ['personas', personaId, 'voice-soul'] })
+          void qc.invalidateQueries({ queryKey: ['personas', personaId, 'voice-profile'] })
         },
       },
     )
@@ -192,11 +192,11 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
         <div className="flex items-center gap-3">
           <Flame className="size-6 text-accent" aria-hidden />
           <div>
-            <h2 className="text-lg font-bold">Synthesizing your voice soul</h2>
+            <h2 className="text-lg font-bold">Synthesizing your voice profile</h2>
             <p className="text-sm text-muted">{job.message || 'Starting…'}</p>
           </div>
         </div>
-        <ProgressBar value={job.progress} label="Voice soul progress" />
+        <ProgressBar value={job.progress} label="Voice profile progress" />
         {job.voice && (
           <div className="article max-h-[28rem] overflow-auto rounded-xl border border-line bg-sunken p-5 text-base">
             <Markdown>{job.voice}</Markdown>
@@ -209,26 +209,26 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
   return (
     <div className="space-y-4">
       {job.status === 'failed' && (
-        <Notice tone="error" title="Voice soul generation failed">
+        <Notice tone="error" title="Voice profile generation failed">
           {job.error}
         </Notice>
       )}
-      {mutations.generateVoiceSoul.error && <Notice tone="error">{errorText(mutations.generateVoiceSoul.error)}</Notice>}
+      {mutations.generateVoiceProfile.error && <Notice tone="error">{errorText(mutations.generateVoiceProfile.error)}</Notice>}
       {ownSamples > 0 && ownSamples < 3 && <Notice tone="warn">Voice quality improves a lot with 3 or more of your own posts. You have {ownSamples}.</Notice>}
 
-      {missing || !soul.data ? (
+      {missing || !voiceProfile.data ? (
         <EmptyState
           icon={<Flame className="size-8" />}
-          title="No voice soul yet"
+          title="No voice profile yet"
           action={
             <Button
               variant="flame"
               size="lg"
-              onClick={() => mutations.generateVoiceSoul.mutate({ id: personaId }, { onSuccess: (created) => setJobId(created.id) })}
+              onClick={() => mutations.generateVoiceProfile.mutate({ id: personaId }, { onSuccess: (created) => setJobId(created.id) })}
               disabled={ownSamples === 0}
-              loading={mutations.generateVoiceSoul.isPending}
+              loading={mutations.generateVoiceProfile.isPending}
             >
-              Generate my voice soul
+              Generate my voice profile
             </Button>
           }
         >
@@ -238,7 +238,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
         </EmptyState>
       ) : editing !== null ? (
         <Card className="space-y-3">
-          <h2 className="font-bold">Edit voice soul</h2>
+          <h2 className="font-bold">Edit voice profile</h2>
           <p className="text-sm text-muted">Saving creates a new version and starts using it; older versions stay in the history.</p>
           <Field label="Version name (optional)" htmlFor="edit-label">
             <Input id="edit-label" value={editing.label} maxLength={80} onChange={(e) => setEditing({ ...editing, label: e.target.value })} />
@@ -248,7 +248,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
             onChange={(e) => setEditing({ ...editing, markdown: e.target.value })}
             rows={24}
             className="font-mono text-sm"
-            aria-label="Voice soul markdown"
+            aria-label="Voice profile markdown"
           />
           <div className="flex gap-2">
             <Button
@@ -258,7 +258,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
                   onSuccess: () => {
                     setEditing(null)
                     setVersion(undefined)
-                    void qc.invalidateQueries({ queryKey: keys.voiceSoulVersions(personaId) })
+                    void qc.invalidateQueries({ queryKey: keys.voiceProfileVersions(personaId) })
                   },
                 })
               }
@@ -274,14 +274,19 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="accent">Version {soul.data.version}</Badge>
-              {soul.data.in_use ? <Badge tone="success">{pinned ? 'In use (pinned)' : 'In use'}</Badge> : <Badge>Not in use</Badge>}
-              {soul.data.edited_by_user && <Badge>Edited by you</Badge>}
+              <Badge tone="accent">Version {voiceProfile.data.version}</Badge>
+              {voiceProfile.data.in_use ? <Badge tone="success">{pinned ? 'In use (pinned)' : 'In use'}</Badge> : <Badge>Not in use</Badge>}
+              {voiceProfile.data.edited_by_user && <Badge>Edited by you</Badge>}
               <Badge>
-                {soul.data.sample_count} sample{soul.data.sample_count === 1 ? '' : 's'}
+                {voiceProfile.data.sample_count} sample{voiceProfile.data.sample_count === 1 ? '' : 's'}
               </Badge>
-              {soul.data.best_practices && <Badge>Includes web research</Badge>}
-              <VersionLabel key={`${soul.data.version}-${soul.data.label}`} personaId={personaId} version={soul.data.version} label={soul.data.label} />
+              {voiceProfile.data.best_practices && <Badge>Includes web research</Badge>}
+              <VersionLabel
+                key={`${voiceProfile.data.version}-${voiceProfile.data.label}`}
+                personaId={personaId}
+                version={voiceProfile.data.version}
+                label={voiceProfile.data.label}
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               {versions.length > 1 && (
@@ -289,7 +294,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
                   <History className="size-4 text-muted" aria-hidden />
                   <span className="sr-only">Version</span>
                   <Select className="h-9 w-64" value={version ?? ''} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : undefined)}>
-                    <option value="">In use (v{persona.data?.voice_soul_version})</option>
+                    <option value="">In use (v{persona.data?.voice_profile_version})</option>
                     {versions.map((v) => (
                       <option key={v.id} value={v.version}>
                         v{v.version}
@@ -300,18 +305,18 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
                   </Select>
                 </label>
               )}
-              {!soul.data.in_use && (
+              {!voiceProfile.data.in_use && (
                 <Button
                   size="sm"
                   variant="secondary"
                   icon={<Pin className="size-4" />}
                   loading={mutations.pinVersion.isPending}
-                  onClick={() => pin(soul.data.version)}
+                  onClick={() => pin(voiceProfile.data.version)}
                 >
                   Use this version
                 </Button>
               )}
-              {pinned !== null && soul.data.in_use && (
+              {pinned !== null && voiceProfile.data.in_use && (
                 <Button size="sm" variant="ghost" loading={mutations.pinVersion.isPending} onClick={() => pin(null)}>
                   Always use latest
                 </Button>
@@ -320,7 +325,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
                 variant="secondary"
                 size="sm"
                 icon={<PencilLine className="size-4" />}
-                onClick={() => setEditing({ markdown: soul.data.markdown, label: '' })}
+                onClick={() => setEditing({ markdown: voiceProfile.data.markdown, label: '' })}
               >
                 Edit
               </Button>
@@ -332,7 +337,7 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
 
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {STAT_LABELS.map(([key, label, fmt]) => {
-              const value = soul.data.baseline_stylometrics[key]
+              const value = voiceProfile.data.baseline_stylometrics[key]
               return typeof value === 'number' ? (
                 <div key={key} className="rounded-xl border border-line bg-surface p-3">
                   <p className="text-xs text-muted">{label}</p>
@@ -343,13 +348,13 @@ export function VoiceSoulPanel({ personaId, onGenerated }: { personaId: number; 
           </div>
 
           <Card padded={false} className="article max-w-none p-6 text-base sm:p-8">
-            <Markdown>{soul.data.markdown}</Markdown>
+            <Markdown>{voiceProfile.data.markdown}</Markdown>
           </Card>
-          {soul.data.best_practices && (
+          {voiceProfile.data.best_practices && (
             <details className="rounded-2xl border border-line bg-surface p-5">
               <summary className="cursor-pointer font-semibold">Web research on best practices</summary>
               <div className="article mt-4 text-base">
-                <Markdown>{soul.data.best_practices}</Markdown>
+                <Markdown>{voiceProfile.data.best_practices}</Markdown>
               </div>
             </details>
           )}

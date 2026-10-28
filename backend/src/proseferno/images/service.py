@@ -73,8 +73,8 @@ def image_context(markdown: str, slot_id: str, before: int = 1500, after: int = 
     return PLACEHOLDER_RE.sub("", snippet).strip()
 
 
-def image_guidance(voice_soul: str) -> str:
-    match = re.search(r"^##\s+Images.*?$(.*?)(?=^##\s|\Z)", voice_soul, flags=re.MULTILINE | re.DOTALL)
+def image_guidance(voice_profile: str) -> str:
+    match = re.search(r"^##\s+Images.*?$(.*?)(?=^##\s|\Z)", voice_profile, flags=re.MULTILINE | re.DOTALL)
     return match.group(1).strip() if match else "Use clear, relevant images with short captions and a credit."
 
 
@@ -92,7 +92,7 @@ class ImageService:
         persona: Persona,
         title: str,
         markdown: str,
-        voice_soul: str,
+        voice_profile: str,
         redraw: bool = False,
         rethink: bool = False,
         usage: UsageSink | None = None,
@@ -108,7 +108,7 @@ class ImageService:
                 persona=persona,
                 title=title,
                 markdown=markdown,
-                voice_soul=voice_soul,
+                voice_profile=voice_profile,
                 redraw=redraw,
                 rethink=rethink,
                 usage=usage,
@@ -181,7 +181,7 @@ class ImageService:
         persona: Persona,
         title: str,
         markdown: str,
-        voice_soul: str,
+        voice_profile: str,
         redraw: bool,
         rethink: bool,
         usage: UsageSink | None,
@@ -211,7 +211,7 @@ class ImageService:
             brief=image.prompt or image.purpose,
             visual_style=persona.visual_style or "warm flat-vector editorial illustration in inferno tones",
             variation=variation,
-            image_guidance=image_guidance(voice_soul),
+            image_guidance=image_guidance(voice_profile),
             context=image_context(markdown, image.slot_id),
         )
         system = [SystemBlock(raw("image_system"), cache=True)]

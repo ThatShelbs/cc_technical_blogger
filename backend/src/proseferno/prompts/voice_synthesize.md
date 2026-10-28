@@ -1,4 +1,4 @@
-Write the voice soul for **$persona_name** (byline: $display_name).
+Write the voice profile for **$persona_name** (byline: $display_name).
 
 ## Evidence
 
@@ -22,7 +22,7 @@ $best_practices
 
 ## Output
 
-Return only the Markdown document, starting with `# Voice Soul: $persona_name`. Use exactly these sections, in this order:
+Return only the Markdown document, starting with `# Voice Profile: $persona_name`. Use exactly these sections, in this order:
 
 1. `## Soul`: who this writer is, what they care about, their worldview and promise to the reader (one tight paragraph plus 3-5 bullets).
 2. `## Voice & Tone`: defining traits, each with a verbatim example. Include how tone shifts with humor level (0-10) and education level (beginner / intermediate / expert).

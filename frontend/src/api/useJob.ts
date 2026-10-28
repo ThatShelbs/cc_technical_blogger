@@ -23,7 +23,7 @@ export interface JobState {
   error: string | null
   /** Streamed post text (draft, then each revision). */
   draft: string
-  /** Streamed voice-soul text. */
+  /** Streamed voice-profile text. */
   voice: string
   plan: Record<string, unknown> | null
   critique: Critique | null
