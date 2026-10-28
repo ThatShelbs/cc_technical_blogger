@@ -34,6 +34,10 @@ class ArticlePlan(BaseModel):
     tags: list[str] = Field(description="Up to five platform tags.")
 
 
+class TitleOptions(BaseModel):
+    title_options: list[str] = Field(description="New title options in the author's title style.")
+
+
 class Critique(BaseModel):
     voice: int = Field(description="Sounds exactly like the author. Score 1-10.")
     tone: int = Field(description="Score 1-10.")

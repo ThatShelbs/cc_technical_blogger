@@ -28,11 +28,11 @@ const PERSONA = {
   credit_template: '',
   own_samples: 9,
   influence_samples: 0,
-  voice_soul_version: 2,
-  voice_soul_label: '',
-  latest_voice_soul_version: 2,
-  pinned_voice_soul_version: null,
-  voice_soul_versions: [],
+  voice_profile_version: 2,
+  voice_profile_label: '',
+  latest_voice_profile_version: 2,
+  pinned_voice_profile_version: null,
+  voice_profile_versions: [],
   active_job_id: null,
   created_at: '2026-10-20T00:00:00Z',
 }
@@ -87,7 +87,7 @@ describe('NewProjectPage', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText('Writing as Shelby · voice soul v2')).toBeInTheDocument()
+    expect(await screen.findByText('Writing as Shelby · voice profile v2')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText(/What should this post be about/), 'Why A/B tests are underpowered')
     await userEvent.click(screen.getByRole('button', { name: /Write my post/ }))
 

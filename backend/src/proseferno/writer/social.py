@@ -12,7 +12,7 @@ from proseferno.export import fit_post
 from proseferno.export.linkedin import hashtags
 from proseferno.llm import LLM
 from proseferno.prompts import render
-from proseferno.voice import current_voice_soul, format_exemplars, select_exemplars
+from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.writer.pipeline import WriterError, writer_system
 
 
@@ -29,11 +29,11 @@ async def write_linkedin_post(*, llm: LLM, settings: Settings, engine: Engine, p
             raise WriterError("Project not found.")
         if not project.markdown:
             raise WriterError("Generate the post before writing its LinkedIn post.")
-        soul = current_voice_soul(session, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
-    if soul is None:
-        raise WriterError("This persona has no voice soul yet.")
-    system = writer_system(soul.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    if voice_profile is None:
+        raise WriterError("This persona has no voice profile yet.")
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
     post = await llm.structured(
         task="linkedin post",
         system=system,

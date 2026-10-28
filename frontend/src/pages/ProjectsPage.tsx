@@ -12,7 +12,7 @@ function SetupChecklist() {
     { done: !!auth.data?.signed_in, label: 'Connect Claude', to: '/settings' },
     { done: !!persona, label: 'Create a persona', to: '/personas' },
     { done: (persona?.own_samples ?? 0) > 0, label: 'Add posts you wrote', to: persona ? `/personas/${persona.id}` : '/personas' },
-    { done: !!persona?.voice_soul_version, label: 'Generate your voice soul', to: persona ? `/personas/${persona.id}` : '/personas' },
+    { done: !!persona?.voice_profile_version, label: 'Generate your voice profile', to: persona ? `/personas/${persona.id}` : '/personas' },
   ]
   if (steps.every((s) => s.done)) return null
   return (

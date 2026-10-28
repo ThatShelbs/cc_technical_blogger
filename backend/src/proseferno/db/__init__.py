@@ -6,7 +6,7 @@ from proseferno.db.models import (
     Project,
     ProjectImage,
     Sample,
-    VoiceSoul,
+    VoiceProfile,
     utcnow,
 )
 
@@ -17,7 +17,7 @@ __all__ = [
     "Project",
     "ProjectImage",
     "Sample",
-    "VoiceSoul",
+    "VoiceProfile",
     "make_engine",
     "utcnow",
 ]

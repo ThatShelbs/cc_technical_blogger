@@ -58,25 +58,25 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     bad = upload(client, pid, b"not a docx", name="broken.docx")
     assert bad["added"] == [] and bad["errors"]
 
-    # Projects need a voice soul first.
+    # Projects need a voice profile first.
     assert client.post("/api/projects", json={"prompt": "Pie charts"}).status_code == 422
 
-    # Voice soul (with research).
+    # Voice profile (with research).
     client.patch(f"/api/personas/{pid}", json={"research_enabled": True})
-    job = client.post(f"/api/personas/{pid}/voice-soul").json()
+    job = client.post(f"/api/personas/{pid}/voice-profile").json()
     assert job["status"] == "succeeded", job
-    soul = client.get(f"/api/personas/{pid}/voice-soul").json()
-    assert soul["version"] == 1 and soul["markdown"].startswith("# Voice Soul")
-    assert "Sources" in soul["best_practices"]
+    voice_profile = client.get(f"/api/personas/{pid}/voice-profile").json()
+    assert voice_profile["version"] == 1 and voice_profile["markdown"].startswith("# Voice Profile")
+    assert "Sources" in voice_profile["best_practices"]
     assert client.get(f"/api/personas/{pid}").json()["visual_style"].startswith("warm flat")
     assert fake_llm.tasks().count("sample analysis") == 2
 
     # Regenerating reuses cached analyses and keeps history.
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile")
     assert fake_llm.tasks().count("sample analysis") == 2
-    edited = client.put(f"/api/personas/{pid}/voice-soul", json={"markdown": "# Voice Soul: edited by hand, with care"}).json()
+    edited = client.put(f"/api/personas/{pid}/voice-profile", json={"markdown": "# Voice Profile: edited by hand, with care"}).json()
     assert edited["version"] == 3 and edited["edited_by_user"]
-    assert len(client.get(f"/api/personas/{pid}/voice-soul/versions").json()) == 3
+    assert len(client.get(f"/api/personas/{pid}/voice-profile/versions").json()) == 3
 
     # Generate a post with only a prompt (smart defaults).
     created = client.post("/api/projects", json={"prompt": "Why pie charts are lame and what to use instead"})
@@ -106,7 +106,7 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     critique_call = next(c for c in fake_llm.calls if c.get("task") == "critique")
     assert "AI-writing tells found by an automated scan" in critique_call["prompt"]
     assert "draft" in fake_llm.tasks() and "revision" in fake_llm.tasks()
-    # The writer saw the voice soul and the user's own example post.
+    # The writer saw the voice profile and the user's own example post.
     draft_call = next(c for c in fake_llm.calls if c.get("task") == "draft")
     system_text = "\n".join(block.text for block in draft_call["system"])
     assert "edited by hand" in system_text and "Pie Charts Are Lame" in system_text
@@ -184,44 +184,44 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
 def test_persona_versions_rename_and_duplicate(client: TestClient, sample_docx: bytes) -> None:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
-    client.post(f"/api/personas/{pid}/voice-soul", json={"label": "First take"})
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile", json={"label": "First take"})
+    client.post(f"/api/personas/{pid}/voice-profile")
     persona = client.get(f"/api/personas/{pid}").json()
-    assert persona["voice_soul_version"] == 2 and persona["latest_voice_soul_version"] == 2
-    assert [v["label"] for v in persona["voice_soul_versions"]] == ["", "First take"]
+    assert persona["voice_profile_version"] == 2 and persona["latest_voice_profile_version"] == 2
+    assert [v["label"] for v in persona["voice_profile_versions"]] == ["", "First take"]
 
     # Pin an older version: new posts use it, and the persona reports it.
-    pinned = client.patch(f"/api/personas/{pid}", json={"pinned_voice_soul_version": 1}).json()
-    assert pinned["voice_soul_version"] == 1 and pinned["voice_soul_label"] == "First take"
-    assert client.get(f"/api/personas/{pid}/voice-soul").json()["version"] == 1
-    assert client.get(f"/api/personas/{pid}/voice-soul?version=2").json()["in_use"] is False
-    assert client.patch(f"/api/personas/{pid}", json={"pinned_voice_soul_version": 9}).status_code == 404
+    pinned = client.patch(f"/api/personas/{pid}", json={"pinned_voice_profile_version": 1}).json()
+    assert pinned["voice_profile_version"] == 1 and pinned["voice_profile_label"] == "First take"
+    assert client.get(f"/api/personas/{pid}/voice-profile").json()["version"] == 1
+    assert client.get(f"/api/personas/{pid}/voice-profile?version=2").json()["in_use"] is False
+    assert client.patch(f"/api/personas/{pid}", json={"pinned_voice_profile_version": 9}).status_code == 404
     created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"image_count": 2, "revision_passes": 0}}).json()
     assert (
-        created["project"]["voice_soul_version"] == 1
-        or client.get(f"/api/projects/{created['project']['id']}").json()["voice_soul_version"] == 1
+        created["project"]["voice_profile_version"] == 1
+        or client.get(f"/api/projects/{created['project']['id']}").json()["voice_profile_version"] == 1
     )
 
     # Naming a version; a new version is used automatically (unpins).
-    assert client.patch(f"/api/personas/{pid}/voice-soul/2", json={"label": "Punchier"}).json()["label"] == "Punchier"
-    client.put(f"/api/personas/{pid}/voice-soul", json={"markdown": "# Voice Soul: hand edited version here", "label": "Edited"})
+    assert client.patch(f"/api/personas/{pid}/voice-profile/2", json={"label": "Punchier"}).json()["label"] == "Punchier"
+    client.put(f"/api/personas/{pid}/voice-profile", json={"markdown": "# Voice Profile: hand edited version here", "label": "Edited"})
     persona = client.get(f"/api/personas/{pid}").json()
-    assert persona["voice_soul_version"] == 3 and persona["pinned_voice_soul_version"] is None
+    assert persona["voice_profile_version"] == 3 and persona["pinned_voice_profile_version"] is None
 
     # Rename, then branch a separately named persona from version 2.
     assert client.patch(f"/api/personas/{pid}", json={"name": "  Shelby (work)  "}).json()["name"] == "Shelby (work)"
-    copy = client.post(f"/api/personas/{pid}/duplicate", json={"name": "Shelby (playful)", "voice_soul_version": 2})
+    copy = client.post(f"/api/personas/{pid}/duplicate", json={"name": "Shelby (playful)", "voice_profile_version": 2})
     assert copy.status_code == 201, copy.text
     copy = copy.json()
     assert copy["name"] == "Shelby (playful)" and not copy["is_active"] and copy["own_samples"] == 1
-    assert copy["voice_soul_version"] == 1 and copy["voice_soul_label"] == "Punchier"
+    assert copy["voice_profile_version"] == 1 and copy["voice_profile_label"] == "Punchier"
     assert len(client.get("/api/personas").json()) == 2
 
 
 def test_persona_default_dials(client: TestClient, sample_docx: bytes) -> None:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
-    client.post(f"/api/personas/{pid}/voice-soul")
+    client.post(f"/api/personas/{pid}/voice-profile")
     out = client.patch(
         f"/api/personas/{pid}",
         json={"default_target_words": 900, "default_image_count": 3, "default_opinion": 9, "default_platform": "linkedin"},
@@ -266,3 +266,72 @@ def test_settings_and_auth(client: TestClient) -> None:
     assert out["ai_detection"] is False and out["revision_passes"] == 2 and out["model"] == "claude-sonnet-5-5"
     assert out["image_tool_label"].startswith("Claude Sonnet 5.5")
     assert client.get("/api/settings").json()["revision_passes"] == 2
+
+
+def ready_post(client: TestClient, sample_docx: bytes) -> dict:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    client.post(f"/api/personas/{pid}/voice-profile")
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"revision_passes": 0}}).json()
+    return client.get(f"/api/projects/{created['project']['id']}").json()
+
+
+def test_title_options_pin_regenerate_and_edit(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    url = f"/api/projects/{project['id']}"
+    assert project["pinned_titles"] == []
+    selected, pinned = project["title"], "Bars > Pies"
+
+    out = client.patch(url, json={"pinned_titles": [pinned, pinned.upper()]}).json()
+    assert out["pinned_titles"] == [pinned]
+
+    out = client.post(f"{url}/titles").json()
+    options = out["plan"]["title_options"]
+    assert options[:2] == [selected, pinned] and len(options) == 5
+    assert "Stop Baking Pies" not in options  # an unpinned option was replaced
+    assert out["title"] == selected
+    call = next(c for c in fake_llm.calls if c["task"] == "title options")
+    assert "Write 3 new title options" in call["prompt"] and "Stop Baking Pies" in call["prompt"]
+
+    # Editing the title rewrites the heading; pins survive regenerating the whole post.
+    out = client.patch(url, json={"title": "Pie Charts Are Mostly Lame"}).json()
+    assert out["markdown"].startswith("# Pie Charts Are Mostly Lame")
+    client.post(f"{url}/generate")
+    out = client.get(url).json()
+    assert out["pinned_titles"] == [pinned] and out["plan"]["title_options"][0] == pinned
+
+
+def test_a_broken_image_does_not_fail_the_post(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    original = fake_llm.structured
+
+    async def flaky(**kwargs):  # type: ignore[no-untyped-def]
+        if kwargs["task"] == "diagram image design":
+            raise ValueError("Streaming is required for operations that may take longer than 10 minutes.")
+        return await original(**kwargs)
+
+    monkeypatch.setattr(fake_llm, "structured", flaky)
+    project = ready_post(client, sample_docx)
+
+    assert project["status"] == "ready"
+    statuses = {img["kind"]: img["status"] for img in project["images"]}
+    assert statuses == {"hero": "ready", "diagram": "error", "chart": "ready", "meme": "ready"}
+    diagram = next(img for img in project["images"] if img["kind"] == "diagram")
+    assert "Redraw" in diagram["error"]
+
+
+def test_orphaned_pending_images_are_failed(client: TestClient, sample_docx: bytes, services) -> None:  # type: ignore[no-untyped-def]
+    from sqlmodel import Session
+
+    from proseferno.db import ProjectImage
+
+    project = ready_post(client, sample_docx)
+    image_id = project["images"][0]["id"]
+    with Session(services.engine) as session:
+        row = session.get(ProjectImage, image_id)
+        row.status = "pending"
+        session.add(row)
+        session.commit()
+
+    assert services.images.fail_pending() == 1
+    image = client.get(f"/api/projects/{project['id']}").json()["images"][0]
+    assert image["status"] == "error" and "Redraw" in image["error"]

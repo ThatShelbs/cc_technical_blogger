@@ -121,7 +121,7 @@ export interface PersonaCreate {
 export interface PersonaDuplicateIn {
   name: string;
   display_name?: string | null;
-  voice_soul_version?: number | null;
+  voice_profile_version?: number | null;
   copy_samples?: boolean;
 }
 
@@ -146,11 +146,11 @@ export interface PersonaOut {
   credit_template: string;
   own_samples: number;
   influence_samples: number;
-  voice_soul_version: number | null;
-  voice_soul_label: string;
-  latest_voice_soul_version: number | null;
-  pinned_voice_soul_version: number | null;
-  voice_soul_versions: VoiceSoulVersion[];
+  voice_profile_version: number | null;
+  voice_profile_label: string;
+  latest_voice_profile_version: number | null;
+  pinned_voice_profile_version: number | null;
+  voice_profile_versions: VoiceProfileVersion[];
   active_job_id: string | null;
   created_at: string;
 }
@@ -172,7 +172,7 @@ export interface PersonaUpdate {
   research_enabled?: boolean | null;
   visual_style?: string | null;
   credit_template?: string | null;
-  pinned_voice_soul_version?: number | null;
+  pinned_voice_profile_version?: number | null;
 }
 
 export interface ProjectCreate {
@@ -202,7 +202,8 @@ export interface ProjectOut {
   fidelity: Record<string, unknown> | null;
   authenticity: Record<string, unknown> | null;
   social: Record<string, unknown> | null;
-  voice_soul_version: number | null;
+  pinned_titles: string[];
+  voice_profile_version: number | null;
   error: string | null;
   images: ImageOut[];
   active_job_id: string | null;
@@ -224,6 +225,7 @@ export interface ProjectSummary {
 
 export interface ProjectUpdate {
   title?: string | null;
+  pinned_titles?: string[] | null;
   markdown?: string | null;
   prompt?: string | null;
   dials?: Dials | null;
@@ -315,20 +317,20 @@ export interface UrlImportIn {
   kind?: "own" | "influence";
 }
 
-export interface VoiceSoulEdit {
+export interface VoiceProfileEdit {
   markdown: string;
   label?: string;
 }
 
-export interface VoiceSoulGenerateIn {
+export interface VoiceProfileGenerateIn {
   label?: string;
 }
 
-export interface VoiceSoulLabelIn {
+export interface VoiceProfileLabelIn {
   label: string;
 }
 
-export interface VoiceSoulOut {
+export interface VoiceProfileOut {
   id: number;
   persona_id: number;
   version: number;
@@ -343,7 +345,7 @@ export interface VoiceSoulOut {
   created_at: string;
 }
 
-export interface VoiceSoulVersion {
+export interface VoiceProfileVersion {
   id: number;
   version: number;
   label: string;

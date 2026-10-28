@@ -18,7 +18,7 @@ flowchart TB
     LLM[llm/ ClaudeLLM]
   end
   DB[(SQLite<br/>data/proseferno.db)]
-  Files[(data/ files<br/>samples, voice souls, images)]
+  Files[(data/ files<br/>samples, voice profiles, images)]
   Keychain[(OS keychain)]
   Claude[[Claude API]]
 
@@ -38,11 +38,11 @@ flowchart TB
 | --- | --- |
 | `config.py` | Settings with smart defaults; `PROSEFERNO_*` env vars or `.env` override them. |
 | `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs). Tests and demo mode inject fakes here. |
-| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceSoul`, `Project`, `ProjectImage`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
+| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
 | `jobs.py` | Runs long work as asyncio tasks, persists status, and keeps an in-memory event log per job that `/api/jobs/{id}/events` streams as Server-Sent Events (with sequence ids, so reconnects resume cleanly). |
 | `llm/` | The `LLM` protocol, the Claude implementation (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching) and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
-| `voice/` | Sample analysis, best-practice research, voice soul synthesis, exemplar selection. |
+| `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, LinkedIn feed post. |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
 | `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, memes, placeholders, credits, redraw history. |
@@ -56,21 +56,24 @@ flowchart TB
 | --- | --- | --- |
 | Analyze a sample | structured output (`SampleAnalysis`) | low |
 | Best-practice research | streamed, `web_search` server tool | medium |
-| Voice soul | streamed text | high |
+| Voice profile | streamed text | high |
 | Plan a post | structured output (`ArticlePlan`) | medium |
+| New title options | structured output (`TitleOptions`) | medium |
 | Draft / revise | streamed text | high |
 | Critique | structured output (`Critique`) | medium |
 | AI-detection judge | structured output (`AIDetectionJudgement`) | low |
 | LinkedIn feed post | structured output (`LinkedInPost`) | medium |
 | Design an image | structured output (`SvgSpec`, `SvgMemeSpec`, `ChartSpec`) | medium |
 
-All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice soul → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix.
+Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
+
+All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice profile → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix.
 
 ## Frontend
 
 - `src/api/`: fetch client, TanStack Query hooks, generated types, and `useJob` (SSE job stream with a pure reducer).
 - `src/pages/`: Posts, New post, Post editor (`project/`), Personas, Persona detail, Settings, Welcome (setup guide).
-- `src/components/`: app shell, UI primitives, article renderer, connection cards, sample uploader, voice soul panel.
+- `src/components/`: app shell, UI primitives, article renderer, connection cards, sample uploader, voice profile panel.
 - `src/theme/`: day/night/system theme with tokens defined in `src/index.css`.
 
 In production the backend serves `frontend/dist`. In development (`dev.bat`) Vite proxies `/api` to the backend.

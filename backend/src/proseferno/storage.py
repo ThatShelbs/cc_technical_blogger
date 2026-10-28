@@ -17,8 +17,8 @@ class Storage:
     def sample_dir(self, persona_id: int) -> Path:
         return self._ensure(self.persona_dir(persona_id) / "samples")
 
-    def voice_soul_path(self, persona_id: int, version: int) -> Path:
-        return self._ensure(self.persona_dir(persona_id) / "voice_soul") / f"voice_soul.v{version}.md"
+    def voice_profile_path(self, persona_id: int, version: int) -> Path:
+        return self._ensure(self.persona_dir(persona_id) / "voice_profile") / f"voice_profile.v{version}.md"
 
     def project_dir(self, project_id: int) -> Path:
         return self._ensure(self.root / "projects" / str(project_id))

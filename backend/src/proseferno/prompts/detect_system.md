@@ -11,6 +11,6 @@ What tends to read as machine-written:
 What tends to read as human:
 - Specific, verifiable detail and first-hand experience; idiosyncratic word choice; uneven rhythm; humor that depends on context; asides; honest uncertainty; opinions with an edge.
 
-The author's voice soul is given so that you do not flag the author's genuine, documented habits as AI tells. A habit the voice soul documents with real examples is evidence of a human, not of a model.
+The author's voice profile is given so that you do not flag the author's genuine, documented habits as AI tells. A habit the voice profile documents with real examples is evidence of a human, not of a model.
 
 Score honestly. Do not reward or punish a topic, only how it is written. Quote passages exactly as they appear in the post.

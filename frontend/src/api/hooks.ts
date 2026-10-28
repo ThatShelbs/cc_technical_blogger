@@ -23,8 +23,8 @@ import type {
   SettingsIn,
   SettingsOut,
   UploadResult,
-  VoiceSoulOut,
-  VoiceSoulVersion,
+  VoiceProfileOut,
+  VoiceProfileVersion,
 } from './types.gen'
 
 export const keys = {
@@ -34,8 +34,8 @@ export const keys = {
   personas: ['personas'] as const,
   persona: (id: number) => ['personas', id] as const,
   samples: (personaId: number) => ['personas', personaId, 'samples'] as const,
-  voiceSoul: (personaId: number, version?: number) => ['personas', personaId, 'voice-soul', version ?? 'latest'] as const,
-  voiceSoulVersions: (personaId: number) => ['personas', personaId, 'voice-soul-versions'] as const,
+  voiceProfile: (personaId: number, version?: number) => ['personas', personaId, 'voice-profile', version ?? 'latest'] as const,
+  voiceProfileVersions: (personaId: number) => ['personas', personaId, 'voice-profile-versions'] as const,
   seed: ['seed-samples'] as const,
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
@@ -121,14 +121,14 @@ export function usePersonaMutations() {
       mutationFn: ({ id, body }: { id: number; body: PersonaDuplicateIn }) => api.post<PersonaOut>(`/api/personas/${id}/duplicate`, body),
       onSuccess: refresh,
     }),
-    generateVoiceSoul: useMutation({
-      mutationFn: ({ id, label = '' }: { id: number; label?: string }) => api.post<JobOut>(`/api/personas/${id}/voice-soul`, { label }),
+    generateVoiceProfile: useMutation({
+      mutationFn: ({ id, label = '' }: { id: number; label?: string }) => api.post<JobOut>(`/api/personas/${id}/voice-profile`, { label }),
       onSuccess: refresh,
     }),
-    /** Which voice soul version new posts use; null = always the latest. */
+    /** Which voice profile version new posts use; null = always the latest. */
     pinVersion: useMutation({
       mutationFn: ({ id, version }: { id: number; version: number | null }) =>
-        api.patch<PersonaOut>(`/api/personas/${id}`, { pinned_voice_soul_version: version }),
+        api.patch<PersonaOut>(`/api/personas/${id}`, { pinned_voice_profile_version: version }),
       onSuccess: (_data, { id }) => {
         void refresh()
         void qc.invalidateQueries({ queryKey: ['personas', id] })
@@ -136,7 +136,7 @@ export function usePersonaMutations() {
     }),
     labelVersion: useMutation({
       mutationFn: ({ id, version, label }: { id: number; version: number; label: string }) =>
-        api.patch<VoiceSoulOut>(`/api/personas/${id}/voice-soul/${version}`, { label }),
+        api.patch<VoiceProfileOut>(`/api/personas/${id}/voice-profile/${version}`, { label }),
       onSuccess: (_data, { id }) => {
         void refresh()
         void qc.invalidateQueries({ queryKey: ['personas', id] })
@@ -145,7 +145,7 @@ export function usePersonaMutations() {
   }
 }
 
-// -- samples & voice soul -------------------------------------------------------------
+// -- samples & voice profile -------------------------------------------------------------
 
 export const useSamples = (personaId: number) =>
   useQuery({ queryKey: keys.samples(personaId), queryFn: () => api.get<SampleOut[]>(`/api/personas/${personaId}/samples`) })
@@ -184,24 +184,24 @@ export function useSampleMutations(personaId: number) {
   }
 }
 
-export const useVoiceSoul = (personaId: number, version?: number) =>
+export const useVoiceProfile = (personaId: number, version?: number) =>
   useQuery({
-    queryKey: keys.voiceSoul(personaId, version),
-    queryFn: () => api.get<VoiceSoulOut>(`/api/personas/${personaId}/voice-soul${version ? `?version=${version}` : ''}`),
+    queryKey: keys.voiceProfile(personaId, version),
+    queryFn: () => api.get<VoiceProfileOut>(`/api/personas/${personaId}/voice-profile${version ? `?version=${version}` : ''}`),
     retry: false,
   })
 
-export const useVoiceSoulVersions = (personaId: number) =>
+export const useVoiceProfileVersions = (personaId: number) =>
   useQuery({
-    queryKey: keys.voiceSoulVersions(personaId),
-    queryFn: () => api.get<VoiceSoulVersion[]>(`/api/personas/${personaId}/voice-soul/versions`),
+    queryKey: keys.voiceProfileVersions(personaId),
+    queryFn: () => api.get<VoiceProfileVersion[]>(`/api/personas/${personaId}/voice-profile/versions`),
   })
 
-export function useSaveVoiceSoul(personaId: number) {
+export function useSaveVoiceProfile(personaId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ markdown, label = '' }: { markdown: string; label?: string }) =>
-      api.put<VoiceSoulOut>(`/api/personas/${personaId}/voice-soul`, { markdown, label }),
+      api.put<VoiceProfileOut>(`/api/personas/${personaId}/voice-profile`, { markdown, label }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['personas', personaId] })
       void qc.invalidateQueries({ queryKey: keys.personas })
@@ -233,6 +233,11 @@ export function useProjectMutations(projectId?: number) {
     generate: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/generate`) }),
     rewrite: useMutation({
       mutationFn: (body: { selection: string; instruction: string }) => api.post<ProjectOut>(`/api/projects/${projectId}/rewrite`, body),
+      onSuccess: setProject,
+    }),
+    /** Replace the title options; the current and pinned titles are kept. */
+    regenerateTitles: useMutation({
+      mutationFn: () => api.post<ProjectOut>(`/api/projects/${projectId}/titles`),
       onSuccess: setProject,
     }),
     /** Re-run the AI-generation detection report on the current text. */

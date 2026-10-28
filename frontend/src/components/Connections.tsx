@@ -30,7 +30,7 @@ export function ClaudeConnect() {
           <Sparkles className="size-6 text-accent" aria-hidden />
           <div>
             <h2 className="text-lg font-bold">Claude</h2>
-            <p className="text-sm text-muted">Writes your voice soul and every post.</p>
+            <p className="text-sm text-muted">Writes your voice profile and every post.</p>
           </div>
         </div>
         {status.signed_in ? (

@@ -7,13 +7,14 @@ charts as Vega-Lite specs. Both are rendered locally; no model-generated code ru
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import Engine
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 from proseferno.config import Settings
 from proseferno.db import Persona, ProjectImage
@@ -25,9 +26,12 @@ from proseferno.llm.base import UsageSink
 from proseferno.prompts import raw, render
 from proseferno.storage import Storage
 
+log = logging.getLogger(__name__)
+
 # Pixel width each SVG kind is rasterized at (height follows the SVG's viewBox).
 RENDER_WIDTH = {"hero": 1600, "illustration": 1600, "diagram": 1600, "icon": 768, "meme": 1080}
 PLACEHOLDER_RE = re.compile(r"\{\{image:([A-Za-z0-9_\-]+)\}\}")
+STALE_PENDING = "Generation stopped before this image was made. Click Redraw to create it."
 
 
 def model_label(model: str) -> str:
@@ -69,8 +73,8 @@ def image_context(markdown: str, slot_id: str, before: int = 1500, after: int = 
     return PLACEHOLDER_RE.sub("", snippet).strip()
 
 
-def image_guidance(voice_soul: str) -> str:
-    match = re.search(r"^##\s+Images.*?$(.*?)(?=^##\s|\Z)", voice_soul, flags=re.MULTILINE | re.DOTALL)
+def image_guidance(voice_profile: str) -> str:
+    match = re.search(r"^##\s+Images.*?$(.*?)(?=^##\s|\Z)", voice_profile, flags=re.MULTILINE | re.DOTALL)
     return match.group(1).strip() if match else "Use clear, relevant images with short captions and a credit."
 
 
@@ -88,7 +92,7 @@ class ImageService:
         persona: Persona,
         title: str,
         markdown: str,
-        voice_soul: str,
+        voice_profile: str,
         redraw: bool = False,
         rethink: bool = False,
         usage: UsageSink | None = None,
@@ -104,7 +108,7 @@ class ImageService:
                 persona=persona,
                 title=title,
                 markdown=markdown,
-                voice_soul=voice_soul,
+                voice_profile=voice_profile,
                 redraw=redraw,
                 rethink=rethink,
                 usage=usage,
@@ -113,7 +117,25 @@ class ImageService:
             updates["error"] = None
         except (ImageProviderError, LLMError) as exc:
             updates = {"status": "error", "error": str(exc)}
+        except Exception as exc:
+            # One broken image must never take down the post (or leave a spinner running forever).
+            log.exception("Image %s failed", image_id)
+            updates = {"status": "error", "error": f"Could not create this image ({type(exc).__name__}). Click Redraw to try again."}
         return self._save(image_id, updates)
+
+    def fail_pending(self, project_id: int | None = None, reason: str = STALE_PENDING) -> int:
+        """Mark images still waiting to be drawn as errors (their job is gone); returns how many."""
+        with Session(self.engine) as session:
+            query = select(ProjectImage).where(ProjectImage.status == "pending")
+            if project_id is not None:
+                query = query.where(col(ProjectImage.project_id) == project_id)
+            rows = list(session.exec(query))
+            for row in rows:
+                row.status = "error"
+                row.error = reason
+                session.add(row)
+            session.commit()
+            return len(rows)
 
     def save_upload(self, image_id: int, png: bytes, width: int, height: int, persona: Persona) -> ProjectImage:
         with Session(self.engine) as session:
@@ -159,7 +181,7 @@ class ImageService:
         persona: Persona,
         title: str,
         markdown: str,
-        voice_soul: str,
+        voice_profile: str,
         redraw: bool,
         rethink: bool,
         usage: UsageSink | None,
@@ -189,7 +211,7 @@ class ImageService:
             brief=image.prompt or image.purpose,
             visual_style=persona.visual_style or "warm flat-vector editorial illustration in inferno tones",
             variation=variation,
-            image_guidance=image_guidance(voice_soul),
+            image_guidance=image_guidance(voice_profile),
             context=image_context(markdown, image.slot_id),
         )
         system = [SystemBlock(raw("image_system"), cache=True)]

@@ -46,12 +46,12 @@ export function ThemeToggle() {
 }
 
 function versionText(persona: PersonaOut): string {
-  if (!persona.voice_soul_version) return 'No voice soul yet'
-  const label = persona.voice_soul_label ? ` · ${persona.voice_soul_label}` : ''
-  return `Voice soul v${persona.voice_soul_version}${label}${persona.pinned_voice_soul_version ? ' (pinned)' : ''}`
+  if (!persona.voice_profile_version) return 'No voice profile yet'
+  const label = persona.voice_profile_label ? ` · ${persona.voice_profile_label}` : ''
+  return `Voice profile v${persona.voice_profile_version}${label}${persona.pinned_voice_profile_version ? ' (pinned)' : ''}`
 }
 
-/** "Writing as" card that opens a switcher for every persona and each one's voice soul versions. */
+/** "Writing as" card that opens a switcher for every persona and each one's voice profile versions. */
 function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   const { data: personas } = usePersonas()
   const { activate, pinVersion } = usePersonaMutations()
@@ -81,7 +81,7 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   const busy = activate.isPending || pinVersion.isPending
   const choose = (persona: PersonaOut, version?: number | null) => {
     if (!persona.is_active) activate.mutate(persona.id)
-    if (version !== undefined && version !== persona.pinned_voice_soul_version) pinVersion.mutate({ id: persona.id, version })
+    if (version !== undefined && version !== persona.pinned_voice_profile_version) pinVersion.mutate({ id: persona.id, version })
   }
 
   return (
@@ -112,7 +112,7 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
                         <span className="block truncate text-xs text-muted">{versionText(persona)}</span>
                       </span>
                     </button>
-                    {persona.voice_soul_versions.length > 1 && (
+                    {persona.voice_profile_versions.length > 1 && (
                       <button
                         type="button"
                         className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
@@ -124,8 +124,8 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
                       </button>
                     )}
                   </div>
-                  {showVersions && persona.voice_soul_versions.length > 1 && (
-                    <ul className="ml-6 space-y-0.5 border-l border-line pb-2 pl-2" aria-label={`Voice soul versions of ${persona.name}`}>
+                  {showVersions && persona.voice_profile_versions.length > 1 && (
+                    <ul className="ml-6 space-y-0.5 border-l border-line pb-2 pl-2" aria-label={`Voice profile versions of ${persona.name}`}>
                       <li>
                         <button
                           type="button"
@@ -134,12 +134,15 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
                           className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-surface-2"
                         >
                           <Check
-                            className={cx('size-3.5 shrink-0', persona.is_active && persona.pinned_voice_soul_version === null ? 'text-success' : 'invisible')}
+                            className={cx(
+                              'size-3.5 shrink-0',
+                              persona.is_active && persona.pinned_voice_profile_version === null ? 'text-success' : 'invisible',
+                            )}
                           />
-                          Always the latest (v{persona.latest_voice_soul_version})
+                          Always the latest (v{persona.latest_voice_profile_version})
                         </button>
                       </li>
-                      {persona.voice_soul_versions.map((v) => (
+                      {persona.voice_profile_versions.map((v) => (
                         <li key={v.id}>
                           <button
                             type="button"
@@ -150,7 +153,7 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
                             <Check
                               className={cx(
                                 'size-3.5 shrink-0',
-                                persona.is_active && persona.pinned_voice_soul_version === v.version ? 'text-success' : 'invisible',
+                                persona.is_active && persona.pinned_voice_profile_version === v.version ? 'text-success' : 'invisible',
                               )}
                             />
                             <span className="truncate">

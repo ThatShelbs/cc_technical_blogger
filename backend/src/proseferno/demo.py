@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import random
 from typing import Any
 
 from PIL import Image
@@ -16,7 +17,7 @@ from pydantic import BaseModel
 
 from proseferno.llm.base import Citation, OnDelta, ResearchResult, SystemBlock, UsageSink
 
-VOICE_SOUL = """# Voice Soul: Test Persona
+VOICE_PROFILE = """# Voice Profile: Test Persona
 
 ## Soul
 Curious data person who explains things with a grin.
@@ -94,8 +95,8 @@ class FakeLLM:
         usage: UsageSink | None = None,
     ) -> str:
         self.calls.append({"kind": "text", "task": task, "prompt": prompt, "system": system})
-        if task == "voice soul synthesis":
-            text = VOICE_SOUL
+        if task == "voice profile synthesis":
+            text = VOICE_PROFILE
         elif task == "passage rewrite":
             text = "Bar charts win. Every. Single. Time."
         else:
@@ -160,6 +161,18 @@ CHART_SPEC = json.dumps(
 )
 
 
+DEMO_TITLES = [
+    "Put the Pie Down",
+    "Your Pie Chart Is Lying to You",
+    "Bar Charts, Every Time",
+    "I Tried to Love Pie Charts",
+    "Pie Charts: A Polite Takedown",
+    "Nobody Can Read Your Pie Chart",
+    "The Case Against Slices",
+    "Stop Making Me Compare Angles",
+]
+
+
 def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
     if name == "SampleAnalysis":
         return {
@@ -202,6 +215,9 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             ],
             "tags": ["Data Visualization", "Charts"],
         }
+    if name == "TitleOptions":
+        # Shuffled so "New options" visibly changes the list in demo mode.
+        return {"title_options": random.sample(DEMO_TITLES, 5)}
     if name == "Critique":
         return {
             "voice": 8,

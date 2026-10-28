@@ -27,9 +27,54 @@ def make_engine(db_path: Path) -> Engine:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
 
+    rename_legacy_schema(engine)
     SQLModel.metadata.create_all(engine)
     add_missing_columns(engine)
+    move_legacy_voice_files(db_path.parent)
     return engine
+
+
+# Databases made before "voice soul" became "voice profile": (table, old column, new column).
+_LEGACY_TABLES = {"voicesoul": "voiceprofile"}
+_LEGACY_COLUMNS = [
+    ("persona", "pinned_voice_soul_version", "pinned_voice_profile_version"),
+    ("project", "voice_soul_version", "voice_profile_version"),
+]
+
+
+def rename_legacy_schema(engine: Engine) -> None:
+    """Rename the pre-rename voice soul table and columns in place, keeping every user's data.
+
+    Runs before ``create_all`` so the renamed table is found instead of an empty new one.
+    """
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for old, new in _LEGACY_TABLES.items():
+            if inspector.has_table(old) and not inspector.has_table(new):
+                conn.execute(text(f'ALTER TABLE "{old}" RENAME TO "{new}"'))
+                log.info("Renamed table %s to %s", old, new)
+        for table, old, new in _LEGACY_COLUMNS:
+            if not inspector.has_table(table):
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            if old in existing and new not in existing:
+                conn.execute(text(f'ALTER TABLE "{table}" RENAME COLUMN "{old}" TO "{new}"'))
+                log.info("Renamed column %s.%s to %s", table, old, new)
+
+
+def move_legacy_voice_files(data_dir: Path) -> None:
+    """Move each persona's saved ``voice_soul/voice_soul.vN.md`` files to ``voice_profile/``."""
+    for old_dir in data_dir.glob("personas/*/voice_soul"):
+        new_dir = old_dir.with_name("voice_profile")
+        new_dir.mkdir(exist_ok=True)
+        for file in old_dir.glob("voice_soul.v*.md"):
+            target = new_dir / file.name.replace("voice_soul", "voice_profile", 1)
+            if not target.exists():
+                file.rename(target)
+        try:
+            old_dir.rmdir()
+        except OSError:
+            log.warning("Left %s in place: it still has files", old_dir)
 
 
 def add_missing_columns(engine: Engine) -> None:

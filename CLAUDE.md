@@ -31,8 +31,8 @@ This solution is specialized in writing technical blogs generally covering the f
     - incorporating insightful work
     - building credibility and trust
     - educating by writing
-- Once the configuration is ready, the user can generate a voice_soul.md that the solution will use for all projects
-- The voice_soul.md only has to be created once per user but can always be regenerated
+- Once the configuration is ready, the user can generate a voice_profile.md that the solution will use for all projects
+- The voice_profile.md only has to be created once per user but can always be regenerated
 - The user can build multiple personas and give them names, but has to have one selected as "on" with all the others "off"
 
 ### Project level functionality
@@ -72,12 +72,14 @@ This solution is specialized in writing technical blogs generally covering the f
 ## Decisions made
 
 - **Name:** Proseferno (Python package `proseferno`).
-- **Claude:** Anthropic Python SDK, default model `claude-opus-5-5`, adaptive thinking, per-task `effort`, streaming for long outputs, structured outputs via `messages.parse()`, server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
+- **Claude:** Anthropic Python SDK, default model `claude-opus-5-5`, adaptive thinking, per-task `effort`, every call streams (structured outputs via `messages.stream(output_format=...)`; the SDK refuses non-streaming requests above ~21k `max_tokens`), server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
 - **"Login to Claude via SSO"** = *Sign in with Claude*: the app runs `ant auth login` (Anthropic CLI browser OAuth with Claude Console; supports org SSO; API billing, not a Claude.ai subscription). An API key in the OS keychain is the fallback. Credential order: saved key → `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` → CLI profile.
-- **Images: Claude only.** No other image models (no Cloudflare, OpenAI or Gemini). Hero, illustration, icon, diagram and meme images are Claude-authored SVG (sanitized, rendered by resvg; meme captions drawn with Pillow); charts are Claude-authored Vega-Lite (vl-convert). Model-generated code is never executed. Credits name the Claude model.
+- **Images: Claude only.** No other image models (no Cloudflare, OpenAI or Gemini). Hero, illustration, icon, diagram and meme images are Claude-authored SVG (sanitized, rendered by resvg; meme captions drawn with Pillow); charts are Claude-authored Vega-Lite (vl-convert). Model-generated code is never executed. Credits name the Claude model. Captions/credits live only on the image (`strip_image_captions` removes any the writer puts in the body). A failed image sets its own `error` status and never fails the post; `pending` images are failed at startup (jobs are in-memory).
+- **Titles:** the author can edit the title, pin options (`Project.pinned_titles`), and regenerate the rest (`POST /api/projects/{id}/titles`); pins survive post regeneration.
 - **AI-generation detection:** `authenticity/` scores posts 0-100 (100 = reads as human): a scan calibrated to the persona's own samples + a Claude judge (60/40). The scan's findings feed the critique prompt. Eval: `backend/evals/ai_detection.py`.
 - **LinkedIn:** a platform for writing and export (article HTML, 1920×1080 cover, feed post ≤3,000 chars, carousel PDF + PPTX via python-pptx).
-- **Personas:** voice soul versions can be pinned (`Persona.pinned_voice_soul_version`; use `current_voice_soul`, not `latest_voice_soul`, for writing) and labeled; personas can be duplicated into a new name. 0-10 style dials are relative to the author (5 = as they write).
+- **Voice profile** (formerly "voice soul"; the older name survives only in CHANGELOG history and the profile's own `## Soul` section): the generated, versioned document describing how a persona writes (`VoiceProfile` model, `/voice-profile` routes, `voice_profile.md`). `db/engine.rename_legacy_schema` and `move_legacy_voice_files` migrate databases and files from the old names; keep them until a major version.
+- **Personas:** voice profile versions can be pinned (`Persona.pinned_voice_profile_version`; use `current_voice_profile`, not `latest_voice_profile`, for writing) and labeled; personas can be duplicated into a new name. 0-10 style dials are relative to the author (5 = as they write).
 - **Schema changes:** `db/engine.add_missing_columns` adds new columns to existing databases; give new columns a default.
 - **Privacy:** user writing (`my_writing_examples/`) and all runtime data (`data/`) are git-ignored. Secrets live in the OS keychain.
 - **Port:** 8732 (8765 collided with another local app).

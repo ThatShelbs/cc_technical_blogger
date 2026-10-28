@@ -6,7 +6,7 @@ import { errorText } from '../api/client'
 import { usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
 import type { PersonaOut, PersonaUpdate } from '../api/types.gen'
 import { SampleUploader } from '../components/SampleUploader'
-import { VoiceSoulPanel } from '../components/VoiceSoulPanel'
+import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
 import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, Slider, Spinner, Switch } from '../components/ui'
 import { cx } from '../lib/cx'
 import { PLATFORMS, STYLE_DIALS, autoImageCount, styleLabel, type Education, type IncludeCode, type Platform } from './dials'
@@ -123,14 +123,14 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
         >
           <Input id="p-credit" value={draft.credit_template} onChange={(e) => set({ credit_template: e.target.value })} />
         </Field>
-        <Field label="Visual style for generated images" hint="Filled in from your voice soul. Keeps a post's images looking like a set." htmlFor="p-visual">
+        <Field label="Visual style for generated images" hint="Filled in from your voice profile. Keeps a post's images looking like a set." htmlFor="p-visual">
           <Input id="p-visual" value={draft.visual_style} onChange={(e) => set({ visual_style: e.target.value })} />
         </Field>
         <div className="flex items-center justify-between gap-4 rounded-xl border border-line p-4">
           <div>
             <p className="font-semibold">Web research on best practices</p>
             <p className="text-sm text-muted">
-              When generating the voice soul, research current advice on titles, storytelling, skimmable structure, humor and credibility.
+              When generating the voice profile, research current advice on titles, storytelling, skimmable structure, humor and credibility.
             </p>
           </div>
           <Switch
@@ -221,7 +221,7 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
             variant="danger"
             icon={<Trash2 className="size-4" />}
             onClick={() => {
-              if (confirm(`Delete persona “${persona.name}” with all its samples, voice souls and posts? This cannot be undone.`)) {
+              if (confirm(`Delete persona “${persona.name}” with all its samples, voice profiles and posts? This cannot be undone.`)) {
                 remove.mutate(persona.id, { onSuccess: () => navigate('/personas') })
               }
             }}
@@ -293,7 +293,7 @@ export function DuplicatePersonaDialog({
   const { duplicate } = usePersonaMutations()
   const navigate = useNavigate()
   const [name, setName] = useState('')
-  const [version, setVersion] = useState<number | null>(initialVersion ?? persona.voice_soul_version)
+  const [version, setVersion] = useState<number | null>(initialVersion ?? persona.voice_profile_version)
   const [copySamples, setCopySamples] = useState(true)
   return (
     <Dialog open={open} onClose={onClose} title={`New persona from ${persona.name}`}>
@@ -302,7 +302,7 @@ export function DuplicatePersonaDialog({
         onSubmit={(e) => {
           e.preventDefault()
           duplicate.mutate(
-            { id: persona.id, body: { name: name.trim(), voice_soul_version: version, copy_samples: copySamples } },
+            { id: persona.id, body: { name: name.trim(), voice_profile_version: version, copy_samples: copySamples } },
             {
               onSuccess: (created) => {
                 onClose()
@@ -327,13 +327,13 @@ export function DuplicatePersonaDialog({
             autoFocus
           />
         </Field>
-        <Field label="Start from voice soul" htmlFor="dup-version">
+        <Field label="Start from voice profile" htmlFor="dup-version">
           <Select id="dup-version" value={version ?? ''} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : null)}>
-            {persona.voice_soul_versions.map((v) => (
+            {persona.voice_profile_versions.map((v) => (
               <option key={v.id} value={v.version}>
                 v{v.version}
                 {v.label ? ` · ${v.label}` : ''}
-                {v.version === persona.voice_soul_version ? ' (in use)' : ''}
+                {v.version === persona.voice_profile_version ? ' (in use)' : ''}
               </option>
             ))}
             <option value="">None: I will generate a fresh one</option>
@@ -364,7 +364,7 @@ export function PersonaPage() {
 
   const tabs: [Tab, string][] = [
     ['samples', 'Writing samples'],
-    ['voice', 'Voice soul'],
+    ['voice', 'Voice profile'],
     ['settings', 'Settings & defaults'],
   ]
   return (
@@ -404,7 +404,7 @@ export function PersonaPage() {
         ))}
       </div>
       {tab === 'samples' && <SamplesTab personaId={persona.id} />}
-      {tab === 'voice' && <VoiceSoulPanel personaId={persona.id} />}
+      {tab === 'voice' && <VoiceProfilePanel personaId={persona.id} />}
       {tab === 'settings' && <SettingsTab key={`${persona.id}-${persona.name}`} persona={persona} />}
       {duplicating && <DuplicatePersonaDialog persona={persona} open onClose={() => setDuplicating(false)} />}
     </>

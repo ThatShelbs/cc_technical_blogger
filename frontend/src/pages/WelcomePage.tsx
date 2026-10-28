@@ -5,12 +5,12 @@ import { Link } from 'react-router'
 import { useActivePersona, useAuthStatus, useHealth } from '../api/hooks'
 import { ClaudeConnect, ImagesCard } from '../components/Connections'
 import { SampleUploader } from '../components/SampleUploader'
-import { VoiceSoulPanel } from '../components/VoiceSoulPanel'
+import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
 import { Button, Card } from '../components/ui'
 import { cx } from '../lib/cx'
 import { CreatePersonaForm } from './PersonasPage'
 
-const STEPS = ['Connect Claude', 'Images', 'Persona', 'Your writing', 'Voice soul'] as const
+const STEPS = ['Connect Claude', 'Images', 'Persona', 'Your writing', 'Voice profile'] as const
 
 export function WelcomePage() {
   const auth = useAuthStatus()
@@ -18,7 +18,7 @@ export function WelcomePage() {
   const { data: persona } = useActivePersona()
   const [step, setStep] = useState(0)
 
-  const done = [!!auth.data?.signed_in || !!health.data?.demo, true, !!persona, (persona?.own_samples ?? 0) > 0, !!persona?.voice_soul_version]
+  const done = [!!auth.data?.signed_in || !!health.data?.demo, true, !!persona, (persona?.own_samples ?? 0) > 0, !!persona?.voice_profile_version]
   const canNext = step === 1 || done[step]
 
   return (
@@ -81,7 +81,7 @@ export function WelcomePage() {
             <SampleUploader personaId={persona.id} />
           </Card>
         )}
-        {step === 4 && persona && <VoiceSoulPanel personaId={persona.id} />}
+        {step === 4 && persona && <VoiceProfilePanel personaId={persona.id} />}
 
         <div className="flex items-center justify-between">
           <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>

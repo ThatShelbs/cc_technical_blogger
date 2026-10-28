@@ -14,27 +14,27 @@ from sqlmodel import Session, col, delete, select
 
 from proseferno.authenticity import analyze, author_profile, scan
 from proseferno.config import Settings
-from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceSoul, utcnow
+from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceProfile, utcnow
 from proseferno.images import PLACEHOLDER_RE, ImageService
 from proseferno.ingest import parse_markdown
 from proseferno.ingest.stylometrics import compute, fidelity
 from proseferno.jobs import JobContext
 from proseferno.llm import LLM, SystemBlock
 from proseferno.prompts import raw, render
-from proseferno.voice import current_voice_soul, format_exemplars, select_exemplars
+from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
-from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot
+from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
 
 class WriterError(ValueError):
     pass
 
 
-def writer_system(voice_soul: str, exemplars: str) -> list[SystemBlock]:
+def writer_system(voice_profile: str, exemplars: str) -> list[SystemBlock]:
     """Stable prefix shared by every call in a project, cached after the exemplars."""
     return [
         SystemBlock(raw("writer_system")),
-        SystemBlock(f"# Voice soul\n\n{voice_soul}"),
+        SystemBlock(f"# Voice profile\n\n{voice_profile}"),
         SystemBlock(exemplars, cache=True),
     ]
 
@@ -74,7 +74,42 @@ def ensure_placeholders(markdown: str, slots: list[ImageSlot]) -> str:
     valid = {s.slot_id for s in slots}
     text = "\n".join(lines)
     text = PLACEHOLDER_RE.sub(lambda m: m.group(0) if m.group(1) in valid else "", text)
+    text = strip_image_captions(text)
     return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+
+
+# A caption or credit line the writer copied from the author's habits ("Photo by X on Unsplash",
+# "Visualization: Jane, made with Tableau"). Images carry their own caption and credit.
+_CAPTION_RE = re.compile(
+    r"^[*_\s>]*(?:photo|image|illustration|visuali[sz]ation|chart|diagram|graphic|figure|fig\.|source|credit|screenshot|meme)s?"
+    r"\b\s*(?:by\b|from\b|:|-|–|—|\|)"
+    r"|unsplash|made with|\[todo:\s*(?:photographer|image|credit|caption)",
+    re.IGNORECASE,
+)
+_EMPHASIS_LINE_RE = re.compile(r"^\s*(\*[^*].*[^*]\*|_[^_].*[^_]_|\*\*.+\*\*)\s*$")
+
+
+def _is_caption(line: str, *, allow_emphasis: bool) -> bool:
+    if not line.strip() or len(line.split()) > 30 or line.lstrip().startswith(("#", "```", "{{")):
+        return False
+    return bool(_CAPTION_RE.search(line)) or (allow_emphasis and bool(_EMPHASIS_LINE_RE.match(line)))
+
+
+def strip_image_captions(markdown: str) -> str:
+    """Drop caption/credit lines written next to image placeholders."""
+    lines = markdown.split("\n")
+    drop: set[int] = set()
+    for i, line in enumerate(lines):
+        if not PLACEHOLDER_RE.fullmatch(line.strip()):
+            continue
+        after = next((j for j in range(i + 1, len(lines)) if lines[j].strip()), None)
+        if after is not None and _is_caption(lines[after], allow_emphasis=True):
+            drop.add(after)
+        # Above the image only obvious credits: an italic line there is usually the subtitle.
+        before = next((j for j in range(i - 1, -1, -1) if lines[j].strip()), None)
+        if before is not None and _is_caption(lines[before], allow_emphasis=False):
+            drop.add(before)
+    return "\n".join(line for i, line in enumerate(lines) if i not in drop)
 
 
 def _after_title_block(lines: list[str]) -> int:
@@ -135,7 +170,7 @@ async def generate_article(
         if project is None:
             raise WriterError("Project not found.")
         persona = session.get(Persona, project.persona_id)
-        soul = current_voice_soul(session, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
         project.status = "generating"
         project.error = None
@@ -144,11 +179,11 @@ async def generate_article(
         session.refresh(project)
     if persona is None:
         raise WriterError("The project's persona no longer exists.")
-    if soul is None:
-        raise WriterError("Generate a voice soul for this persona before writing a post.")
+    if voice_profile is None:
+        raise WriterError("Generate a voice profile for this persona before writing a post.")
 
     try:
-        return await _generate(engine, llm, settings, images, project, persona, soul, samples, ctx)
+        return await _generate(engine, llm, settings, images, project, persona, voice_profile, samples, ctx)
     except Exception as exc:
         with Session(engine) as session:
             row = session.get(Project, project_id)
@@ -157,6 +192,7 @@ async def generate_article(
                 row.error = str(exc)[:2000]
                 session.add(row)
                 session.commit()
+        images.fail_pending(project_id)
         raise
 
 
@@ -181,7 +217,7 @@ async def write_post(
     *,
     llm: LLM,
     settings: Settings,
-    soul: VoiceSoul,
+    voice_profile: VoiceProfile,
     samples: list[Sample],
     prompt: str,
     dials: ResolvedDials,
@@ -191,7 +227,7 @@ async def write_post(
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise. Text only; images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
-    system = writer_system(soul.markdown, format_exemplars(exemplars))
+    system = writer_system(voice_profile.markdown, format_exemplars(exemplars))
     settings_text = _settings_text(dials)
 
     # 1. Plan
@@ -232,12 +268,12 @@ async def write_post(
         usage=reporter.add_usage,
     )
     draft = ensure_placeholders(draft, slots)
-    measured = measure(draft, soul.baseline_stylometrics)
+    measured = measure(draft, voice_profile.baseline_stylometrics)
     if on_draft:
         on_draft(draft, measured)
 
     # 3. Critique and revise (the editor also sees the AI-writing tells the scan found)
-    profile = author_profile(samples, soul.baseline_stylometrics)
+    profile = author_profile(samples, voice_profile.baseline_stylometrics)
     critique: Critique | None = None
     for round_number in range(dials.revision_passes):
         await reporter.progress(0.45 + 0.1 * round_number, "Editor reviewing the draft for voice fidelity and AI tells")
@@ -269,7 +305,7 @@ async def write_post(
             usage=reporter.add_usage,
         )
         draft = ensure_placeholders(draft, slots)
-        measured = measure(draft, soul.baseline_stylometrics)
+        measured = measure(draft, voice_profile.baseline_stylometrics)
 
     # 4. AI-generation detection report
     await reporter.progress(0.66, "Checking how human the post reads")
@@ -277,7 +313,7 @@ async def write_post(
         llm=llm,
         settings=settings,
         markdown=draft,
-        voice_soul=soul.markdown,
+        voice_profile=voice_profile.markdown,
         profile=profile,
         use_judge=settings.ai_detection,
         usage=reporter.add_usage,
@@ -294,7 +330,7 @@ async def _generate(
     images: ImageService,
     project: Project,
     persona: Persona,
-    soul: VoiceSoul,
+    voice_profile: VoiceProfile,
     samples: list[Sample],
     ctx: JobContext,
 ) -> dict[str, Any]:
@@ -304,13 +340,19 @@ async def _generate(
     post = await write_post(
         llm=llm,
         settings=settings,
-        soul=soul,
+        voice_profile=voice_profile,
         samples=samples,
         prompt=project.prompt,
         dials=dials,
         reporter=ctx,
         on_plan=lambda plan: _save(
-            engine, project_id, plan=plan.model_dump(), title=plan.chosen_title, subtitle=plan.subtitle, voice_soul_version=soul.version
+            engine,
+            project_id,
+            # Pinned titles survive "Regenerate post" and lead the new options.
+            plan={**plan.model_dump(), "title_options": merge_titles(project.pinned_titles or [], plan.title_options)},
+            title=plan.chosen_title,
+            subtitle=plan.subtitle,
+            voice_profile_version=voice_profile.version,
         ),
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured),
     )
@@ -342,7 +384,7 @@ async def _generate(
                 persona=persona,
                 title=title or plan.chosen_title,
                 markdown=draft,
-                voice_soul=soul.markdown,
+                voice_profile=voice_profile.markdown,
                 usage=ctx.add_usage,
             )
         finished += 1
@@ -368,13 +410,13 @@ async def rewrite_passage(
         project = session.get(Project, project_id)
         if project is None:
             raise WriterError("Project not found.")
-        soul = current_voice_soul(session, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
-    if soul is None:
-        raise WriterError("This persona has no voice soul yet.")
+    if voice_profile is None:
+        raise WriterError("This persona has no voice profile yet.")
     if selection not in project.markdown:
         raise WriterError("The selected passage was not found in the post. It may have changed; select it again.")
-    system = writer_system(soul.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
     replacement = await llm.text(
         task="passage rewrite",
         system=system,
@@ -385,6 +427,67 @@ async def rewrite_passage(
     new_markdown = project.markdown.replace(selection, replacement.strip(), 1)
     _save(engine, project_id, markdown=new_markdown)
     return new_markdown
+
+
+TITLE_OPTION_COUNT = 5
+
+
+def merge_titles(*groups: list[str]) -> list[str]:
+    """Concatenate title lists, dropping blanks and case-insensitive duplicates (first wins)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for title in (t.strip() for group in groups for t in group):
+        if title and title.casefold() not in seen:
+            seen.add(title.casefold())
+            out.append(title)
+    return out
+
+
+async def regenerate_titles(*, llm: LLM, settings: Settings, engine: Engine, project_id: int) -> list[str]:
+    """Replace the title options the author did not keep; the current and pinned titles stay."""
+    with Session(engine) as session:
+        project = session.get(Project, project_id)
+        if project is None:
+            raise WriterError("Project not found.")
+        voice_profile = current_voice_profile(session, project.persona_id)
+        samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
+    if voice_profile is None:
+        raise WriterError("This persona has no voice profile yet.")
+    plan = dict(project.plan or {})
+    keep = merge_titles([project.title], project.pinned_titles or [])
+    rejected = [t for t in plan.get("title_options", []) if t.casefold() not in {k.casefold() for k in keep}]
+    count = max(1, TITLE_OPTION_COUNT - len(keep))
+
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    result = await llm.structured(
+        task="title options",
+        system=system,
+        prompt=render(
+            "titles",
+            count=count,
+            prompt=project.prompt,
+            outline=_outline(project.markdown) or project.prompt,
+            keep="\n".join(f"- {t}" for t in keep) or "(none)",
+            rejected="\n".join(f"- {t}" for t in rejected) or "(none)",
+        ),
+        schema=TitleOptions,
+        effort=settings.effort_plan,
+        max_tokens=8000,
+    )
+    fresh = [t for t in merge_titles(result.title_options) if t.casefold() not in {r.casefold() for r in rejected}]
+    options = merge_titles(keep, fresh)[: max(TITLE_OPTION_COUNT, len(keep))]
+    plan["title_options"] = options
+    _save(engine, project_id, plan=plan)
+    return options
+
+
+def _outline(markdown: str) -> str:
+    """Title, subtitle, headings and the opening paragraph: enough to title the post without resending it."""
+    lines = [line for line in markdown.splitlines() if line.strip() and not PLACEHOLDER_RE.fullmatch(line.strip())]
+    head = lines[:2]
+    body = [line for line in lines[2:] if not line.startswith(("#", "```"))]
+    headings = [line for line in lines if line.startswith("## ")]
+    return "\n".join([*head, *(body[:1]), "", *headings]).strip()
 
 
 def _settings_text(dials: ResolvedDials) -> dict[str, Any]:

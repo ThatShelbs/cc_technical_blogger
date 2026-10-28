@@ -16,6 +16,7 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Changed
 
+- "Voice soul" is now **voice profile** everywhere (UI, API routes `/voice-profile`, `voice_profile.md`, code, docs). Existing databases and saved files are migrated automatically on startup; earlier entries below keep the old name.
 - Every image is now drawn by Claude (SVG illustrations, icons, diagrams and memes; Vega-Lite charts). Credits name the Claude model, e.g. "Made with Claude Opus 5.5 (SVG)".
 
 ### Removed

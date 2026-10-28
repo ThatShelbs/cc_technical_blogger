@@ -35,8 +35,8 @@ class Persona(SQLModel, table=True):
     default_skimmability: int = 5
     default_include_code: str = "auto"
     default_platform: str = "medium"
-    # Voice soul version used for new posts; None = always the latest.
-    pinned_voice_soul_version: int | None = None
+    # Voice profile version used for new posts; None = always the latest.
+    pinned_voice_profile_version: int | None = None
     # One line that keeps a post's generated images looking like a set.
     visual_style: str = ""
     # How image credits read; {name} = display name, {tool} = what made the image.
@@ -64,7 +64,7 @@ class Sample(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
-class VoiceSoul(SQLModel, table=True):
+class VoiceProfile(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     persona_id: int = Field(foreign_key="persona.id", index=True)
     version: int
@@ -96,7 +96,10 @@ class Project(SQLModel, table=True):
     authenticity: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     # Platform companions, e.g. {"linkedin_post": "..."}.
     social: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
-    voice_soul_version: int | None = None
+    # Title options the author pinned: kept when new options are generated and across regenerations.
+    # The SQL default lets add_missing_columns backfill existing rows with [].
+    pinned_titles: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    voice_profile_version: int | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

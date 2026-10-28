@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlmodel import Session
 
 from proseferno.config import Settings
-from proseferno.db import Persona, Project, Sample, VoiceSoul
+from proseferno.db import Persona, Project, Sample, VoiceProfile
 from proseferno.ingest import parse_markdown
 from proseferno.ingest.stylometrics import compute
 from proseferno.services import build_services
@@ -55,7 +55,7 @@ async def test_eval_runs_in_demo_mode(tmp_path: Path) -> None:
                     stylometrics=compute(doc),
                 )
             )
-        session.add(VoiceSoul(persona_id=persona.id, version=1, markdown="# Voice Soul\n\n## Soul\nWry.", baseline_stylometrics={}))  # type: ignore[arg-type]
+        session.add(VoiceProfile(persona_id=persona.id, version=1, markdown="# Voice Profile\n\n## Soul\nWry.", baseline_stylometrics={}))  # type: ignore[arg-type]
         session.commit()
     services.engine.dispose()
 

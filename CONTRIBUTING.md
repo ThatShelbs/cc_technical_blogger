@@ -67,7 +67,7 @@ CI fails if `frontend/src/api/types.gen.ts` is out of date.
 
 ## Changing prompts
 
-Prompts live in `backend/src/proseferno/prompts/*.md` with `$placeholders`. The most important ones are `voice_synthesize.md` (what a voice soul contains) and `writer_system.md` / `draft.md` / `critique.md` / `revise.md` (how posts are written). Voice quality is the product, so measure prompt changes with the [voice-fidelity eval](docs/voice-pipeline.md#measuring-voice-fidelity) on real writing before and after.
+Prompts live in `backend/src/proseferno/prompts/*.md` with `$placeholders`. The most important ones are `voice_synthesize.md` (what a voice profile contains) and `writer_system.md` / `draft.md` / `critique.md` / `revise.md` (how posts are written). Voice quality is the product, so measure prompt changes with the [voice-fidelity eval](docs/voice-pipeline.md#measuring-voice-fidelity) on real writing before and after.
 
 ## Conventions
 

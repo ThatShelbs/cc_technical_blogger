@@ -1,7 +1,7 @@
-"""Turn a persona's samples into a versioned ``voice_soul.md``.
+"""Turn a persona's samples into a versioned ``voice_profile.md``.
 
 Steps: analyze each sample (cached on the sample) -> optional web research on
-best practices -> synthesize the voice soul from analyses + measured baseline.
+best practices -> synthesize the voice profile from analyses + measured baseline.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
 from proseferno.config import Settings
-from proseferno.db import Persona, Sample, VoiceSoul
+from proseferno.db import Persona, Sample, VoiceProfile
 from proseferno.ingest.stylometrics import aggregate
 from proseferno.jobs import JobContext
 from proseferno.llm import LLM, SystemBlock
@@ -30,29 +30,31 @@ class VoiceError(ValueError):
     pass
 
 
-def latest_voice_soul(session: Session, persona_id: int) -> VoiceSoul | None:
-    return session.exec(select(VoiceSoul).where(VoiceSoul.persona_id == persona_id).order_by(col(VoiceSoul.version).desc())).first()
+def latest_voice_profile(session: Session, persona_id: int) -> VoiceProfile | None:
+    return session.exec(
+        select(VoiceProfile).where(VoiceProfile.persona_id == persona_id).order_by(col(VoiceProfile.version).desc())
+    ).first()
 
 
-def voice_soul_version(session: Session, persona_id: int, version: int) -> VoiceSoul | None:
-    return session.exec(select(VoiceSoul).where(VoiceSoul.persona_id == persona_id, VoiceSoul.version == version)).first()
+def voice_profile_version(session: Session, persona_id: int, version: int) -> VoiceProfile | None:
+    return session.exec(select(VoiceProfile).where(VoiceProfile.persona_id == persona_id, VoiceProfile.version == version)).first()
 
 
-def current_voice_soul(session: Session, persona_id: int) -> VoiceSoul | None:
+def current_voice_profile(session: Session, persona_id: int) -> VoiceProfile | None:
     """The version new posts are written with: the pinned one, else the latest."""
     persona = session.get(Persona, persona_id)
-    if persona is not None and persona.pinned_voice_soul_version is not None:
-        pinned = voice_soul_version(session, persona_id, persona.pinned_voice_soul_version)
+    if persona is not None and persona.pinned_voice_profile_version is not None:
+        pinned = voice_profile_version(session, persona_id, persona.pinned_voice_profile_version)
         if pinned is not None:
             return pinned
-    return latest_voice_soul(session, persona_id)
+    return latest_voice_profile(session, persona_id)
 
 
 def unpin(session: Session, persona_id: int) -> None:
     """A brand-new version becomes the one in use."""
     persona = session.get(Persona, persona_id)
-    if persona is not None and persona.pinned_voice_soul_version is not None:
-        persona.pinned_voice_soul_version = None
+    if persona is not None and persona.pinned_voice_profile_version is not None:
+        persona.pinned_voice_profile_version = None
         session.add(persona)
 
 
@@ -94,7 +96,7 @@ async def research_best_practices(llm: LLM, settings: Settings, ctx: JobContext 
     return text
 
 
-async def generate_voice_soul(
+async def generate_voice_profile(
     *,
     engine: Engine,
     llm: LLM,
@@ -109,10 +111,10 @@ async def generate_voice_soul(
         if persona is None:
             raise VoiceError("Persona not found.")
         samples = list(session.exec(select(Sample).where(Sample.persona_id == persona_id)))
-        previous = latest_voice_soul(session, persona_id)
+        previous = latest_voice_profile(session, persona_id)
     own = [s for s in samples if s.kind == "own"]
     if not own:
-        raise VoiceError("Add at least one sample of your own writing before generating a voice soul.")
+        raise VoiceError("Add at least one sample of your own writing before generating a voice profile.")
 
     # 1. Analyze every sample that has not been analyzed yet (cached on the sample row).
     pending = [s for s in samples if not s.analysis]
@@ -154,13 +156,13 @@ async def generate_voice_soul(
     # 3. Synthesize.
     baseline = aggregate([s.stylometrics for s in own])
     influences = [s for s in samples if s.kind == "influence"]
-    await ctx.progress(0.65, "Writing your voice soul")
+    await ctx.progress(0.65, "Writing your voice profile")
 
     async def on_delta(text: str) -> None:
         await ctx.emit("voice_delta", {"text": text})
 
     markdown = await llm.text(
-        task="voice soul synthesis",
+        task="voice profile synthesis",
         system=[SystemBlock(raw("voice_system"))],
         prompt=render(
             "voice_synthesize",
@@ -181,7 +183,7 @@ async def generate_voice_soul(
 
     with Session(engine) as session:
         version = (previous.version + 1) if previous else 1
-        soul = VoiceSoul(
+        voice_profile = VoiceProfile(
             persona_id=persona_id,
             version=version,
             label=label.strip()[:80],
@@ -191,7 +193,7 @@ async def generate_voice_soul(
             baseline_stylometrics=baseline,
             model=settings.model,
         )
-        session.add(soul)
+        session.add(voice_profile)
         unpin(session, persona_id)
         visual = _extract_visual_style(markdown)
         persona_row = session.get(Persona, persona_id)
@@ -199,10 +201,10 @@ async def generate_voice_soul(
             persona_row.visual_style = visual
             session.add(persona_row)
         session.commit()
-        session.refresh(soul)
-    storage.voice_soul_path(persona_id, version).write_text(markdown, encoding="utf-8")
-    await ctx.progress(1.0, f"Voice soul v{version} ready")
-    return {"voice_soul_id": soul.id, "version": version}
+        session.refresh(voice_profile)
+    storage.voice_profile_path(persona_id, version).write_text(markdown, encoding="utf-8")
+    await ctx.progress(1.0, f"Voice profile v{version} ready")
+    return {"voice_profile_id": voice_profile.id, "version": version}
 
 
 def _analysis_payload(sample: Sample) -> dict[str, Any]:
