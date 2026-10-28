@@ -15,17 +15,19 @@ flowchart TB
     Images[images/ service]
     Detect[authenticity/ scan + judge]
     Export[export/ bundles]
-    LLM[llm/ ClaudeLLM]
+    LLM[llm/ RoutingLLM<br/>ClaudeLLM or ClaudeCodeLLM]
   end
   DB[(SQLite<br/>data/proseferno.db)]
   Files[(data/ files<br/>samples, voice profiles, images)]
   Keychain[(OS keychain)]
   Claude[[Claude API]]
+  ClaudeCode[[Claude Code CLI<br/>your Pro/Max plan]]
 
   UI -- REST + SSE --> API
   API --> Jobs --> Voice & Writer
   Writer --> Images & Detect
   Voice & Writer & Images & Detect --> LLM --> Claude
+  LLM -. subscription .-> ClaudeCode
   API --> Export
   API & Jobs --> DB
   Voice & Images & Export --> Files
@@ -40,7 +42,7 @@ flowchart TB
 | `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs). Tests and demo mode inject fakes here. |
 | `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
 | `jobs.py` | Runs long work as asyncio tasks, persists status, and keeps an in-memory event log per job that `/api/jobs/{id}/events` streams as Server-Sent Events (with sequence ids, so reconnects resume cleanly). |
-| `llm/` | The `LLM` protocol, the Claude implementation (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching) and credential resolution. |
+| `llm/` | The `LLM` protocol; `RoutingLLM`, which sends each call to the connection chosen in Settings; `ClaudeLLM` for the Anthropic API (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching, retries); `ClaudeCodeLLM` for a Claude subscription, which runs the user's own `claude -p` with JSON output; and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, LinkedIn feed post. |
@@ -66,6 +68,8 @@ flowchart TB
 | Design an image | structured output (`SvgSpec`, `SvgMemeSpec`, `ChartSpec`) | medium |
 
 Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
+
+On the Claude subscription connection the same calls go through `claude -p` (`--json-schema` for structured outputs, `stream-json` for streamed text, the `WebSearch` tool for research); see [configuration](configuration.md#using-your-claude-subscription-pro-or-max).
 
 All calls use `claude-opus-5-5` by default with adaptive thinking and the server-side refusal fallback (`fallbacks: "default"`), which retries a request on Anthropic's recommended model if a safety classifier declines it by mistake. The writer's system prompt is ordered *instructions → voice profile → example posts* with a cache breakpoint after the examples, so plan, draft, critique and revision calls in one job reuse the cached prefix.
 

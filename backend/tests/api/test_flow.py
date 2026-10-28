@@ -268,6 +268,23 @@ def test_settings_and_auth(client: TestClient) -> None:
     assert client.get("/api/settings").json()["revision_passes"] == 2
 
 
+def test_claude_subscription_connection(client: TestClient) -> None:
+    assert client.get("/api/settings").json()["claude_connection"] == "api"
+    out = client.put("/api/settings", json={"claude_connection": "subscription"}).json()
+    assert out["claude_connection"] == "subscription"
+
+    status = client.get("/api/auth/status").json()
+    assert status["connection"] == "subscription" and status["source"] == "claude_subscription"
+    assert status["claude_code_installed"] is False  # discovery is off in tests
+    assert "not installed" in status["detail"]
+    assert client.post("/api/auth/claude-code/login").status_code == 409
+    assert client.post("/api/auth/test").json()["ok"] is False
+
+    assert client.put("/api/settings", json={"claude_connection": "nope"}).status_code == 422
+    assert client.put("/api/settings", json={"claude_connection": "api"}).json()["claude_connection"] == "api"
+    assert client.get("/api/auth/status").json()["connection"] == "api"
+
+
 def ready_post(client: TestClient, sample_docx: bytes) -> dict:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)
