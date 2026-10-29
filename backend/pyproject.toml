@@ -2,7 +2,6 @@
 name = "proseferno"
 version = "0.1.0"
 description = "Write engaging technical blog posts in your own voice."
-readme = "README.md"
 license = "MIT"
 authors = [
     { name = "Shelby Temple", email = "Shelby.Mustang.Temple@gmail.com" }

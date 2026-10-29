@@ -1,8 +1,9 @@
-import { CheckCircle2, Circle, FileText, PenLine, Trash2 } from 'lucide-react'
+import { CheckCircle2, Circle, Eye, FileText, PenLine, Trash2 } from 'lucide-react'
 import { Link } from 'react-router'
 
-import { useActivePersona, useAuthStatus, useProjectMutations, useProjects } from '../api/hooks'
-import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '../components/ui'
+import { errorText } from '../api/client'
+import { useActivePersona, useAuthStatus, usePersonaMutations, usePersonas, useProjectMutations, useProjects } from '../api/hooks'
+import { Badge, Button, Card, EmptyState, Notice, PageHeader, Spinner } from '../components/ui'
 
 function SetupChecklist() {
   const auth = useAuthStatus()
@@ -50,6 +51,10 @@ const STATUS: Record<string, { label: string; tone: 'neutral' | 'accent' | 'succ
 export function ProjectsPage() {
   const { data: projects, isLoading } = useProjects()
   const { remove } = useProjectMutations()
+  const { data: personas } = usePersonas()
+  const { createExample } = usePersonaMutations()
+  const examplePersonas = new Set(personas?.filter((p) => p.is_example).map((p) => p.id))
+  const hasVoice = !!personas?.some((p) => p.is_active && !p.is_example && p.voice_profile_version)
   const newPost = (
     <Link to="/projects/new">
       <Button variant="flame" icon={<PenLine className="size-4" />}>
@@ -66,9 +71,33 @@ export function ProjectsPage() {
       />
       <SetupChecklist />
       {isLoading && <Spinner />}
+      {createExample.error && (
+        <div className="mb-6">
+          <Notice tone="error">{errorText(createExample.error)}</Notice>
+        </div>
+      )}
       {projects?.length === 0 && (
-        <EmptyState icon={<FileText className="size-8" />} title="No posts yet" action={newPost}>
-          Start with a sentence or a bullet-point outline. Everything else has smart defaults.
+        <EmptyState
+          icon={<FileText className="size-8" />}
+          title="No posts yet"
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {hasVoice ? (
+                newPost
+              ) : (
+                <Link to="/welcome">
+                  <Button variant="flame">Set up my voice</Button>
+                </Link>
+              )}
+              <Button variant="secondary" icon={<Eye className="size-4" />} loading={createExample.isPending} onClick={() => createExample.mutate()}>
+                See an example post
+              </Button>
+            </div>
+          }
+        >
+          {hasVoice
+            ? 'Start with a sentence or a bullet-point outline. Everything else has smart defaults.'
+            : 'Set up your voice from your own writing, or look at a finished example first. The example needs no Claude connection.'}
         </EmptyState>
       )}
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -87,7 +116,10 @@ export function ProjectsPage() {
               </Link>
               <div className="flex flex-1 flex-col gap-2 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <Badge tone={status.tone}>{status.label}</Badge>
+                  <span className="flex items-center gap-1.5">
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                    {examplePersonas.has(project.persona_id) && <Badge tone="accent">Example</Badge>}
+                  </span>
                   <span className="text-xs text-muted">{new Date(project.updated_at).toLocaleDateString()}</span>
                 </div>
                 <Link to={`/projects/${project.id}`} className="line-clamp-2 font-bold hover:underline">

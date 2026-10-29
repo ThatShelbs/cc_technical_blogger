@@ -21,6 +21,8 @@
 
 ![Proseferno editor in day mode](docs/screenshots/editor-day.png)
 
+> **New here?** Read [docs/onboarding.md](docs/onboarding.md). It covers using the app, exploring it with no files or API keys, and working on the code.
+
 ## Why Proseferno
 
 Most AI writing tools produce the same polished, generic voice. Proseferno is built around one idea: **the post must sound like you.** It studies your writing, measures it, writes a field guide to your voice (your *voice profile*), and then has an editor check every draft against that guide before you see it.
@@ -54,18 +56,20 @@ It is specialized for technical writing about data science, Python, data visuali
 ./launch.sh
 ```
 
-**Just looking?** Start in demo mode: canned AI responses and images, no keys, no cost, separate data folder.
+**Just looking, or no writing and no keys yet?** Start in demo mode. It opens on a finished example post with a voice profile, with canned AI responses and images, no keys, no cost, and a separate data folder. (If you launch with no Claude connection at all, the launcher offers this for you.)
 
 ```bash
 launch.bat --demo
 ```
+
+**Want to work on the code?** Run `scripts\setup.bat` (or `scripts/setup.sh`), then see [docs/onboarding.md](docs/onboarding.md).
 
 Then follow the five-step setup guide in the app:
 
 1. **Connect Claude**: *Sign in with Claude* (browser sign-in through the [Anthropic CLI](https://github.com/anthropics/anthropic-cli/releases), works with your organization's SSO) or paste an Anthropic API key. Have a Claude Pro or Max plan? Choose **Claude subscription** to run on it through [Claude Code](https://code.claude.com/docs/en/setup) instead ([details](docs/configuration.md#using-your-claude-subscription-pro-or-max)).
 2. **Images**: nothing to do. Claude draws illustrations, icons, diagrams, charts and memes itself.
 3. **Persona**: give it a name and a byline for image credits.
-4. **Your writing**: drop in three or more of your posts. If you keep them in a `my_writing_examples/` folder in the repo, the app offers to import them in one click (that folder is git-ignored).
+4. **Your writing**: drop in three or more of your posts. If you keep them in a `my_writing_examples/` folder in the repo, the app offers to import them in one click (that folder is git-ignored). No posts yet? Click **Use 3 sample posts** to try the whole flow first.
 5. **Voice profile**: generate it and read it. Edit anything that is off.
 
 Then click **New post**, describe the post, and watch it being written.
@@ -106,40 +110,17 @@ Details: [docs/voice-pipeline.md](docs/voice-pipeline.md). To measure voice qual
 
 Everything stays on your computer in the `data/` folder: samples, voice profiles, posts, images, exports. API keys go into your operating system's keychain (Windows Credential Manager, macOS Keychain, Secret Service), never into files. Content is sent only to Claude, and only when you generate something. Images are drawn by Claude and rendered on your computer.
 
-## Project layout
-
-```
-launch.bat / launch.sh / dev.bat   One-click start and developer mode
-backend/                           FastAPI + uv (Python 3.13)
-  src/proseferno/
-    api/        HTTP routes (auth, settings, personas, samples, voice, projects, images, export, jobs/SSE)
-    ingest/     Parsers, Medium clean-up, stylometrics
-    voice/      Sample analysis, research, voice profile synthesis, exemplar selection, learning from edits
-    writer/     Dials, plan, draft, critique/revise, feedback tweaks, text history, LinkedIn feed post
-    authenticity/  AI-generation detection: calibrated scan + Claude judge
-    images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
-    export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles
-    llm/        Claude client, sign-in resolution
-    prompts/    Every prompt, as readable Markdown
-  tests/        pytest (fake Claude)
-  evals/        Voice-fidelity and AI-detection evals (real API, opt-in)
-frontend/                          React 19 + Vite + Tailwind CSS 4
-  src/pages/    Posts, new post, editor, personas, settings, setup guide
-  e2e/          Playwright smoke test (demo mode)
-packaging/                         Windows app + installer build (PyInstaller, Inno Setup)
-assets/brand/                      Logo and palette
-docs/                              Architecture and guides
-```
-
 ## Documentation
 
-- [Architecture](docs/architecture.md)
+- [Onboarding: start here](docs/onboarding.md)
+- [Architecture and repository layout](docs/architecture.md)
 - [Voice pipeline and evaluation](docs/voice-pipeline.md)
 - [Images](docs/images.md)
 - [AI-generation detection](docs/ai-detection.md)
 - [Exporting](docs/exporting.md)
 - [Configuration](docs/configuration.md)
 - [Contributing](CONTRIBUTING.md)
+- [Security policy](.github/SECURITY.md) and [Code of Conduct](.github/CODE_OF_CONDUCT.md)
 
 ## Night mode
 

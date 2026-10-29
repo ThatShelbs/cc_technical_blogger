@@ -84,16 +84,8 @@ goto :eof
 
 rem ===============================================================================
 :find_uv
-set "UV_OK="
-where uv >nul 2>&1 && set "UV_OK=1" && goto :eof
-rem Fresh installs are not on this window's PATH yet; look in the usual places.
-for %%D in ("%USERPROFILE%\.local\bin" "%LOCALAPPDATA%\Microsoft\WinGet\Links") do (
-  if exist "%%~D\uv.exe" ( set "PATH=%%~D;!PATH!" & set "UV_OK=1" )
-)
-if defined UV_OK goto :eof
-for /d %%D in ("%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*") do (
-  if exist "%%~D\uv.exe" ( set "PATH=%%~D;!PATH!" & set "UV_OK=1" )
-)
+rem Shared with scripts\setup.bat: finds uv (a fresh install is not on this window's PATH yet) and sets UV_OK.
+call "%~dp0scripts\_env.bat"
 goto :eof
 
 :need_uv
@@ -115,5 +107,7 @@ echo.
 echo   Setup failed. Scroll up for the error. Common fixes:
 echo     - Check your internet connection (first run downloads packages).
 echo     - Close other Proseferno windows and try again.
+echo   To see exactly what is wrong on this machine, run:
+echo     uv run --project backend proseferno doctor
 pause
 exit /b 1

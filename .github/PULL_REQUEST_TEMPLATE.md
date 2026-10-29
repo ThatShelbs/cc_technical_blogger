@@ -4,8 +4,8 @@
 
 ## How it was tested
 
-- [ ] `uv run pytest`, `ruff`, `mypy` (backend)
-- [ ] `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` (frontend)
-- [ ] Types regenerated if the API changed (`backend/scripts/export_types.py`)
+- [ ] `scripts/check.bat` (or `scripts/check.sh`) passes: lint, format, types, tests, generated types, build
+- [ ] `scripts/check.bat --e2e` for changes to the UI or the first-run flow
 - [ ] Screenshots in day and night mode for UI changes
 - [ ] Voice-fidelity eval before/after for prompt changes (if applicable)
+- [ ] Docs updated if behavior changed (`docs/`, `README.md`, `CLAUDE.md`)

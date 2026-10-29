@@ -1,3 +1,5 @@
+"""Write a post: dials, plan, draft, critique and revise, feedback tweaks and text version history."""
+
 from proseferno.writer.dials import Dials, ResolvedDials, classify_topic, resolve
 from proseferno.writer.pipeline import (
     WriterError,

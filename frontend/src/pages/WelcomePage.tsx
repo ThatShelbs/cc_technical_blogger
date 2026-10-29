@@ -1,12 +1,13 @@
-import { ArrowRight, Check } from 'lucide-react'
+import { ArrowRight, Check, Eye } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
-import { useActivePersona, useAuthStatus, useHealth } from '../api/hooks'
+import { errorText } from '../api/client'
+import { useActivePersona, useAuthStatus, useHealth, usePersonaMutations } from '../api/hooks'
 import { ClaudeConnect, ImagesCard } from '../components/Connections'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
-import { Button, Card } from '../components/ui'
+import { Button, Card, Notice } from '../components/ui'
 import { cx } from '../lib/cx'
 import { CreatePersonaForm } from './PersonasPage'
 
@@ -17,6 +18,8 @@ export function WelcomePage() {
   const health = useHealth()
   const { data: persona } = useActivePersona()
   const [step, setStep] = useState(0)
+  const navigate = useNavigate()
+  const { createExample } = usePersonaMutations()
 
   const done = [!!auth.data?.signed_in || !!health.data?.demo, true, !!persona, (persona?.own_samples ?? 0) > 0, !!persona?.voice_profile_version]
   const canNext = step === 1 || done[step]
@@ -57,7 +60,30 @@ export function WelcomePage() {
       </ol>
 
       <div className="space-y-6">
-        {step === 0 && <ClaudeConnect />}
+        {step === 0 && (
+          <>
+            <ClaudeConnect />
+            {!health.data?.demo && (
+              <Notice title="Just looking around?">
+                <p>
+                  You do not need a Claude connection to explore. Look at a finished example post, built offline with no Claude call, or start Proseferno in
+                  demo mode (<code>launch.bat --demo</code> or <code>./launch.sh --demo</code>) to try the whole flow with canned responses.
+                </p>
+                <Button
+                  className="mt-3"
+                  variant="secondary"
+                  size="sm"
+                  icon={<Eye className="size-4" />}
+                  loading={createExample.isPending}
+                  onClick={() => createExample.mutate(undefined, { onSuccess: () => navigate('/') })}
+                >
+                  See an example post
+                </Button>
+                {createExample.error && <p className="mt-2 text-sm text-danger">{errorText(createExample.error)}</p>}
+              </Notice>
+            )}
+          </>
+        )}
         {step === 1 && <ImagesCard />}
         {step === 2 &&
           (persona ? (

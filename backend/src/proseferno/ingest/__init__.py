@@ -1,3 +1,5 @@
+"""Read a person's writing (Word, PDF, Markdown, HTML, URLs), clean it up and measure its style."""
+
 from proseferno.ingest.document import Block, ParsedDocument, count_words
 from proseferno.ingest.parsers import (
     SUPPORTED_EXTENSIONS,

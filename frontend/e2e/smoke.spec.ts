@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const SAMPLE = path.resolve(here, '../../examples/sample-post.md')
+const SAMPLE = path.resolve(here, 'fixtures/sample-post.md')
 const SCREENSHOTS = path.resolve(here, '../../docs/screenshots')
 // UPDATE_SCREENSHOTS=1 refreshes the README screenshots in docs/screenshots.
 const capture = process.env.UPDATE_SCREENSHOTS === '1'

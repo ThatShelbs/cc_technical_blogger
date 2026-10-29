@@ -34,7 +34,7 @@ export function CreatePersonaForm({ onCreated, submitLabel = 'Create persona' }:
 
 export function PersonasPage() {
   const { data: personas, isLoading } = usePersonas()
-  const { activate } = usePersonaMutations()
+  const { activate, removeExample } = usePersonaMutations()
   const [creating, setCreating] = useState(false)
 
   return (
@@ -79,6 +79,7 @@ export function PersonasPage() {
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
+              {persona.is_example && <Badge tone="accent">Example</Badge>}
               <Badge>{persona.own_samples} of my posts</Badge>
               <Badge>{persona.influence_samples} influences</Badge>
               {persona.voice_profile_version ? (
@@ -91,6 +92,17 @@ export function PersonasPage() {
               <Link to={`/personas/${persona.id}`} className="text-sm font-semibold text-primary hover:underline">
                 Manage samples and voice →
               </Link>
+              {persona.is_example && (
+                <button
+                  type="button"
+                  className="ml-4 text-sm font-semibold text-muted hover:text-danger hover:underline"
+                  onClick={() => {
+                    if (confirm('Remove the example persona and its post?')) removeExample.mutate()
+                  }}
+                >
+                  Remove example
+                </button>
+              )}
             </div>
           </Card>
         ))}

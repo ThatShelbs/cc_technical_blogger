@@ -26,5 +26,5 @@ Theme tokens (surfaces, text, borders) are defined once in `frontend/src/index.c
 Regenerate the PNG/ICO renders after editing the SVGs:
 
 ```bash
-uv run --project backend python assets/brand/render_brand.py
+uv run --project backend python backend/scripts/render_brand.py
 ```

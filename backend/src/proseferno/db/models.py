@@ -21,6 +21,8 @@ class Persona(SQLModel, table=True):
     # Name used in bylines and image credits.
     display_name: str = ""
     is_active: bool = False
+    # The bundled "Sample Author": built offline, deletable in one click.
+    is_example: bool = False
     research_enabled: bool = False
     # Default dials for new posts. The 0-10 style dials are relative to the author: 5 = as in their writing.
     default_humor: int = 5
