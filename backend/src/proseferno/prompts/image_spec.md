@@ -4,7 +4,8 @@ Post title: $title
 
 Purpose of this image: $purpose
 What it should show: $brief
-Persona visual style: $visual_style
+Visual style: $visual_style
+$brand
 $variation
 
 The author's guidance on images and captions:

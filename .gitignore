@@ -20,6 +20,9 @@ __pycache__/
 htmlcov/
 *.egg-info/
 build/
+# Windows installer build output (packaging/build_windows.bat)
+packaging/dist/
+packaging/installer/
 
 # --- Node / frontend ---
 node_modules/

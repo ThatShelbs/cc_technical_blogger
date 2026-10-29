@@ -409,3 +409,101 @@ def test_tweak_needs_a_post(client: TestClient, sample_docx: bytes) -> None:
     client.post(f"/api/personas/{persona['id']}/voice-profile")
     created = client.post("/api/projects", json={"prompt": "Pie charts", "generate": False}).json()
     assert client.post(f"/api/projects/{created['project']['id']}/tweak", json={"feedback": "shorter"}).status_code == 409
+
+
+def test_voice_profile_settings(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    upload(client, pid, sample_docx, kind="influence", name="other.docx")
+    settings = {"voice_profile_words": 900, "voice_sample_max_words": 40, "voice_influence_weight": 0}
+    persona = client.patch(f"/api/personas/{pid}", json=settings).json()
+    assert {k: persona[k] for k in settings} == settings
+
+    client.post(f"/api/personas/{pid}/voice-profile")
+    analyses = [c for c in fake_llm.calls if c["task"] == "sample analysis"]
+    assert len(analyses) == 1  # influence weight 0 leaves the influence sample out
+    assert "Humans are bad at comparing angles" not in analyses[0]["prompt"]  # only the first 40 words are read
+    synthesis = next(c for c in fake_llm.calls if c["task"] == "voice profile synthesis")
+    assert "about 900 words" in synthesis["prompt"] and "No influence posts are used" in synthesis["prompt"]
+
+    # A new word limit re-analyzes; a minimum longer than every sample is a clear error.
+    client.patch(f"/api/personas/{pid}", json={"voice_sample_max_words": 0, "voice_influence_weight": 8})
+    client.post(f"/api/personas/{pid}/voice-profile")
+    assert fake_llm.tasks().count("sample analysis") == 3
+    assert "Influence weight 8/10" in [c for c in fake_llm.calls if c["task"] == "voice profile synthesis"][-1]["prompt"]
+    client.patch(f"/api/personas/{pid}", json={"voice_sample_min_words": 5000})
+    job = client.post(f"/api/personas/{pid}/voice-profile").json()
+    assert job["status"] == "failed" and "5000 words" in job["error"]
+
+
+def test_learns_from_edits_and_feedback(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    url = f"/api/projects/{project['id']}"
+    sentence = next(line for line in project["markdown"].splitlines() if len(line.split()) > 12)
+    words = sentence.split()
+    edited_sentence = " ".join([*words[:3], *words[6:]])
+    client.patch(url, json={"markdown": project["markdown"].replace(sentence, edited_sentence)})
+    client.post(f"{url}/tweak", json={"feedback": "Fewer exclamation marks, please"})
+
+    persona = client.get(f"/api/personas/{project['persona_id']}").json()
+    kinds = {lesson["kind"] for lesson in persona["edit_lessons"]}
+    assert kinds == {"remove", "feedback"}
+    removed = next(lesson for lesson in persona["edit_lessons"] if lesson["kind"] == "remove")
+    assert removed["old"] == " ".join(words[3:6])
+
+    # Lessons reach the writer for the next post, and can be forgotten.
+    fake_llm.calls.clear()
+    client.post(f"{url}/generate")
+    plan_call = next(c for c in fake_llm.calls if c["task"] == "post plan")
+    system = "\n".join(block.text for block in plan_call["system"])
+    assert "Edits the author keeps making" in system and "Fewer exclamation marks" in system
+    persona = client.delete(f"/api/personas/{project['persona_id']}/lessons", params={"index": 0}).json()
+    assert len(persona["edit_lessons"]) == 1
+    assert client.delete(f"/api/personas/{project['persona_id']}/lessons").json()["edit_lessons"] == []
+
+
+def test_callbacks_reach_the_editor(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    client.post(f"/api/personas/{pid}/voice-profile")
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"revision_passes": 1}}).json()
+    project = client.get(f"/api/projects/{created['project']['id']}").json()
+    assert [c["kind"] for c in project["plan"]["callbacks"]] == ["key_concept", "running_joke"]
+    critique = next(c for c in fake_llm.calls if c["task"] == "critique")
+    assert 'set up in "Why People Love Pies"' in critique["prompt"] and "set up in the opening" in critique["prompt"]
+
+
+def test_brand_kit_and_edit_image(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    client.post(f"/api/personas/{pid}/voice-profile")
+    kit = {"style": "chalkboard sketch", "palette": ["#112233", "#AABBCC"], "font": "Georgia", "motif": "a tiny robot"}
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "brand_kit": kit, "dials": {"revision_passes": 0}}).json()
+    project = client.get(f"/api/projects/{created['project']['id']}").json()
+    assert project["brand_kit"]["palette"] == ["#112233", "#aabbcc"]
+    hero_call = next(c for c in fake_llm.calls if c["task"] == "hero image design")
+    assert "chalkboard sketch" in hero_call["prompt"] and "#112233" in hero_call["prompt"] and "a tiny robot" in hero_call["prompt"]
+    bad = client.patch(f"/api/projects/{project['id']}", json={"brand_kit": {"palette": ["orange"]}})
+    assert bad.status_code == 422
+
+    diagram = next(i for i in project["images"] if i["kind"] == "diagram")
+    fake_llm.calls.clear()
+    job = client.post(f"/api/images/{diagram['id']}/edit", json={"instruction": "Make the box orange"}).json()
+    assert job["status"] == "succeeded", job
+    call = next(c for c in fake_llm.calls if c["task"] == "diagram image edit")
+    assert "Make the box orange" in call["prompt"] and "<svg" in call["prompt"]
+    edited = next(i for i in client.get(f"/api/projects/{project['id']}").json()["images"] if i["id"] == diagram["id"])
+    assert len(edited["history"]) == 2 and edited["url"] != diagram["url"]
+
+
+def test_redraw_all_images_uses_the_new_brand_kit(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    url = f"/api/projects/{project['id']}"
+    client.patch(url, json={"brand_kit": {"style": "risograph print", "palette": ["#003366"]}})
+    fake_llm.calls.clear()
+    job = client.post(f"{url}/images/redraw").json()
+    assert job["status"] == "succeeded", job
+    designs = [c for c in fake_llm.calls if c["task"].endswith("image design")]
+    assert len(designs) == len(project["images"]) and all("risograph print" in c["prompt"] for c in designs)
+    after = client.get(url).json()["images"]
+    assert all(len(i["history"]) == 2 for i in after)

@@ -11,6 +11,7 @@ import { Article } from '../../components/Article'
 import { Badge, Button, Card, Dialog, Field, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { AuthenticityPanel } from './AuthenticityPanel'
+import { BrandKitCard } from './BrandKitCard'
 import { ExportDialog } from './ExportDialog'
 import { GenerationView } from './GenerationView'
 import { ImageCard } from './ImageCard'
@@ -25,6 +26,7 @@ const SCORE_LABELS: [keyof Critique, string][] = [
   ['education_match', 'Education level'],
   ['skimmability', 'Skimmable'],
   ['image_placement', 'Image placement'],
+  ['callbacks', 'Callbacks'],
 ]
 
 function FidelityPanel({ project }: { project: ProjectOut }) {
@@ -45,7 +47,8 @@ function FidelityPanel({ project }: { project: ProjectOut }) {
       {critique && (
         <div className="space-y-1.5">
           <p className="text-sm font-semibold">Editor scores before the final revision</p>
-          {SCORE_LABELS.map(([key, label]) => (
+          {/* Posts written before a score existed (e.g. callbacks) simply do not show it. */}
+          {SCORE_LABELS.filter(([key]) => critique[key] != null).map(([key, label]) => (
             <div key={key} className="flex items-center gap-2 text-sm">
               <span className="w-32 shrink-0 text-muted">{label}</span>
               <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
@@ -301,6 +304,7 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
         <ReviseCard project={project} dirty={dirty} busy={busy} onTweakStarted={onTweakStarted} onOpenSettings={onOpenSettings} onRegenerate={onRegenerate} />
         <HistoryCard project={project} busy={busy} dirty={dirty} />
         <TitlePicker project={project} />
+        <BrandKitCard project={project} disabled={busy} />
         <AuthenticityPanel project={project} />
         <FidelityPanel project={project} />
         <BriefCard project={project} onEdit={onOpenSettings} disabled={busy} />

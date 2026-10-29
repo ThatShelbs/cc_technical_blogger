@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from proseferno.config import Connection
 from proseferno.writer.dials import Dials, IncludeCode, Platform
@@ -105,6 +106,10 @@ class PersonaUpdate(PersonaDefaults):
     research_enabled: bool | None = None
     visual_style: str | None = None
     credit_template: str | None = None
+    voice_profile_words: int | None = Field(None, ge=500, le=6000)
+    voice_sample_max_words: int | None = Field(None, ge=0, le=50000)
+    voice_sample_min_words: int | None = Field(None, ge=0, le=5000)
+    voice_influence_weight: int | None = Field(None, ge=0, le=10)
     # Which voice profile version new posts use; null = always the latest.
     pinned_voice_profile_version: int | None = None
 
@@ -115,6 +120,15 @@ class VoiceProfileVersion(BaseModel):
     label: str
     edited_by_user: bool
     created_at: datetime
+
+
+class EditLesson(BaseModel):
+    # remove | replace | feedback
+    kind: str
+    old: str
+    new: str = ""
+    count: int = 1
+    last_seen: str = ""
 
 
 class PersonaOut(BaseModel):
@@ -136,6 +150,11 @@ class PersonaOut(BaseModel):
     default_platform: str
     visual_style: str
     credit_template: str
+    voice_profile_words: int
+    voice_sample_max_words: int
+    voice_sample_min_words: int
+    voice_influence_weight: int
+    edit_lessons: list[EditLesson]
     own_samples: int
     influence_samples: int
     # The version new posts use (pinned, else latest).
@@ -250,13 +269,36 @@ class ProjectCreate(BaseModel):
     prompt: str = Field(min_length=3)
     persona_id: int | None = None
     dials: Dials = Field(default_factory=lambda: Dials())
+    brand_kit: BrandKit | None = None
     generate: bool = True
+
+
+class BrandKit(BaseModel):
+    """How this post's images look; every field is optional and falls back to the persona's visual style."""
+
+    style: str = Field("", max_length=300)
+    # Hex colors, e.g. "#1b0c41"; empty = the inferno palette.
+    palette: list[str] = Field(default_factory=list, max_length=8)
+    font: str = Field("", max_length=80)
+    motif: str = Field("", max_length=200)
+
+    @field_validator("palette")
+    @classmethod
+    def _hex_colors(cls, value: list[str]) -> list[str]:
+        colors = [c.strip().lower() for c in value if c.strip()]
+        bad = [c for c in colors if not re.fullmatch(r"#[0-9a-f]{6}", c)]
+        if bad:
+            raise ValueError(f"Colors must look like #1b0c41: {', '.join(bad)}")
+        return colors
 
 
 class ProjectUpdate(BaseModel):
     title: str | None = None
     pinned_titles: list[str] | None = None
     markdown: str | None = None
+    # Learn from this manual edit (what the author removes or replaces) for later posts.
+    learn: bool = True
+    brand_kit: BrandKit | None = None
     prompt: str | None = Field(None, min_length=3)
     dials: Dials | None = None
     persona_id: int | None = None
@@ -321,6 +363,10 @@ class RedrawIn(BaseModel):
     rethink: bool = False
 
 
+class ImageEditIn(BaseModel):
+    instruction: str = Field(min_length=3, max_length=1000)
+
+
 class RevertIn(BaseModel):
     index: int = Field(ge=0)
 
@@ -353,6 +399,7 @@ class ProjectOut(BaseModel):
     authenticity: dict[str, Any] | None
     social: dict[str, Any] | None
     pinned_titles: list[str]
+    brand_kit: BrandKit
     revisions: list[RevisionOut]
     voice_profile_version: int | None
     error: str | None

@@ -5,7 +5,6 @@ import type {
   AuthStatusOut,
   AuthTestOut,
   CopyHtmlOut,
-  Dials,
   GenerateIn,
   Health,
   ImageOut,
@@ -15,6 +14,7 @@ import type {
   PersonaDuplicateIn,
   PersonaOut,
   PersonaUpdate,
+  ProjectCreate,
   ProjectCreated,
   ProjectOut,
   ProjectSummary,
@@ -140,6 +140,15 @@ export function usePersonaMutations() {
         void qc.invalidateQueries({ queryKey: ['personas', id] })
       },
     }),
+    /** Forget one learned edit (by index) or, without an index, all of them. */
+    forgetLessons: useMutation({
+      mutationFn: ({ id, index }: { id: number; index?: number }) =>
+        api.del<PersonaOut>(`/api/personas/${id}/lessons${index === undefined ? '' : `?index=${index}`}`),
+      onSuccess: (_data, { id }) => {
+        void refresh()
+        void qc.invalidateQueries({ queryKey: ['personas', id] })
+      },
+    }),
     labelVersion: useMutation({
       mutationFn: ({ id, version, label }: { id: number; version: number; label: string }) =>
         api.patch<VoiceProfileOut>(`/api/personas/${id}/voice-profile/${version}`, { label }),
@@ -229,7 +238,7 @@ export function useProjectMutations(projectId?: number) {
   }
   return {
     create: useMutation({
-      mutationFn: (body: { prompt: string; dials?: Dials; persona_id?: number | null; generate?: boolean }) => api.post<ProjectCreated>('/api/projects', body),
+      mutationFn: (body: ProjectCreate) => api.post<ProjectCreated>('/api/projects', body),
       onSuccess: (data) => setProject(data.project),
     }),
     update: useMutation({
@@ -275,6 +284,12 @@ export function useImageMutations(projectId: number) {
   return {
     redraw: useMutation({
       mutationFn: ({ id, rethink }: { id: number; rethink: boolean }) => api.post<JobOut>(`/api/images/${id}/redraw`, { rethink }),
+    }),
+    /** Redraw every image Claude drew, e.g. after changing the brand kit. */
+    redrawAll: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/images/redraw`) }),
+    /** Change an image as described ("make the arrows orange"), keeping the rest of it. */
+    edit: useMutation({
+      mutationFn: ({ id, instruction }: { id: number; instruction: string }) => api.post<JobOut>(`/api/images/${id}/edit`, { instruction }),
     }),
     upload: useMutation({
       mutationFn: ({ id, file }: { id: number; file: File }) => {

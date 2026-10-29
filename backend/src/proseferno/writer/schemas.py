@@ -22,6 +22,16 @@ class ImageSlot(BaseModel):
     brief: str = Field(description="What the image should show.")
 
 
+class Callback(BaseModel):
+    """A thread the post comes back to: a running joke or a key concept the reader should keep hold of."""
+
+    kind: Literal["running_joke", "key_concept"]
+    idea: str = Field(description="The joke or concept in one line, specific to this post.")
+    introduce_in: int = Field(description="Section index where it is set up (-1 = the opening hook).")
+    revisit_in: list[int] = Field(description="Section indexes where it comes back, each time adding something new.")
+    payoff: str = Field(description="How the closing (or the last revisit) lands it.")
+
+
 class ArticlePlan(BaseModel):
     title_options: list[str] = Field(description="Five title options in the author's title style.")
     chosen_title: str
@@ -30,6 +40,9 @@ class ArticlePlan(BaseModel):
     sections: list[SectionPlan]
     closing: str = Field(description="How the post lands its ending.")
     joke: str = Field(description="The closing joke or meme idea.")
+    callbacks: list[Callback] = Field(
+        description="One to three threads the post revisits: running jokes (if the humor level allows) and key concepts."
+    )
     image_slots: list[ImageSlot]
     tags: list[str] = Field(description="Up to five platform tags.")
 
@@ -46,6 +59,9 @@ class Critique(BaseModel):
     education_match: int = Field(description="Matches the requested education level. Score 1-10.")
     skimmability: int = Field(description="Score 1-10.")
     image_placement: int = Field(description="Score 1-10.")
+    callbacks: int = Field(
+        description="Every running joke and key concept in the plan is set up, revisited with something new, and paid off. Score 1-10."
+    )
     overall: int = Field(description="Score 1-10.")
     strengths: list[str]
     issues: list[str] = Field(description="Specific problems, quoting the offending text.")

@@ -13,7 +13,7 @@ def test_medium_export_is_cleaned(sample_docx: bytes) -> None:
     assert "Press enter or click to view image in full size" not in texts
     assert "42" not in texts and "Follow" not in texts
     assert doc.image_count == 2
-    assert doc.captions == ["Source: Office survey; Author: Test Writer; Made with Tableau"]
+    assert doc.captions == ["Source: Office survey; Author: Test Writer; Made with a spreadsheet"]
 
 
 def test_headings_are_recovered_but_image_prompts_are_not(sample_docx: bytes) -> None:

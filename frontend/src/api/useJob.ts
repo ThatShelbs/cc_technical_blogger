@@ -10,6 +10,8 @@ export interface Critique {
   education_match: number
   skimmability: number
   image_placement: number
+  /** Missing on posts written before callbacks were planned. */
+  callbacks?: number
   overall: number
   strengths: string[]
   issues: string[]

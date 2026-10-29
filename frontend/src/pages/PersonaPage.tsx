@@ -96,7 +96,77 @@ function defaultsFrom(persona: PersonaOut) {
     default_skimmability: persona.default_skimmability,
     default_include_code: persona.default_include_code as IncludeCode,
     default_platform: persona.default_platform as Platform,
+    voice_profile_words: persona.voice_profile_words,
+    voice_sample_max_words: persona.voice_sample_max_words,
+    voice_sample_min_words: persona.voice_sample_min_words,
+    voice_influence_weight: persona.voice_influence_weight,
   } satisfies PersonaUpdate
+}
+
+const INFLUENCE_LABELS = ['Ignore influences', 'A light touch', 'Borrow what fits', 'Lean on them', 'A major source']
+
+function influenceLabel(value: number) {
+  if (value === 0) return INFLUENCE_LABELS[0]
+  if (value <= 3) return `${value}/10 · ${INFLUENCE_LABELS[1]}`
+  if (value <= 6) return `${value}/10 · ${INFLUENCE_LABELS[2]}`
+  if (value <= 9) return `${value}/10 · ${INFLUENCE_LABELS[3]}`
+  return `${value}/10 · ${INFLUENCE_LABELS[4]}`
+}
+
+function lessonText(lesson: PersonaOut['edit_lessons'][number]) {
+  if (lesson.kind === 'remove') return <>You cut &ldquo;{lesson.old}&rdquo;</>
+  if (lesson.kind === 'replace')
+    return (
+      <>
+        You changed &ldquo;{lesson.old}&rdquo; to &ldquo;{lesson.new}&rdquo;
+      </>
+    )
+  return <>You asked: &ldquo;{lesson.old}&rdquo;</>
+}
+
+function LessonsCard({ persona }: { persona: PersonaOut }) {
+  const { forgetLessons } = usePersonaMutations()
+  const lessons = persona.edit_lessons
+  return (
+    <Card className="h-fit space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold">Learned from your edits</h2>
+          <p className="text-sm text-muted">
+            When you edit a post or give feedback, Proseferno remembers what you change and writes so you won&rsquo;t have to change it again. It also feeds the
+            next voice profile.
+          </p>
+        </div>
+        {lessons.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => confirm('Forget everything learned from your edits?') && forgetLessons.mutate({ id: persona.id })}>
+            Forget all
+          </Button>
+        )}
+      </div>
+      {lessons.length === 0 ? (
+        <p className="text-sm text-muted">Nothing yet. Edit a generated post and save it, or tweak one with feedback.</p>
+      ) : (
+        <ul className="space-y-2">
+          {lessons.map((lesson, index) => (
+            <li key={`${lesson.kind}-${lesson.old}-${lesson.new}`} className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+              <p className="min-w-0 flex-1 break-words">
+                {lessonText(lesson)}
+                {(lesson.count ?? 1) > 1 && <span className="text-muted"> · {lesson.count} times</span>}
+              </p>
+              <button
+                type="button"
+                className="rounded-md p-1 text-muted hover:bg-danger-soft hover:text-danger"
+                aria-label="Forget this edit"
+                onClick={() => forgetLessons.mutate({ id: persona.id, index })}
+              >
+                <X className="size-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
 }
 
 function SettingsTab({ persona }: { persona: PersonaOut }) {
@@ -203,6 +273,51 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
           </Field>
         </div>
       </Card>
+
+      <Card className="h-fit space-y-5">
+        <div>
+          <h2 className="text-lg font-bold">Voice profile settings</h2>
+          <p className="text-sm text-muted">Used the next time you generate the voice profile.</p>
+        </div>
+        <Slider
+          label="Voice profile length"
+          min={500}
+          max={6000}
+          step={250}
+          value={draft.voice_profile_words}
+          onChange={(v) => set({ voice_profile_words: v })}
+          format={(v) => `About ${v.toLocaleString()} words`}
+        />
+        <Slider
+          label="Words read from each sample"
+          min={0}
+          max={10000}
+          step={500}
+          value={draft.voice_sample_max_words}
+          onChange={(v) => set({ voice_sample_max_words: v })}
+          format={(v) => (v === 0 ? 'The whole sample' : `First ${v.toLocaleString()} words`)}
+        />
+        <Slider
+          label="Skip samples shorter than"
+          min={0}
+          max={3000}
+          step={100}
+          value={draft.voice_sample_min_words}
+          onChange={(v) => set({ voice_sample_min_words: v })}
+          format={(v) => (v === 0 ? 'Use every sample' : `${v.toLocaleString()} words`)}
+        />
+        <Slider
+          label="Influence samples"
+          min={0}
+          max={10}
+          value={draft.voice_influence_weight}
+          onChange={(v) => set({ voice_influence_weight: v })}
+          format={influenceLabel}
+        />
+        <p className="text-xs text-muted">Your own writing always defines who you are; influences only lend technique.</p>
+      </Card>
+
+      <LessonsCard persona={persona} />
 
       <div className="space-y-3 xl:col-span-2">
         {update.error && <Notice tone="error">{errorText(update.error)}</Notice>}

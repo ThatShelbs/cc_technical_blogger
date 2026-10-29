@@ -6,6 +6,12 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Added
 
+- **Learns from your edits**: Proseferno remembers what you cut, replace and ask for in generated posts (manual edits are diffed; tweak feedback is kept) and writes every later post, and the next voice profile, with those lessons. Review or forget them per persona.
+- **Voice profile settings**: target length of the voice profile, words read from each sample, a minimum sample length, and how much influence samples shape technique (0-10).
+- **Callbacks**: each post plans one to three key concepts and running jokes (only at humor 3+) that it sets up, revisits with something new, and pays off. The editor scores them.
+- **Edit an image by instruction**: describe the change ("make the arrows orange") and Claude edits the current SVG or chart instead of drawing a new one.
+- **Per-post image brand kit**: style, palette, font and recurring motif for one post's images, with *Redraw all images*.
+- **Windows installer**: `packaging\build_windows.bat` builds a standalone app (PyInstaller) and a per-user installer (Inno Setup) that needs no Python or Node; data lives in `%LOCALAPPDATA%\Proseferno`.
 - **Three ways to revise a post**: *Tweak with feedback* (Claude makes surgical edits and keeps the rest of the text and images, redrawing only an image the feedback names), *Edit brief & settings* (see and refine the original brief or the outline Claude planned, change any dial, the platform or the persona, then regenerate), and *Regenerate post*.
 - Text version history: *Undo last change* and *Restore* for the last ten versions (before each tweak, passage rewrite, manual save or restore).
 - **X** as a platform: X Article writing conventions and an export with a 1500×600 header and a teaser post under 280 characters.
@@ -30,6 +36,8 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Fixed
 
+- Posts no longer contain `[TODO: ...]` notes to the author; the writer hedges or leaves uncertain facts out, and any TODO that slips through is removed.
+- Posts and image captions no longer mention a tool (for example a BI product credited in your samples) unless the brief calls for it, and captions never name a tool other than Claude as an image's maker.
 - Reloading a post while one of its images was redrawing showed the full-page generation view.
 - Post generation no longer fails on a transient mid-stream Claude error during critique ("Claude API error 200"). Such errors are retried, and if the editing pass still fails, the draft is kept.
 - A low Anthropic API credit balance now says so plainly instead of showing a raw 400 error.

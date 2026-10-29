@@ -21,6 +21,7 @@ from proseferno.jobs import JobContext
 from proseferno.llm import LLM, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.storage import Storage
+from proseferno.voice.lessons import format_lessons
 from proseferno.voice.schemas import SampleAnalysis
 
 RESEARCH_MAX_AGE = timedelta(days=30)
@@ -58,7 +59,43 @@ def unpin(session: Session, persona_id: int) -> None:
         session.add(persona)
 
 
-async def analyze_sample(llm: LLM, settings: Settings, sample: Sample, ctx: JobContext | None = None) -> dict[str, Any]:
+INFLUENCE_GUIDE = {
+    range(1, 4): "Light touch: borrow an occasional technique only where the author's own posts are silent.",
+    range(4, 7): "Borrow the influences' techniques that fit the author's voice; the author's own posts decide identity.",
+    range(7, 10): "Lean on the influences: fold their structure, hooks and devices in wherever they fit the author.",
+    range(10, 11): "Make the influences a major source of technique, while identity and soul still come only from the author.",
+}
+
+
+def truncate_words(markdown: str, max_words: int) -> str:
+    """The first ``max_words`` words of a sample, keeping its line breaks (0 = all of it)."""
+    if max_words <= 0:
+        return markdown
+    kept: list[str] = []
+    remaining = max_words
+    for line in markdown.splitlines():
+        words = line.split()
+        if len(words) >= remaining:
+            kept.append(" ".join(words[:remaining]))
+            break
+        kept.append(line)
+        remaining -= len(words)
+    return "\n".join(kept)
+
+
+def samples_in_budget(samples: list[Sample], persona: Persona) -> list[Sample]:
+    """The samples the voice profile learns from: those long enough for the persona's minimum."""
+    return [s for s in samples if s.word_count >= persona.voice_sample_min_words]
+
+
+def needs_analysis(sample: Sample, max_words: int) -> bool:
+    """Not analyzed yet, or analyzed with a different word limit."""
+    return not sample.analysis or int(sample.analysis.get("_word_limit", 0)) != max_words
+
+
+async def analyze_sample(
+    llm: LLM, settings: Settings, sample: Sample, ctx: JobContext | None = None, *, max_words: int = 0
+) -> dict[str, Any]:
     kind_description = (
         "the persona's OWN writing (defines their identity and voice)"
         if sample.kind == "own"
@@ -72,13 +109,13 @@ async def analyze_sample(llm: LLM, settings: Settings, sample: Sample, ctx: JobC
             kind_description=kind_description,
             stylometrics=json.dumps(sample.stylometrics, indent=1),
             title=sample.title,
-            markdown=sample.markdown,
+            markdown=truncate_words(sample.markdown, max_words),
         ),
         schema=SampleAnalysis,
         effort=settings.effort_analyze,
         usage=ctx.add_usage if ctx else None,
     )
-    return analysis.model_dump()
+    return {**analysis.model_dump(), "_word_limit": max_words}
 
 
 async def research_best_practices(llm: LLM, settings: Settings, ctx: JobContext | None = None) -> str:
@@ -110,21 +147,30 @@ async def generate_voice_profile(
         persona = session.get(Persona, persona_id)
         if persona is None:
             raise VoiceError("Persona not found.")
-        samples = list(session.exec(select(Sample).where(Sample.persona_id == persona_id)))
+        all_samples = list(session.exec(select(Sample).where(Sample.persona_id == persona_id)))
         previous = latest_voice_profile(session, persona_id)
+    if not any(s.kind == "own" for s in all_samples):
+        raise VoiceError("Add at least one sample of your own writing before generating a voice profile.")
+    samples = samples_in_budget(all_samples, persona)
+    if persona.voice_influence_weight <= 0:
+        samples = [s for s in samples if s.kind == "own"]
     own = [s for s in samples if s.kind == "own"]
     if not own:
-        raise VoiceError("Add at least one sample of your own writing before generating a voice profile.")
+        raise VoiceError(
+            f"None of your own samples has at least {persona.voice_sample_min_words} words. "
+            "Lower the minimum sample length in the voice profile settings."
+        )
+    max_words = persona.voice_sample_max_words
 
-    # 1. Analyze every sample that has not been analyzed yet (cached on the sample row).
-    pending = [s for s in samples if not s.analysis]
+    # 1. Analyze every sample not analyzed yet with this word limit (cached on the sample row).
+    pending = [s for s in samples if needs_analysis(s, max_words)]
     done = 0
     semaphore = asyncio.Semaphore(4)
 
     async def analyze(sample: Sample) -> None:
         nonlocal done
         async with semaphore:
-            analysis = await analyze_sample(llm, settings, sample, ctx)
+            analysis = await analyze_sample(llm, settings, sample, ctx, max_words=max_words)
         with Session(engine) as session:
             row = session.get(Sample, sample.id)
             if row is not None:
@@ -173,7 +219,10 @@ async def generate_voice_profile(
             own_analyses=json.dumps([_analysis_payload(s) for s in own], indent=1),
             influence_count=len(influences),
             influence_analyses=json.dumps([_analysis_payload(s) for s in influences], indent=1) if influences else "[]",
+            influence_guide=_influence_guide(persona.voice_influence_weight, len(influences)),
             best_practices=best_practices or "_No research requested._",
+            target_words=persona.voice_profile_words,
+            edit_lessons=format_lessons(persona.edit_lessons) or "_None recorded yet._",
         ),
         effort=settings.effort_synthesize,
         on_delta=on_delta,
@@ -208,7 +257,15 @@ async def generate_voice_profile(
 
 
 def _analysis_payload(sample: Sample) -> dict[str, Any]:
-    return {"title": sample.title, "subtitle": sample.subtitle, "word_count": sample.word_count, **(sample.analysis or {})}
+    analysis = {k: v for k, v in (sample.analysis or {}).items() if not k.startswith("_")}
+    return {"title": sample.title, "subtitle": sample.subtitle, "word_count": sample.word_count, **analysis}
+
+
+def _influence_guide(weight: int, count: int) -> str:
+    if count == 0:
+        return "No influence posts are used for this profile."
+    weight = max(1, min(10, weight))
+    return f"Influence weight {weight}/10. " + next(text for span, text in INFLUENCE_GUIDE.items() if weight in span)
 
 
 def _extract_visual_style(markdown: str) -> str:

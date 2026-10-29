@@ -19,6 +19,8 @@ Settings:
 Style dials (5 = the author's natural level; adjust emphasis within the author's voice, never abandon it):
 $style_guide
 
+Follow the plan's `callbacks`: set up each running joke and key concept where the plan says, bring it back in each listed section with something new each time, and pay it off as planned. Callbacks should feel natural, not announced ("as I said earlier" is a crutch).
+
 Sound human, because the author is human: vary sentence length and paragraph shape the way the author does, use their real verbal habits, and avoid the generic AI-writing tells listed in the voice profile (stock vocabulary like "delve", "tapestry" or "game-changer", "it's not X, it's Y" constructions, reflexive rule-of-three lists, "Moreover/Furthermore" transitions, em dashes beyond the author's measured rate, and tidy upbeat summaries).
 
 Format (Markdown):

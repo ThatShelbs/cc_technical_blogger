@@ -14,6 +14,9 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | AI-detection judge | Settings → Advanced | on (the free scan always runs) |
 | Theme | Settings → Appearance, or the sidebar toggle | match system |
 | Persona name, byline, credit format, visual style, web research | Personas → (persona) → Settings & defaults | from the voice profile |
+| Voice profile settings: profile length, words read per sample, minimum sample length, influence weight | Personas → (persona) → Settings & defaults | about 2,000 words, whole samples, every sample, influence 5/10 |
+| Edits learned from your changes and feedback (review or forget) | Personas → (persona) → Settings & defaults | learned automatically |
+| Image brand kit for one post: style, palette, font, motif | New post → Customize, or the post's **Image brand kit** card | the persona's visual style |
 | Default dials for new posts: length, images, humor, storytelling, opinion strength, formality, technical depth, skimmability, education level, code, platform | Personas → (persona) → Settings & defaults | 1,500 words, automatic images, humor 5, style dials 5 ("as I write"), intermediate, code where it helps, Medium |
 | Per-post brief, persona, platform, audience and every dial | New post → Customize; on a written post, **Edit brief & settings** (regenerates the post) | the persona's defaults; audience = your usual readers |
 | Voice profile version in use | Sidebar persona switcher, or the Voice profile tab | always the latest |

@@ -23,6 +23,7 @@ from proseferno.jobs import JobContext
 from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
+from proseferno.voice.lessons import format_lessons
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
@@ -34,13 +35,17 @@ class WriterError(ValueError):
     pass
 
 
-def writer_system(voice_profile: str, exemplars: str) -> list[SystemBlock]:
+def writer_system(voice_profile: str, exemplars: str, lessons: str = "") -> list[SystemBlock]:
     """Stable prefix shared by every call in a project, cached after the exemplars."""
-    return [
-        SystemBlock(raw("writer_system")),
-        SystemBlock(f"# Voice profile\n\n{voice_profile}"),
-        SystemBlock(exemplars, cache=True),
-    ]
+    blocks = [SystemBlock(raw("writer_system")), SystemBlock(f"# Voice profile\n\n{voice_profile}")]
+    if lessons:
+        blocks.append(
+            SystemBlock(
+                "# Edits the author keeps making to generated posts\n\n"
+                "The author made these changes to earlier drafts. Write so they would not need to make them again.\n\n" + lessons
+            )
+        )
+    return [*blocks, SystemBlock(exemplars, cache=True)]
 
 
 def normalize_slots(slots: list[ImageSlot], count: int, section_count: int) -> list[ImageSlot]:
@@ -78,12 +83,32 @@ def ensure_placeholders(markdown: str, slots: list[ImageSlot]) -> str:
     valid = {s.slot_id for s in slots}
     text = "\n".join(lines)
     text = PLACEHOLDER_RE.sub(lambda m: m.group(0) if m.group(1) in valid else "", text)
-    text = strip_image_captions(text)
+    text = strip_todos(strip_image_captions(text))
     return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
 
 
+# Notes to the author ("[TODO: verify the number]", "(TODO: add link)", "TODO: ...") never belong in a finished post.
+_TODO_RE = re.compile(r"\s*[\[(]\s*TODO\b[^\])]*[\])]|^\s*[*_>-]*\s*TODO\s*:.*$", re.IGNORECASE | re.MULTILINE)
+
+
+def strip_todos(markdown: str) -> str:
+    """Remove TODO notes outside code blocks; a line left empty is dropped."""
+    out: list[str] = []
+    in_code = False
+    for line in markdown.split("\n"):
+        if line.lstrip().startswith("```"):
+            in_code = not in_code
+        if in_code or "todo" not in line.lower():
+            out.append(line)
+            continue
+        cleaned = _TODO_RE.sub("", line).rstrip()
+        if cleaned.strip() or not line.strip():
+            out.append(cleaned)
+    return "\n".join(out)
+
+
 # A caption or credit line the writer copied from the author's habits ("Photo by X on Unsplash",
-# "Visualization: Jane, made with Tableau"). Images carry their own caption and credit.
+# "Visualization: Jane, made with a BI tool"). Images carry their own caption and credit.
 _CAPTION_RE = re.compile(
     r"^[*_\s>]*(?:photo|image|illustration|visuali[sz]ation|chart|diagram|graphic|figure|fig\.|source|credit|screenshot|meme)s?"
     r"\b\s*(?:by\b|from\b|:|-|–|—|\|)"
@@ -151,6 +176,22 @@ def set_title(markdown: str, title: str) -> str:
             lines[i] = f"# {title}"
             return "\n".join(lines) + ("\n" if markdown.endswith("\n") else "")
     return f"# {title}\n\n{markdown}"
+
+
+def format_callbacks(plan: ArticlePlan) -> str:
+    """The plan's running jokes and key concepts, with section headings, for the editor."""
+
+    def where(index: int) -> str:
+        if index < 0:
+            return "the opening"
+        return f'"{plan.sections[index].heading}"' if index < len(plan.sections) else f"section {index + 1}"
+
+    lines = [
+        f"- {c.kind.replace('_', ' ')}: {c.idea} (set up in {where(c.introduce_in)}; "
+        f"revisited in {', '.join(where(i) for i in c.revisit_in) or 'no later section'}; payoff: {c.payoff})"
+        for c in plan.callbacks
+    ]
+    return "\n".join(lines) or "(none planned)"
 
 
 def measure(markdown: str, baseline: dict[str, Any]) -> dict[str, Any]:
@@ -226,12 +267,13 @@ async def write_post(
     prompt: str,
     dials: ResolvedDials,
     reporter: Reporter,
+    lessons: str = "",
     on_plan: Callable[[ArticlePlan], None] | None = None,
     on_draft: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise. Text only; images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
-    system = writer_system(voice_profile.markdown, format_exemplars(exemplars))
+    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons)
     settings_text = prompt_settings(dials)
 
     # 1. Plan
@@ -290,6 +332,7 @@ async def write_post(
                     draft=draft,
                     fidelity=json.dumps(measured, indent=1),
                     ai_tells=scan(draft, profile).tells_text(),
+                    callbacks=format_callbacks(plan),
                     **settings_text,
                 ),
                 schema=Critique,
@@ -355,6 +398,7 @@ async def _generate(
         prompt=project.prompt,
         dials=dials,
         reporter=ctx,
+        lessons=format_lessons(persona.edit_lessons),
         on_plan=lambda plan: _save(
             engine,
             project_id,
@@ -396,6 +440,7 @@ async def _generate(
                 title=title or plan.chosen_title,
                 markdown=draft,
                 voice_profile=voice_profile.markdown,
+                brand_kit=project.brand_kit,
                 usage=ctx.add_usage,
             )
         finished += 1
@@ -423,11 +468,13 @@ async def rewrite_passage(
             raise WriterError("Project not found.")
         voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
+        persona = session.get(Persona, project.persona_id)
     if voice_profile is None:
         raise WriterError("This persona has no voice profile yet.")
+    lessons = format_lessons(persona.edit_lessons if persona else None)
     if selection not in project.markdown:
         raise WriterError("The selected passage was not found in the post. It may have changed; select it again.")
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
     replacement = await llm.text(
         task="passage rewrite",
         system=system,
@@ -470,14 +517,16 @@ async def regenerate_titles(*, llm: LLM, settings: Settings, engine: Engine, pro
             raise WriterError("Project not found.")
         voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
+        persona = session.get(Persona, project.persona_id)
     if voice_profile is None:
         raise WriterError("This persona has no voice profile yet.")
+    lessons = format_lessons(persona.edit_lessons if persona else None)
     plan = dict(project.plan or {})
     keep = merge_titles([project.title], project.pinned_titles or [])
     rejected = [t for t in plan.get("title_options", []) if t.casefold() not in {k.casefold() for k in keep}]
     count = max(1, TITLE_OPTION_COUNT - len(keep))
 
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
     result = await llm.structured(
         task="title options",
         system=system,
