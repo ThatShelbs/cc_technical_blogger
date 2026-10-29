@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import io
+import itertools
 import json
 import random
+import re
 from typing import Any
 
 from PIL import Image
@@ -256,7 +258,13 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             return {"svg": HERO_SVG, "alt": "A robot made of a pie chart under a setting sun", "caption": "The saddest pie"}
         return {"svg": DIAGRAM_SVG, "alt": "A diagram", "caption": "How pies mislead"}
     if name == "SvgMemeSpec":
+        # Edits of memes made before the meme catalog existed.
         return {"svg": HERO_SVG, "alt": "A pie-chart robot", "caption": "Pie logic", "top_text": "Pie chart", "bottom_text": "Bar chart"}
+    if name == "MemeIdeas":
+        return meme_ideas_payload(prompt)
+    if name == "MemeBuild":
+        match = re.search(r"Format `([a-z0-9_]+)`", prompt)
+        return meme_build_payload(match.group(1) if match else "classic_caption")
     if name == "ChartSpec":
         return {"vega_lite_json": CHART_SPEC, "alt": "Bar chart", "caption": "Accuracy by chart type", "data_is_illustrative": True}
     if name == "PostBrief":
@@ -316,3 +324,176 @@ def png_bytes(width: int = 64, height: int = 48, color: str = "#ed6925") -> byte
     buffer = io.BytesIO()
     Image.new("RGB", (width, height), color).save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+# -- Memes ---------------------------------------------------------------------------
+# One canned build per format: demo mode cycles through them, tests render every one,
+# and scripts/meme_gallery.py lays them out for a visual review.
+
+DEMO_BOT = (
+    '<symbol id="bot" viewBox="0 0 200 260">'
+    '<ellipse cx="100" cy="250" rx="70" ry="9" fill="#000004" opacity="0.25"/>'
+    '<rect x="45" y="140" width="110" height="105" rx="28" fill="#4a0c6b"/>'
+    '<rect x="68" y="160" width="64" height="34" rx="10" fill="#ed6925"/>'
+    '<path d="M45,165 C20,150 14,128 22,110" stroke="#4a0c6b" stroke-width="18" fill="none" stroke-linecap="round"/>'
+    '<path d="M155,165 C180,150 186,128 178,110" stroke="#4a0c6b" stroke-width="18" fill="none" stroke-linecap="round"/>'
+    '<circle cx="22" cy="104" r="13" fill="#f7d13d"/><circle cx="178" cy="104" r="13" fill="#f7d13d"/>'
+    '<rect x="30" y="38" width="140" height="110" rx="30" fill="#781c6d"/>'
+    '<rect x="44" y="52" width="112" height="80" rx="20" fill="#1b0c41"/>'
+    '<ellipse cx="78" cy="88" rx="12" ry="16" fill="#fcffa4"/><ellipse cx="122" cy="88" rx="12" ry="16" fill="#fcffa4"/>'
+    '<path d="M84,114 Q100,124 116,114" stroke="#fcffa4" stroke-width="5" fill="none" stroke-linecap="round"/>'
+    '<line x1="100" y1="38" x2="100" y2="14" stroke="#781c6d" stroke-width="6"/><circle cx="100" cy="10" r="9" fill="#fb9b06"/>'
+    "</symbol>"
+)
+
+DEMO_MEME_TEXTS: dict[str, dict[str, str]] = {
+    "nope_yep": {"nope": "A pie chart with 14 slices", "yep": "A sorted bar chart nobody can argue with"},
+    "pointing_twins": {"left": "Our pie chart", "right": "Our donut chart", "bottom": "Same crime, different pastry"},
+    "distracted": {"left": "3D exploding pie", "center": "Me building the dashboard", "right": "A sorted bar chart"},
+    "expanding_brain": {
+        "level1": "Pie chart",
+        "level2": "Bar chart",
+        "level3": "Sorted bar chart with direct labels",
+        "level4": "Just say the number out loud",
+    },
+    "this_is_fine": {"bubble": "This is fine.", "fire": "14-slice pie in the board deck", "character": "Me, presenting"},
+    "two_buttons": {"left_button": "Make the chart readable", "right_button": "Keep the CEO's favorite pie", "character": "Data analyst"},
+    "midwit_bell_curve": {
+        "left_says": "Use a bar chart",
+        "middle_says": "Well, with a donut, a sunburst and an angle-preserving palette, a pie can work if the slices are...",
+        "right_says": "Use a bar chart",
+    },
+    "gru_plan": {
+        "step1": "Make a pie chart",
+        "step2": "Add every category",
+        "step3": "Nobody can compare the slices",
+        "step4": "Nobody can compare the slices",
+    },
+    "joke_pie_3d": {"title": "What pie charts are good for", "footnote": "Source: every dashboard review, ever"},
+    "spurious_correlation": {
+        "title": "Pie charts in board decks vs. questionable decisions",
+        "series_a": "Pie charts per deck",
+        "series_b": "Decisions later reversed",
+        "note": "r = 0.98. Correlation: strong. Causation: probably not. Probably.",
+    },
+    "venn": {"title": "Things that are round", "a": "Pizza", "b": "Pie charts", "c": "Good ideas", "center": "Pizza"},
+    "comic_strip_3": {"p1": "Can you add a pie chart to the report?", "p2": "Apple or cherry?", "p3": "...Bar chart it is."},
+    "comic_grid_4": {
+        "p1": "We need one dashboard everyone trusts.",
+        "p2": "One pie chart to rule them all?",
+        "p3": "No.",
+        "p4": "...Two pie charts?",
+    },
+    "chat_thread": {
+        "channel": "data-viz",
+        "m1_name": "Dana Exec",
+        "m1": "Love the dashboard! Can we make the bar chart a pie?",
+        "m2_name": "Sam Analyst",
+        "m2": "It has 14 categories.",
+        "m3_name": "Dana Exec",
+        "m3": "Perfect, so it'll be colorful.",
+        "m4_name": "Sam Analyst",
+        "m4": "I'll start the 3D effects. Please tell my family I loved them.",
+    },
+    "terminal": {
+        "title": "zsh - dashboards",
+        "cmd1": "python make_chart.py --type pie",
+        "out1": "Rendering 14 slices... done.\nWarning: humans cannot compare angles.",
+        "cmd2": "python make_chart.py --type pie --force",
+        "out2": "Rendering 14 slices... done. Warnings suppressed.",
+        "cmd3": "git blame dashboard.png",
+        "out3": "fatal: everyone was in that meeting",
+    },
+    "nutrition_label": {
+        "product": "Per 1 Pie Chart",
+        "serving": "Serving size: 1 slide (14 slices)",
+        "calories": "0",
+        "r1_name": "Angles nobody can compare",
+        "r1_value": "92%",
+        "r2_name": "Legend lookups",
+        "r2_value": "140%",
+        "r3_name": "Rainbow palette",
+        "r3_value": "300%",
+        "r4_name": "3D effects",
+        "r4_value": "87%",
+        "r5_name": "Board approval",
+        "r5_value": "100%",
+        "r6_name": "Actual insight",
+        "r6_value": "2%",
+        "footnote": "* Percent Daily Values are based on a 2,000-pixel dashboard. Your stakeholder's values may be higher.",
+    },
+    "alignment_chart": {
+        "title": "Chart alignment chart",
+        "lg": "Sorted bar chart, labeled axes",
+        "ng": "Small multiples",
+        "cg": "A table, honestly",
+        "ln": "Line chart with 40 lines",
+        "tn": "Default Excel column chart",
+        "cn": "Dual-axis chart",
+        "le": "Truncated y-axis",
+        "ne": "Pie chart with 14 slices",
+        "ce": "3D exploding pie in a board deck",
+    },
+    "classic_caption": {"top": "When the stakeholder asks for a pie chart", "bottom": "with 14 slices"},
+}
+
+DEMO_MEME_DATA: dict[str, list[dict[str, Any]]] = {
+    "joke_pie_3d": [
+        {"label": "Showing two slices", "value": 6, "series": ""},
+        {"label": "Diagramming pizza", "value": 9, "series": ""},
+        {"label": "Making bar charts look good", "value": 85, "series": ""},
+    ],
+    "spurious_correlation": [
+        {"label": str(year), "value": value, "series": series}
+        for series, values in (("a", (2.1, 2.6, 3.0, 3.9, 4.4, 5.1, 5.8, 6.6)), ("b", (11, 13, 14, 19, 21, 24, 28, 31)))
+        for year, value in zip(range(2018, 2026), values, strict=True)
+    ],
+}
+
+_DEMO_MEME_CYCLE = itertools.cycle(DEMO_MEME_TEXTS)
+
+
+def meme_ideas_payload(prompt: str) -> dict[str, Any]:
+    """Five concepts; demo mode cycles the chosen format so each post shows a different one."""
+    only = re.search(r"Only use the format `([a-z0-9_]+)`", prompt)
+    first = only.group(1) if only else next(_DEMO_MEME_CYCLE)
+    others = [f for f in ("nope_yep", "joke_pie_3d", "terminal", "comic_strip_3", "venn") if f != first]
+    formats = [first] * 5 if only else [first, *others[:4]]
+    concepts = [
+        {
+            "format": fmt,
+            "premise": f"Pie charts, roasted as {fmt.replace('_', ' ')} #{i + 1}.",
+            "callback": "The post's claim that people compare lengths better than angles.",
+            "texts": [{"slot": slot, "text": text, "speaker": ""} for slot, text in DEMO_MEME_TEXTS.get(fmt, {}).items()],
+            "scores": {"relevance": 5, "recognizability": 4, "surprise": 4, "clarity": 5, "voice_fit": 4, "standalone": 4 - i % 2},
+        }
+        for i, fmt in enumerate(formats)
+    ]
+    return {"concepts": concepts, "chosen": 0, "why": "It pays off the post's main argument in one glance."}
+
+
+def meme_build_payload(format_id: str) -> dict[str, Any]:
+    from proseferno.images.memes.formats import BY_ID
+
+    fmt = BY_ID.get(format_id) or BY_ID["classic_caption"]
+    speakers = itertools.cycle(("left", "right"))
+    words = DEMO_MEME_TEXTS.get(fmt.id, {})
+    texts = [{"slot": s.name, "text": words.get(s.name, ""), "speaker": next(speakers) if s.bubble else ""} for s in fmt.slots]
+    art = []
+    for region in fmt.regions:
+        _, _, w, h = region.box
+        size = min(w, h) * 0.8
+        backdrop = (
+            f'<rect width="{w}" height="{h}" fill="#f7d13d"/>'
+            f'<circle cx="{w / 2}" cy="{h / 2}" r="{size / 2}" fill="#fb9b06" opacity="0.4"/>'
+        )
+        bot = f'<use href="#bot" x="{(w - size * 0.77) / 2:.0f}" y="{h - size - 10:.0f}" width="{size * 0.77:.0f}" height="{size:.0f}"/>'
+        art.append({"region": region.name, "svg": (backdrop if region.opaque else "") + bot})
+    return {
+        "texts": texts,
+        "cast_defs": DEMO_BOT if fmt.regions else "",
+        "art": art,
+        "data": DEMO_MEME_DATA.get(fmt.id, []),
+        "alt": f"A {fmt.name} meme about pie charts. Text: " + " / ".join(t["text"] for t in texts if t["text"]),
+        "caption": "Pie logic",
+    }

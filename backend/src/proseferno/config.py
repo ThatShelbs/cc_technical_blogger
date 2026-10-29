@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     effort_draft: Effort = "high"
     effort_critique: Effort = "medium"
     effort_images: Effort = "medium"
+    # The meme writers' room: pitching and judging five jokes is worth more thought than drawing one.
+    effort_meme_ideas: Effort = "high"
     effort_detect: Effort = "low"
     revision_passes: int = 1
     research_max_searches: int = 8

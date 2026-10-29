@@ -6,6 +6,7 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Added
 
+- **Memes people remember**: the closing meme now comes from a writers' room. Claude reads the whole post (including its planned running jokes), pitches five jokes across 18 formats (Drake-style *Nope / Yep*, pointing twins, distracted robot, expanding brain, *This is fine*, two buttons, the midwit bell curve, a four-step plan, a terrible 3D pie, a spurious correlation chart, Venn diagrams, three- and four-panel comics, a team chat, a terminal, a Nutrition Facts label and an alignment chart), scores them and draws the best. Layout and typography are done by code, so text always fits and panels line up. *New idea* tries the next pitch, a format menu remakes the meme in the format you choose, and `scripts/meme_gallery.py` renders every format for review.
 - **Learns from your edits**: Proseferno remembers what you cut, replace and ask for in generated posts (manual edits are diffed; tweak feedback is kept) and writes every later post, and the next voice profile, with those lessons. Review or forget them per persona.
 - **Voice profile settings**: target length of the voice profile, words read from each sample, a minimum sample length, and how much influence samples shape technique (0-10).
 - **Callbacks**: each post plans one to three key concepts and running jokes (only at humor 3+) that it sets up, revisits with something new, and pays off. The editor scores them.

@@ -1,7 +1,8 @@
 """Design and render every image in a post, with credits and redraw history.
 
-Every image is authored by Claude: illustrations, icons, diagrams and memes as SVG,
-charts as Vega-Lite specs. Both are rendered locally; no model-generated code runs.
+Every image is authored by Claude: illustrations, icons and diagrams as SVG, charts as
+Vega-Lite specs, and memes as a format from the meme catalog (``images/memes``). All are
+rendered locally; no model-generated code runs.
 """
 
 from __future__ import annotations
@@ -17,8 +18,9 @@ from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
 from proseferno.config import Settings
-from proseferno.db import Persona, ProjectImage
+from proseferno.db import Persona, Project, ProjectImage
 from proseferno.images.base import ImageProviderError
+from proseferno.images.memes import ArtDirection, MemeContext, MemeMaker, MemeResult, load_state, plan_callbacks
 from proseferno.images.render import add_meme_text, placeholder_png, svg_to_png, vega_to_png
 from proseferno.images.specs import ChartSpec, SvgMemeSpec, SvgSpec
 from proseferno.llm import LLM, LLMError, SystemBlock
@@ -48,6 +50,7 @@ def tool_label(provider: str, model: str) -> str:
     return {
         "claude-svg": f"{claude} (SVG)",
         "vega-lite": f"{claude} + Vega-Lite",
+        "claude-meme": f"{claude} (meme)",
         "placeholder": "Proseferno",
     }.get(provider, provider)
 
@@ -101,6 +104,7 @@ class ImageService:
         self.llm = llm
         self.settings = settings
         self.storage = storage
+        self.memes = MemeMaker(llm, settings)
 
     async def create(
         self,
@@ -114,11 +118,13 @@ class ImageService:
         rethink: bool = False,
         brand_kit: dict[str, Any] | None = None,
         instruction: str = "",
+        meme_format: str | None = None,
         usage: UsageSink | None = None,
     ) -> ProjectImage:
         """Design and render one image, then persist the result.
 
         With an ``instruction`` the current image is edited ("make the arrows orange") instead of redrawn.
+        ``meme_format`` makes a meme in that catalog format.
         """
         with Session(self.engine) as session:
             image = session.get(ProjectImage, image_id)
@@ -137,6 +143,7 @@ class ImageService:
                     redraw=redraw,
                     rethink=rethink,
                     brand_kit=brand_kit,
+                    meme_format=meme_format,
                     usage=usage,
                 )
             updates["status"] = "placeholder" if image.kind == "screenshot" else "ready"
@@ -211,12 +218,38 @@ class ImageService:
         redraw: bool,
         rethink: bool,
         brand_kit: dict[str, Any] | None,
+        meme_format: str | None,
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         kind = image.kind
         if kind == "screenshot":
             png, w, h = placeholder_png(image.purpose or image.prompt)
             return self._result(image, png, w, h, "placeholder", persona, alt=image.purpose, caption=image.caption or image.purpose)
+        if kind == "meme":
+            with Session(self.engine) as session:
+                project = session.get(Project, image.project_id)
+                plan = dict(project.plan or {}) if project else {}
+                dials = dict(project.dials or {}) if project else {}
+            humor = dials.get("humor")
+            post = MemeContext(
+                title=title,
+                markdown=markdown,
+                voice_profile=voice_profile,
+                brief=image.prompt or image.purpose,
+                joke=str(plan.get("joke") or ""),
+                callbacks=plan_callbacks(plan),
+                humor=int(humor) if humor is not None else persona.default_humor,
+            )
+            meme = await self.memes.make(
+                image.spec,
+                post,
+                self._art_direction(brand_kit, persona, voice_profile),
+                redraw=redraw,
+                rethink=rethink,
+                meme_format=meme_format,
+                usage=usage,
+            )
+            return self._meme_result(image, persona, meme)
 
         variation = ""
         if rethink:
@@ -257,6 +290,9 @@ class ImageService:
         """Change the current design as the author asks, keeping everything else about it."""
         if image.kind == "screenshot" or image.provider in ("upload", "placeholder") or not image.spec:
             raise ImageProviderError("Only images Claude drew can be edited by instruction. Redraw or upload this one instead.")
+        if image.kind == "meme" and load_state(image.spec):
+            meme = await self.memes.edit(image.spec, instruction, self._art_direction(brand_kit, persona, ""), usage=usage)
+            return self._meme_result(image, persona, meme)
         _, brand = brand_guidance(brand_kit, persona)
         prompt = render(
             "image_edit",
@@ -305,6 +341,17 @@ class ImageService:
         svg = await design(SvgSpec)
         png, w, h = svg_to_png(svg.svg, width=RENDER_WIDTH.get(kind, 1600))
         return self._result(image, png, w, h, "claude-svg", persona, spec=svg.svg, alt=svg.alt, caption=svg.caption)
+
+    def _meme_result(self, image: ProjectImage, persona: Persona, meme: MemeResult) -> dict[str, Any]:
+        return self._result(
+            image, meme.png, meme.width, meme.height, meme.provider, persona, spec=meme.spec, alt=meme.alt, caption=meme.caption
+        )
+
+    @staticmethod
+    def _art_direction(brand_kit: dict[str, Any] | None, persona: Persona, voice_profile: str) -> ArtDirection:
+        visual_style, brand = brand_guidance(brand_kit, persona)
+        palette = tuple(str(c) for c in (brand_kit or {}).get("palette") or [])
+        return ArtDirection(visual_style=visual_style, brand=brand, image_guidance=image_guidance(voice_profile), palette=palette)
 
     def _result(
         self,

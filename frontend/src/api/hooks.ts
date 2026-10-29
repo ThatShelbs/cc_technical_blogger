@@ -8,6 +8,7 @@ import type {
   GenerateIn,
   Health,
   ImageOut,
+  MemeFormatOut,
   JobOut,
   LinkedInPostOut,
   PersonaCreate,
@@ -40,6 +41,7 @@ export const keys = {
   seed: ['seed-samples'] as const,
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
+  memeFormats: ['meme-formats'] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -278,12 +280,17 @@ export function useProjectMutations(projectId?: number) {
   }
 }
 
+/** Every format a closing meme can take; it never changes while the app runs. */
+export const useMemeFormats = (enabled = true) =>
+  useQuery({ queryKey: keys.memeFormats, queryFn: () => api.get<MemeFormatOut[]>('/api/meme-formats'), staleTime: Infinity, enabled })
+
 export function useImageMutations(projectId: number) {
   const qc = useQueryClient()
   const refresh = () => qc.invalidateQueries({ queryKey: keys.project(projectId) })
   return {
     redraw: useMutation({
-      mutationFn: ({ id, rethink }: { id: number; rethink: boolean }) => api.post<JobOut>(`/api/images/${id}/redraw`, { rethink }),
+      mutationFn: ({ id, rethink, memeFormat }: { id: number; rethink: boolean; memeFormat?: string }) =>
+        api.post<JobOut>(`/api/images/${id}/redraw`, { rethink, meme_format: memeFormat ?? null }),
     }),
     /** Redraw every image Claude drew, e.g. after changing the brand kit. */
     redrawAll: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/images/redraw`) }),

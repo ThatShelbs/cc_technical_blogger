@@ -350,6 +350,23 @@ class ImageOut(BaseModel):
     status: str
     error: str | None
     history: list[ImageHistoryOut]
+    # Memes only: the format and joke in use, and how many other pitched ideas "New idea" can still try.
+    meme: MemeInfoOut | None = None
+
+
+class MemeInfoOut(BaseModel):
+    format: str
+    format_name: str
+    premise: str
+    ideas_left: int
+
+
+class MemeFormatOut(BaseModel):
+    id: str
+    name: str
+    family: str
+    family_label: str
+    when_to_use: str
 
 
 class ImageUpdate(BaseModel):
@@ -361,6 +378,8 @@ class ImageUpdate(BaseModel):
 
 class RedrawIn(BaseModel):
     rethink: bool = False
+    # Memes only: make the meme in this catalog format (see GET /api/meme-formats).
+    meme_format: str | None = None
 
 
 class ImageEditIn(BaseModel):

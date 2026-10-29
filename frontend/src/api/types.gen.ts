@@ -114,6 +114,7 @@ export interface ImageOut {
   status: string;
   error: string | null;
   history: ImageHistoryOut[];
+  meme?: MemeInfoOut | null;
 }
 
 export interface ImageUpdate {
@@ -141,6 +142,21 @@ export interface LinkedInPostOut {
   text: string;
   characters: number;
   written_by: "claude" | "template";
+}
+
+export interface MemeFormatOut {
+  id: string;
+  name: string;
+  family: string;
+  family_label: string;
+  when_to_use: string;
+}
+
+export interface MemeInfoOut {
+  format: string;
+  format_name: string;
+  premise: string;
+  ideas_left: number;
 }
 
 export interface PersonaCreate {
@@ -282,6 +298,7 @@ export interface ProjectUpdate {
 
 export interface RedrawIn {
   rethink?: boolean;
+  meme_format?: string | null;
 }
 
 export interface RevertIn {
