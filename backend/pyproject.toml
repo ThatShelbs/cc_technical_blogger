@@ -68,6 +68,8 @@ ignore = ["RUF001", "RUF002", "RUF003", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/proseferno/images/render.py" = ["E501"]  # inline SVG template
+"src/proseferno/images/memes/compose.py" = ["E501"]  # inline SVG templates
+"src/proseferno/images/memes/charts.py" = ["E501"]  # inline SVG templates
 
 [tool.mypy]
 python_version = "3.13"

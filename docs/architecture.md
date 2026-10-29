@@ -47,7 +47,7 @@ flowchart TB
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
-| `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, memes, placeholders, credits, redraw history. |
+| `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the two-call meme generator and the composer that owns meme layout and type. |
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
 | `prompts/` | All prompts as Markdown templates. |
 | `demo.py` | Fake Claude used by tests and `--demo`. |
@@ -66,7 +66,9 @@ flowchart TB
 | Tweak with feedback | structured output (`PostEdits`) | medium |
 | AI-detection judge | structured output (`AIDetectionJudgement`) | low |
 | LinkedIn feed post | structured output (`LinkedInPost`) | medium |
-| Design an image | structured output (`SvgSpec`, `SvgMemeSpec`, `ChartSpec`) | medium |
+| Design an image | structured output (`SvgSpec`, `ChartSpec`) | medium |
+| Pitch closing memes | structured output (`MemeIdeas`) | high |
+| Build a meme | structured output (`MemeBuild`) | medium |
 
 Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
 

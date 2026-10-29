@@ -39,7 +39,9 @@ class ArticlePlan(BaseModel):
     hook: str = Field(description="How the post opens.")
     sections: list[SectionPlan]
     closing: str = Field(description="How the post lands its ending.")
-    joke: str = Field(description="The closing joke or meme idea.")
+    joke: str = Field(
+        description="The closing meme idea: the moment or running joke it pays off, and a format that fits (e.g. a terrible pie chart)."
+    )
     callbacks: list[Callback] = Field(
         description="One to three threads the post revisits: running jokes (if the humor level allows) and key concepts."
     )

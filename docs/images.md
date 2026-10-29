@@ -12,7 +12,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
 | **chart** | Data visualization (real numbers from the post, or labeled illustrative data) | Claude Vega-Lite spec with inline data |
 | **screenshot** | A real UI/console screenshot would help | Placeholder card; replace it with your screenshot |
-| **meme** | The closing joke | Claude SVG cartoon + classic top/bottom captions drawn with Pillow |
+| **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Proseferno owns layout and type ([below](#closing-memes)) |
 
 ## Design and rendering
 
@@ -22,6 +22,32 @@ Nothing a model writes is executed:
 
 - SVG is parsed with `lxml` and sanitized (no scripts, event handlers, `foreignObject` or external references), then rasterized locally by **resvg**.
 - Charts are declarative Vega-Lite (remote data URLs are rejected), rendered locally by **vl-convert**.
+
+## Closing memes
+
+The meme is the last thing a reader sees and the thing they share, so it gets its own pipeline (`images/memes/`):
+
+1. **Writers' room** (`prompts/meme_ideas.md`, effort `effort_meme_ideas`, default high). Claude reads the whole post, the plan's closing joke and its running jokes and key concepts, the humor dial and the voice profile's *Humor* section, then pitches five concepts across at least three format families, writes the words for every slot, and scores each on relevance, instant recognizability, surprise, clarity, voice fit and whether it works shared on its own. The best one wins.
+2. **Production** (`prompts/meme_build.md`). Claude fills the chosen format: final words for each text slot, SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel), and chart data where the format needs it. Missing pieces or overlong text get one retry with the problems quoted back.
+3. **Composer** (`compose.py`). Code draws the layout, panel frames, speech bubbles, charts and chrome, places Claude's art in its regions (sanitized, ids made unique), and typesets every string with Pillow: each one is sized to the largest font that fits its box, parallel slots (rows, cells, panels) share one size, and words are only broken when nothing else fits. Text cannot overflow.
+
+If a build still cannot be drawn, the meme falls back to a classic top/bottom caption meme over the Proseferno robot instead of failing.
+
+| Family | Formats |
+| --- | --- |
+| Famous formats, recast with our robot (no real people or characters) | Nope / Yep (Drake), pointing twins, distracted robot, expanding brain, This is fine, two buttons, midwit bell curve, four-step plan (Gru) |
+| Chart jokes, drawn with real chart machinery | terrible 3D exploded pie, spurious correlation (dual-axis Vega-Lite), Venn diagram |
+| Comics | three-panel strip, four-panel grid |
+| Fake artifacts | team chat thread, terminal session, Nutrition Facts label, alignment chart |
+| Caption | classic top/bottom caption meme (also the fallback) |
+
+Chart jokes are captioned *(data: entirely made up)*. A brand kit palette recolors the pie and Venn; Claude's art follows the brand style and palette.
+
+On the meme card, **New idea** moves to the next-best pitch from the writers' room without asking Claude to pitch again (it pitches fresh jokes, avoiding the old ones, once all five are used), **Redraw** draws the same joke again, **Edit** changes words or art by instruction, and the **format** menu remakes the meme in a format you pick (`POST /api/images/{id}/redraw` with `meme_format`; formats from `GET /api/meme-formats`).
+
+To review every format, run `uv run python scripts/meme_gallery.py` (canned builds, free) and open `data/meme-gallery/index.html`. `--real --yes` asks Claude for new memes for your latest posts (costs money).
+
+**Adding a format:** add a `MemeFormat` to `FORMATS` in `images/memes/formats.py` (text slots with boxes and character limits, art regions with briefs, `groups` for slots that should share a size). If the template draws anything (frames, charts, chrome), add a scene function to `SCENES` in `compose.py`. Add canned words to `DEMO_MEME_TEXTS` in `demo.py`; the tests render every format.
 
 ## Brand kit (per post)
 
@@ -33,7 +59,7 @@ Each image gets a credit from the persona's template (default `Author: {name}; M
 
 > The saddest pie; Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)
 
-Charts read "Made with Claude Opus 5.5 + Vega-Lite", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
+Charts read "Made with Claude Opus 5.5 + Vega-Lite", memes "Made with Claude Opus 5.5 (meme)", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
 
 ## When an image fails
 

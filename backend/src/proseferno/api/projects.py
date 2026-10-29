@@ -20,6 +20,8 @@ from proseferno.api.schemas import (
     ImageUpdate,
     JobOut,
     LinkedInPostOut,
+    MemeFormatOut,
+    MemeInfoOut,
     ProjectCreate,
     ProjectCreated,
     ProjectOut,
@@ -35,6 +37,7 @@ from proseferno.authenticity import analyze, author_profile
 from proseferno.db import Persona, Project, ProjectImage, Sample, utcnow
 from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
+from proseferno.images.memes import FAMILIES, FORMATS, get_format, load_state
 from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_profile
@@ -84,8 +87,24 @@ def image_out(image: ProjectImage) -> ImageOut:
         for i, entry in enumerate(image.history)
     ]
     return ImageOut(
-        **image.model_dump(exclude={"history", "spec", "file_name", "project_id", "anchor"}), url=image_url(image), history=history
+        **image.model_dump(exclude={"history", "spec", "file_name", "project_id", "anchor"}),
+        url=image_url(image),
+        history=history,
+        meme=meme_info(image),
     )
+
+
+def meme_info(image: ProjectImage) -> MemeInfoOut | None:
+    state = load_state(image.spec) if image.kind == "meme" else None
+    if state is None:
+        return None
+    concepts = state.get("concepts") or []
+    chosen = state.get("chosen")
+    fmt = get_format(str(state.get("format", "")))
+    premise = concepts[chosen].get("premise", "") if isinstance(chosen, int) and 0 <= chosen < len(concepts) else ""
+    tried = set(state.get("tried") or [])
+    left = sum(1 for i, c in enumerate(concepts) if i not in tried and get_format(str(c.get("format", ""))))
+    return MemeInfoOut(format=fmt.id if fmt else "", format_name=fmt.name if fmt else "", premise=premise, ideas_left=left)
 
 
 def project_images(session: Session, project_id: int) -> list[ProjectImage]:
@@ -408,7 +427,9 @@ def update_image(image_id: int, body: ImageUpdate, session: SessionDep) -> Image
     return image_out(image)
 
 
-async def _image_job(services: Services, session: Session, image_id: int, *, rethink: bool = False, instruction: str = "") -> JobOut:
+async def _image_job(
+    services: Services, session: Session, image_id: int, *, rethink: bool = False, instruction: str = "", meme_format: str | None = None
+) -> JobOut:
     image = image_or_404(session, image_id)
     project = project_or_404(session, image.project_id)
     # Detached copies: the job outlives this request's database session.
@@ -429,6 +450,7 @@ async def _image_job(services: Services, session: Session, image_id: int, *, ret
             rethink=rethink,
             brand_kit=brand_kit,
             instruction=instruction,
+            meme_format=meme_format,
             usage=ctx.add_usage,
         )
         if result.status == "error":
@@ -441,8 +463,21 @@ async def _image_job(services: Services, session: Session, image_id: int, *, ret
 
 @router.post("/images/{image_id}/redraw", response_model=JobOut, status_code=202)
 async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, services: ServicesDep) -> JobOut:
-    """Make a new version of one image (new random seed; or redesign it with ``rethink``)."""
-    return await _image_job(services, session, image_id, rethink=body.rethink)
+    """Make a new version of one image (redesign it with ``rethink``; memes can switch format with ``meme_format``)."""
+    if body.meme_format is not None:
+        if image_or_404(session, image_id).kind != "meme":
+            raise HTTPException(422, "Only memes have formats.")
+        if not get_format(body.meme_format):
+            raise HTTPException(422, f"Unknown meme format {body.meme_format!r}.")
+    return await _image_job(services, session, image_id, rethink=body.rethink, meme_format=body.meme_format)
+
+
+@router.get("/meme-formats", response_model=list[MemeFormatOut])
+def meme_formats() -> list[MemeFormatOut]:
+    """Every format a closing meme can take, in menu order."""
+    return [
+        MemeFormatOut(id=f.id, name=f.name, family=f.family, family_label=FAMILIES[f.family], when_to_use=f.when_to_use) for f in FORMATS
+    ]
 
 
 @router.post("/projects/{project_id}/images/redraw", response_model=JobOut, status_code=202)

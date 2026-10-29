@@ -97,7 +97,11 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     assert all(img["credit"].startswith("Author: Shelby Temple") for img in project["images"])
     assert project["images"][0]["credit"] == "Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)"
     assert project["images"][2]["credit"].endswith("Claude Opus 5.5 + Vega-Lite")
-    assert [img["provider"] for img in project["images"]] == ["claude-svg", "claude-svg", "vega-lite", "claude-svg"]
+    assert [img["provider"] for img in project["images"][:3]] == ["claude-svg", "claude-svg", "vega-lite"]
+    # The meme came from the writers' room: a catalog format, its joke, and four more ideas for "New idea".
+    meme = project["images"][3]
+    assert meme["provider"] in ("claude-meme", "vega-lite")
+    assert meme["meme"]["format"] and meme["meme"]["premise"] and meme["meme"]["ideas_left"] == 4
     assert "(illustrative data)" in project["images"][2]["caption"]
     # AI-generation detection ran (scan + judge) and the editor saw the scan's findings.
     report = project["authenticity"]
@@ -503,7 +507,36 @@ def test_redraw_all_images_uses_the_new_brand_kit(client: TestClient, sample_doc
     fake_llm.calls.clear()
     job = client.post(f"{url}/images/redraw").json()
     assert job["status"] == "succeeded", job
-    designs = [c for c in fake_llm.calls if c["task"].endswith("image design")]
+    designs = [c for c in fake_llm.calls if c["task"].endswith("image design") or c["task"].startswith("meme build")]
     assert len(designs) == len(project["images"]) and all("risograph print" in c["prompt"] for c in designs)
+    # A redraw keeps the meme's joke: no new writers' room call.
+    assert "meme ideas" not in fake_llm.tasks()
     after = client.get(url).json()["images"]
     assert all(len(i["history"]) == 2 for i in after)
+
+
+def test_meme_formats_new_ideas_and_edits(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    formats = client.get("/api/meme-formats").json()
+    assert len(formats) == 18 and {"nope_yep", "joke_pie_3d", "comic_grid_4"} <= {f["id"] for f in formats}
+
+    project = ready_post(client, sample_docx)
+    meme = next(i for i in project["images"] if i["kind"] == "meme")
+    hero = next(i for i in project["images"] if i["kind"] == "hero")
+    ideas = next(c for c in fake_llm.calls if c["task"] == "meme ideas")
+    assert "Pie Charts Are Lame" in ideas["prompt"] and "Running joke" in ideas["prompt"]
+
+    def current() -> dict:
+        return next(i for i in client.get(f"/api/projects/{project['id']}").json()["images"] if i["id"] == meme["id"])
+
+    fake_llm.calls.clear()
+    assert client.post(f"/api/images/{meme['id']}/redraw", json={"rethink": True}).json()["status"] == "succeeded"
+    assert "meme ideas" not in fake_llm.tasks() and current()["meme"]["ideas_left"] == 3
+
+    assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_format": "nutrition_label"}).json()["status"] == "succeeded"
+    assert current()["meme"]["format"] == "nutrition_label"
+    assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_format": "nope"}).status_code == 422
+    assert client.post(f"/api/images/{hero['id']}/redraw", json={"meme_format": "venn"}).status_code == 422
+
+    job = client.post(f"/api/images/{meme['id']}/edit", json={"instruction": "Make the footnote meaner"}).json()
+    assert job["status"] == "succeeded", job
+    assert current()["meme"]["format"] == "nutrition_label" and len(current()["history"]) == 4

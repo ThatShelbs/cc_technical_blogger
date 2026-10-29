@@ -19,7 +19,7 @@ $style_guide
 
 Image slot rules (every image is drawn by Claude as SVG or a Vega-Lite chart, so plan images that vector art can do brilliantly):
 - The first slot is the hero (`slot_id` "hero", kind "hero", `section_index` -1): it is also the thumbnail.
-- The last slot is the closing meme (`slot_id` "meme", kind "meme", placed in the last section): a funny, relevant joke that lands the ending.
+- The last slot is the closing meme (`slot_id` "meme", kind "meme", placed in the last section): a funny, relevant joke that lands the ending. The best ones pay off a running joke or key concept from this post; say which in `joke`, and the kind of meme that fits (a famous format, a chart joke, a short comic, a fake chat or terminal, a Nutrition Facts label, an alignment chart).
 - Every other slot must add real value for the reader. Choose the kind that serves the text best:
   - "diagram" for workflows, architectures, pipelines, comparisons, decision trees and concept maps;
   - "chart" for anything quantitative (a data visualization with realistic or real numbers);
