@@ -84,13 +84,19 @@ This solution is specialized in writing technical blogs generally covering the f
 - **LinkedIn:** a platform for writing and export (article HTML, 1920×1080 cover, feed post ≤3,000 chars, carousel PDF + PPTX via python-pptx).
 - **Voice profile** (formerly "voice soul"; the older name survives only in CHANGELOG history and the profile's own `## Soul` section): the generated, versioned document describing how a persona writes (`VoiceProfile` model, `/voice-profile` routes, `voice_profile.md`). `db/engine.rename_legacy_schema` and `move_legacy_voice_files` migrate databases and files from the old names; keep them until a major version.
 - **Personas:** voice profile versions can be pinned (`Persona.pinned_voice_profile_version`; use `current_voice_profile`, not `latest_voice_profile`, for writing) and labeled; personas can be duplicated into a new name. 0-10 style dials are relative to the author (5 = as they write).
+- **Learning from edits:** `voice/lessons.py` diffs manual saves (short removals/replacements only, ≤8 words) and keeps tweak feedback in `Persona.edit_lessons`; `format_lessons` feeds them to `writer_system` (pass `lessons` to every writer call) and to voice synthesis. Lives in `voice/`, not `writer/`, to avoid a circular import.
+- **Voice profile settings:** `Persona.voice_profile_words`, `voice_sample_max_words` (0 = whole sample; analyses record `_word_limit` and are redone when it changes), `voice_sample_min_words`, `voice_influence_weight` (0 = influences ignored).
+- **Callbacks:** `ArticlePlan.callbacks` (key concepts; running jokes only at humor ≥3) go to the draft and critique (`Critique.callbacks`). Older stored plans and critiques lack them, so read them as optional.
+- **Images:** `Project.brand_kit` (style, palette, font, motif) overrides the persona's visual style per post; `ImageService.create(..., brand_kit=, instruction=)` edits the current spec when given an instruction (`prompts/image_edit.md`).
+- **Finished text:** posts never contain TODOs (`strip_todos` in `ensure_placeholders`) and never name tools only because the samples do. Keep third-party product names out of hard-coded prompts, topic keywords and fixtures; they may appear only when they come from the persona's own writing.
+- **Windows build:** `packaging/` (PyInstaller spec, Inno Setup script, `build_windows.bat`; `uv` group `package`). `config.FROZEN` switches the frontend to the bundle and data to `%LOCALAPPDATA%\Proseferno`.
 - **Schema changes:** `db/engine.add_missing_columns` adds new columns to existing databases; give new columns a default.
 - **Privacy:** user writing (`my_writing_examples/`) and all runtime data (`data/`) are git-ignored. Secrets live in the OS keychain.
 - **Port:** 8732 (8765 collided with another local app).
 
 ## Commands
 
-Windows one-click: `launch.bat` (add `--demo` for canned responses, no keys). Developer mode: `dev.bat` (API with reload on :8732, Vite on :5173). macOS/Linux: `./launch.sh`.
+Windows one-click: `launch.bat` (add `--demo` for canned responses, no keys). Standalone app + installer: `packaging\build_windows.bat`. Developer mode: `dev.bat` (API with reload on :8732, Vite on :5173). macOS/Linux: `./launch.sh`.
 
 Backend (run in `backend/`):
 

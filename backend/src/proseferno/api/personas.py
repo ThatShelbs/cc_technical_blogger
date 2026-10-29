@@ -162,6 +162,21 @@ def update_persona(persona_id: int, body: PersonaUpdate, session: SessionDep, se
     return persona_out(session, persona, services)
 
 
+@router.delete("/personas/{persona_id}/lessons", response_model=PersonaOut)
+def forget_lessons(persona_id: int, session: SessionDep, services: ServicesDep, index: int | None = None) -> PersonaOut:
+    """Forget one learned edit (by ``index``) or all of them."""
+    persona = persona_or_404(session, persona_id)
+    lessons = list(persona.edit_lessons or [])
+    if index is not None and not 0 <= index < len(lessons):
+        raise HTTPException(404, "No such lesson.")
+    persona.edit_lessons = [] if index is None else [lesson for i, lesson in enumerate(lessons) if i != index]
+    persona.updated_at = utcnow()
+    session.add(persona)
+    session.commit()
+    session.refresh(persona)
+    return persona_out(session, persona, services)
+
+
 @router.post("/personas/{persona_id}/activate", response_model=list[PersonaOut])
 def activate_persona(persona_id: int, session: SessionDep, services: ServicesDep) -> list[PersonaOut]:
     """Turn this persona on and every other persona off."""

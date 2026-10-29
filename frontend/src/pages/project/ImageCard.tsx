@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Dices, History, ImagePlus, Lightbulb, PencilLine } from 'lucide-react'
+import { Dices, History, ImagePlus, Lightbulb, PencilLine, Wand2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { errorText } from '../../api/client'
@@ -7,7 +7,7 @@ import { keys, useImageMutations } from '../../api/hooks'
 import type { ImageOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
 import { fullCaption } from '../../lib/article'
-import { Badge, Button, Dialog, Field, Input, Notice, Spinner } from '../../components/ui'
+import { Badge, Button, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -42,8 +42,23 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
     setJobId(null)
     void qc.invalidateQueries({ queryKey: keys.project(projectId) })
   })
+  const [instructOpen, setInstructOpen] = useState(false)
+  const [instruction, setInstruction] = useState('')
   const busy = !!jobId || mutations.upload.isPending
+  // Only images Claude drew have a design to edit; uploads and placeholders can be redrawn or replaced.
+  const editable = image.provider === 'claude-svg' || image.provider === 'vega-lite'
   const redraw = (rethink: boolean) => mutations.redraw.mutate({ id: image.id, rethink }, { onSuccess: (j) => setJobId(j.id) })
+  const edit = () =>
+    mutations.edit.mutate(
+      { id: image.id, instruction: instruction.trim() },
+      {
+        onSuccess: (j) => {
+          setJobId(j.id)
+          setInstructOpen(false)
+          setInstruction('')
+        },
+      },
+    )
 
   return (
     <figure className="group my-8 font-sans not-italic">
@@ -88,6 +103,18 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
       )}
 
       <div className="mt-3 flex flex-wrap justify-center gap-2" aria-label={`Actions for ${KIND_LABEL[image.kind] ?? 'image'}`}>
+        {editable && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Wand2 className="size-4" />}
+            onClick={() => setInstructOpen(true)}
+            disabled={busy}
+            title="Tell Claude what to change; the rest of the image stays"
+          >
+            Edit
+          </Button>
+        )}
         <Button
           size="sm"
           variant="secondary"
@@ -160,6 +187,35 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             </button>
           ))}
         </div>
+      </Dialog>
+
+      <Dialog open={instructOpen} onClose={() => setInstructOpen(false)} title="Edit this image">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            edit()
+          }}
+        >
+          <Field
+            label="What should change?"
+            hint="Claude keeps the concept and layout and changes only what you describe. The current version stays in Versions."
+            htmlFor={`instruct-${image.id}`}
+          >
+            <Textarea
+              id={`instruct-${image.id}`}
+              rows={3}
+              value={instruction}
+              autoFocus
+              placeholder="Make the arrows orange and label the y-axis in percent"
+              onChange={(e) => setInstruction(e.target.value)}
+            />
+          </Field>
+          {mutations.edit.error && <Notice tone="error">{errorText(mutations.edit.error)}</Notice>}
+          <Button type="submit" icon={<Wand2 className="size-4" />} loading={mutations.edit.isPending} disabled={instruction.trim().length < 3}>
+            Edit image
+          </Button>
+        </form>
       </Dialog>
 
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Caption and credit">

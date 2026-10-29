@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router'
 import { errorText } from '../api/client'
 import { useActivePersona, useProjectMutations } from '../api/hooks'
 import { PLATFORMS, buildDials, emptyDials, shownDials, type DialsState, type Platform } from './dials'
+import { BrandKitFields } from '../components/BrandKitFields'
+import { emptyBrandKit, isEmptyBrandKit } from '../lib/brandKit'
 import { DialsFields } from '../components/DialsFields'
 import { Button, Card, Field, Notice, PageHeader, Select, Textarea } from '../components/ui'
 
@@ -21,6 +23,7 @@ export function NewProjectPage() {
   const [prompt, setPrompt] = useState('')
   const [custom, setCustom] = useState(false)
   const [dials, setDials] = useState<DialsState>(emptyDials)
+  const [brandKit, setBrandKit] = useState(emptyBrandKit)
   const set = (patch: Partial<DialsState>) => setDials((d) => ({ ...d, ...patch }))
 
   // What each control shows: the user's choice, else the persona's default.
@@ -31,7 +34,7 @@ export function NewProjectPage() {
   const ready = !!persona?.voice_profile_version
   const submit = () =>
     create.mutate(
-      { prompt, dials: buildDials(dials), persona_id: persona?.id },
+      { prompt, dials: buildDials(dials), persona_id: persona?.id, ...(isEmptyBrandKit(brandKit) ? {} : { brand_kit: brandKit }) },
       { onSuccess: (data) => navigate(`/projects/${data.project.id}${data.job_id ? `?job=${data.job_id}` : ''}`) },
     )
 
@@ -111,6 +114,13 @@ export function NewProjectPage() {
               <Button variant="ghost" size="sm" icon={<RotateCcw className="size-4" />} disabled={!changed} onClick={() => setDials(emptyDials)}>
                 Reset to persona defaults
               </Button>
+              <div className="space-y-3 border-t border-line pt-4">
+                <div>
+                  <h3 className="font-bold">Image brand kit</h3>
+                  <p className="text-sm text-muted">The look of this post&rsquo;s images. You can change it later and redraw them.</p>
+                </div>
+                <BrandKitFields kit={brandKit} onChange={setBrandKit} personaStyle={persona?.visual_style} />
+              </div>
             </div>
           )}
         </Card>

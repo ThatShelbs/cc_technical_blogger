@@ -73,6 +73,23 @@ def image_context(markdown: str, slot_id: str, before: int = 1500, after: int = 
     return PLACEHOLDER_RE.sub("", snippet).strip()
 
 
+DEFAULT_VISUAL_STYLE = "warm flat-vector editorial illustration in inferno tones"
+
+
+def brand_guidance(brand_kit: dict[str, Any] | None, persona: Persona) -> tuple[str, str]:
+    """The post's brand kit as (visual style, extra art direction); empty fields fall back to the persona."""
+    kit = brand_kit or {}
+    style = str(kit.get("style") or "").strip() or persona.visual_style or DEFAULT_VISUAL_STYLE
+    lines = []
+    if palette := [str(c) for c in kit.get("palette") or []]:
+        lines.append(f"Brand palette for this post (use these colors instead of the inferno palette): {' '.join(palette)}")
+    if font := str(kit.get("font") or "").strip():
+        lines.append(f"Brand font for any text in the image: {font} (fall back to Segoe UI, Helvetica, Arial, sans-serif)")
+    if motif := str(kit.get("motif") or "").strip():
+        lines.append(f"Recurring motif to weave into every image of this post: {motif}")
+    return style, "\n".join(lines)
+
+
 def image_guidance(voice_profile: str) -> str:
     match = re.search(r"^##\s+Images.*?$(.*?)(?=^##\s|\Z)", voice_profile, flags=re.MULTILINE | re.DOTALL)
     return match.group(1).strip() if match else "Use clear, relevant images with short captions and a credit."
@@ -95,24 +112,33 @@ class ImageService:
         voice_profile: str,
         redraw: bool = False,
         rethink: bool = False,
+        brand_kit: dict[str, Any] | None = None,
+        instruction: str = "",
         usage: UsageSink | None = None,
     ) -> ProjectImage:
-        """Design and render one image, then persist the result."""
+        """Design and render one image, then persist the result.
+
+        With an ``instruction`` the current image is edited ("make the arrows orange") instead of redrawn.
+        """
         with Session(self.engine) as session:
             image = session.get(ProjectImage, image_id)
             if image is None:
                 raise KeyError(image_id)
         try:
-            updates = await self._produce(
-                image,
-                persona=persona,
-                title=title,
-                markdown=markdown,
-                voice_profile=voice_profile,
-                redraw=redraw,
-                rethink=rethink,
-                usage=usage,
-            )
+            if instruction.strip():
+                updates = await self._edit(image, persona=persona, instruction=instruction, brand_kit=brand_kit, usage=usage)
+            else:
+                updates = await self._produce(
+                    image,
+                    persona=persona,
+                    title=title,
+                    markdown=markdown,
+                    voice_profile=voice_profile,
+                    redraw=redraw,
+                    rethink=rethink,
+                    brand_kit=brand_kit,
+                    usage=usage,
+                )
             updates["status"] = "placeholder" if image.kind == "screenshot" else "ready"
             updates["error"] = None
         except (ImageProviderError, LLMError) as exc:
@@ -184,6 +210,7 @@ class ImageService:
         voice_profile: str,
         redraw: bool,
         rethink: bool,
+        brand_kit: dict[str, Any] | None,
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         kind = image.kind
@@ -202,6 +229,7 @@ class ImageService:
                 "This is a redraw: keep the same idea but give it a clearly different composition, metaphor or visual treatment "
                 f"(previous caption: {image.caption!r})."
             )
+        visual_style, brand = brand_guidance(brand_kit, persona)
         prompt = render(
             "image_spec",
             kind=kind,
@@ -209,16 +237,48 @@ class ImageService:
             title=title,
             purpose=image.purpose,
             brief=image.prompt or image.purpose,
-            visual_style=persona.visual_style or "warm flat-vector editorial illustration in inferno tones",
+            visual_style=visual_style,
+            brand=brand,
             variation=variation,
             image_guidance=image_guidance(voice_profile),
             context=image_context(markdown, image.slot_id),
         )
+        return await self._render_design(image, persona, prompt, task=f"{kind} image design", usage=usage)
+
+    async def _edit(
+        self,
+        image: ProjectImage,
+        *,
+        persona: Persona,
+        instruction: str,
+        brand_kit: dict[str, Any] | None,
+        usage: UsageSink | None,
+    ) -> dict[str, Any]:
+        """Change the current design as the author asks, keeping everything else about it."""
+        if image.kind == "screenshot" or image.provider in ("upload", "placeholder") or not image.spec:
+            raise ImageProviderError("Only images Claude drew can be edited by instruction. Redraw or upload this one instead.")
+        _, brand = brand_guidance(brand_kit, persona)
+        prompt = render(
+            "image_edit",
+            kind=image.kind,
+            slot_id=image.slot_id,
+            instruction=instruction.strip(),
+            caption=image.caption,
+            alt=image.alt,
+            spec=image.spec,
+            brand=brand,
+        )
+        return await self._render_design(image, persona, prompt, task=f"{image.kind} image edit", usage=usage)
+
+    async def _render_design(
+        self, image: ProjectImage, persona: Persona, prompt: str, *, task: str, usage: UsageSink | None
+    ) -> dict[str, Any]:
+        kind = image.kind
         system = [SystemBlock(raw("image_system"), cache=True)]
 
         async def design(schema: type[Any]) -> Any:
             return await self.llm.structured(
-                task=f"{kind} image design",
+                task=task,
                 system=system,
                 prompt=prompt,
                 schema=schema,

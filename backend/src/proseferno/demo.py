@@ -207,6 +207,22 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             ],
             "closing": "Reach for a bar.",
             "joke": "A pie chart of things pie charts are good for.",
+            "callbacks": [
+                {
+                    "kind": "key_concept",
+                    "idea": "Humans compare lengths far better than angles.",
+                    "introduce_in": 0,
+                    "revisit_in": [1],
+                    "payoff": "The closing advice is just this idea, applied.",
+                },
+                {
+                    "kind": "running_joke",
+                    "idea": "The author's ongoing feud with the office pie chart.",
+                    "introduce_in": -1,
+                    "revisit_in": [0, 1],
+                    "payoff": "The meme declares a winner.",
+                },
+            ],
             "image_slots": [
                 {"slot_id": "hero", "kind": "hero", "section_index": -1, "purpose": "Thumbnail", "brief": "A sad pie"},
                 {"slot_id": "x1", "kind": "diagram", "section_index": 0, "purpose": "Show why pies mislead", "brief": "Flow diagram"},
@@ -229,6 +245,7 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             "education_match": 8,
             "skimmability": 9,
             "image_placement": 8,
+            "callbacks": 7,
             "overall": 8,
             "strengths": ["Punchy"],
             "issues": ["Opening is generic"],

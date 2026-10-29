@@ -10,6 +10,9 @@ Measured style of this draft compared with the author's baseline (closer is bett
 $fidelity
 ```
 
+Planned callbacks (running jokes and key concepts the post should set up, revisit with something new, and pay off; flag any that are dropped, repeated verbatim, or forced):
+$callbacks
+
 AI-writing tells found by an automated scan (fix every one in your instructions unless the author genuinely writes that way):
 $ai_tells
 

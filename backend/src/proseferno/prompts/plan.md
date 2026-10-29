@@ -28,4 +28,9 @@ Image slot rules (every image is drawn by Claude as SVG or a Vega-Lite chart, so
   - "screenshot" when a real platform screenshot (UI, console, settings page) would help; the author replaces the placeholder.
   Spread them through the post where they serve the text. Give them ids "img2", "img3", and so on.
 
+Callbacks (threads the post comes back to, so it feels written by a person with a point rather than a list of sections):
+- Plan one to three. A **key concept** is the idea the reader should leave with; set it up early, bring it back in later sections where it does new work (applied, extended, or tested), and land it in the closing.
+- A **running joke** is a gag specific to this post, set up once and called back with a twist. Plan one only at humor level 3 or higher, and only in the author's kind of humor; at humor 0-2 plan key concepts only.
+- Each revisit must add something (a new angle, an escalation, a payoff); never repeat the same line.
+
 Title options must follow the author's title formulas from the voice profile. Choose the strongest as `chosen_title`.

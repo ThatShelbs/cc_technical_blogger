@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 from typing import Annotated
 
@@ -13,6 +14,7 @@ from proseferno.api.deps import ServicesDep, SessionDep, image_or_404, persona_o
 from proseferno.api.schemas import (
     CopyHtmlOut,
     GenerateIn,
+    ImageEditIn,
     ImageHistoryOut,
     ImageOut,
     ImageUpdate,
@@ -36,6 +38,7 @@ from proseferno.images import ImageProviderError, to_png
 from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_profile
+from proseferno.voice.lessons import extract_lessons, record_lessons
 from proseferno.writer import (
     TEXT_JOBS,
     Dials,
@@ -190,6 +193,7 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
         prompt=body.prompt.strip(),
         dials=body.dials.model_dump(exclude_none=True),
         title=body.prompt.strip().splitlines()[0][:80],
+        brand_kit=body.brand_kit.model_dump() if body.brand_kit else {},
     )
     session.add(project)
     session.commit()
@@ -210,12 +214,18 @@ def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, se
     project = project_or_404(session, project_id)
     if body.markdown is not None and body.markdown != project.markdown:
         push_revision(project, "Before your edit", "edit")
+        persona = session.get(Persona, project.persona_id)
+        if persona is not None and body.learn:
+            record_lessons(persona, extract_lessons(project.markdown, body.markdown))
+            session.add(persona)
         project.markdown = body.markdown
     if body.title is not None and body.title.strip():
         project.title = body.title.strip()
         project.markdown = set_title(project.markdown, project.title) if project.markdown else project.markdown
     if body.pinned_titles is not None:
         project.pinned_titles = merge_titles(body.pinned_titles)
+    if body.brand_kit is not None:
+        project.brand_kit = body.brand_kit.model_dump()
     if body.prompt is not None:
         project.prompt = body.prompt.strip()
     if body.dials is not None:
@@ -398,18 +408,17 @@ def update_image(image_id: int, body: ImageUpdate, session: SessionDep) -> Image
     return image_out(image)
 
 
-@router.post("/images/{image_id}/redraw", response_model=JobOut, status_code=202)
-async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, services: ServicesDep) -> JobOut:
-    """Make a new version of one image (new random seed; or redesign it with ``rethink``)."""
+async def _image_job(services: Services, session: Session, image_id: int, *, rethink: bool = False, instruction: str = "") -> JobOut:
     image = image_or_404(session, image_id)
     project = project_or_404(session, image.project_id)
-    # Detached copy: the job outlives this request's database session.
+    # Detached copies: the job outlives this request's database session.
     persona = Persona.model_validate(persona_or_404(session, project.persona_id).model_dump())
+    brand_kit = dict(project.brand_kit or {})
     voice_profile = current_voice_profile(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
 
     async def run(ctx):  # type: ignore[no-untyped-def]
-        await ctx.progress(0.1, "Redrawing image")
+        await ctx.progress(0.1, "Editing image" if instruction else "Redrawing image")
         result = await services.images.create(
             image_id,
             persona=persona,
@@ -417,15 +426,75 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
             markdown=markdown,
             voice_profile=voice,
             redraw=True,
-            rethink=body.rethink,
+            rethink=rethink,
+            brand_kit=brand_kit,
+            instruction=instruction,
             usage=ctx.add_usage,
         )
         if result.status == "error":
             raise ImageProviderError(result.error or "Image generation failed.")
         return {"image_id": image_id}
 
-    job = await services.jobs.start("redraw_image", run, project_id=project.id)
+    job = await services.jobs.start("edit_image" if instruction else "redraw_image", run, project_id=project.id)
     return JobOut(**job.model_dump())
+
+
+@router.post("/images/{image_id}/redraw", response_model=JobOut, status_code=202)
+async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Make a new version of one image (new random seed; or redesign it with ``rethink``)."""
+    return await _image_job(services, session, image_id, rethink=body.rethink)
+
+
+@router.post("/projects/{project_id}/images/redraw", response_model=JobOut, status_code=202)
+async def redraw_all_images(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Redraw every image Claude drew (e.g. after changing the brand kit); uploads and screenshots stay."""
+    project = project_or_404(session, project_id)
+    persona = Persona.model_validate(persona_or_404(session, project.persona_id).model_dump())
+    brand_kit = dict(project.brand_kit or {})
+    voice_profile = current_voice_profile(session, project.persona_id)
+    markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
+    image_ids = [
+        i.id for i in project_images(session, project_id) if i.id is not None and i.kind != "screenshot" and i.provider != "upload"
+    ]
+    if not image_ids:
+        raise HTTPException(409, "This post has no drawn images to redraw.")
+
+    async def run(ctx):  # type: ignore[no-untyped-def]
+        done = 0
+        semaphore = asyncio.Semaphore(3)
+
+        async def one(image_id: int) -> None:
+            nonlocal done
+            async with semaphore:
+                await services.images.create(
+                    image_id,
+                    persona=persona,
+                    title=title,
+                    markdown=markdown,
+                    voice_profile=voice,
+                    redraw=True,
+                    brand_kit=brand_kit,
+                    usage=ctx.add_usage,
+                )
+            done += 1
+            await ctx.emit("image_ready", {"image_id": image_id})
+            await ctx.progress(done / len(image_ids), f"Redrew {done} of {len(image_ids)} images")
+
+        await ctx.progress(0.05, f"Redrawing {len(image_ids)} images")
+        await asyncio.gather(*(one(i) for i in image_ids))
+        return {"image_ids": image_ids}
+
+    job = await services.jobs.start("redraw_images", run, project_id=project_id)
+    return JobOut(**job.model_dump())
+
+
+@router.post("/images/{image_id}/edit", response_model=JobOut, status_code=202)
+async def edit_image(image_id: int, body: ImageEditIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Change one image as the author describes ("make the arrows orange"), keeping the rest of it."""
+    image = image_or_404(session, image_id)
+    if image.kind == "screenshot" or image.provider in ("upload", "placeholder") or not image.spec:
+        raise HTTPException(422, "Only images Claude drew can be edited by instruction. Redraw or upload this one instead.")
+    return await _image_job(services, session, image_id, instruction=body.instruction)
 
 
 @router.post("/images/{image_id}/upload", response_model=ImageOut)

@@ -62,7 +62,7 @@ def medium_export_docx() -> bytes:
     ]:
         document.add_paragraph(text)
     document.add_paragraph().add_run().add_picture(io.BytesIO(_tiny_png()))
-    document.add_paragraph("Source: Office survey; Author: Test Writer; Made with Tableau")
+    document.add_paragraph("Source: Office survey; Author: Test Writer; Made with a spreadsheet")
     document.add_paragraph(
         "Pie charts are everywhere. I see them in every quarterly deck, and I have opinions. "
         "Most of the time, a bar chart would tell the story faster. You know it, I know it."

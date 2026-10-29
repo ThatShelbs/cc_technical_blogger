@@ -37,13 +37,16 @@ It is specialized for technical writing about data science, Python, data visuali
 - **Voice-fidelity loop.** Plan → streamed draft → an editor critiques the draft against your voice profile and example posts → revision. You see a measured style score and the editor's scores. Edit the title, pin the options you like, and ask Claude for new ones.
 - **Three ways to revise.** *Tweak with feedback*: type what to change and Claude makes surgical edits, keeping the rest of your text and images (and redrawing only an image you mention). *Edit brief & settings*: see the brief or outline the post was written from, borrow the outline Claude planned, change any dial, the platform or the persona, and regenerate. Or *Regenerate post* as is. *Undo* any tweak, rewrite or edit from the last ten versions.
 - **Reads-as-human score.** Every post gets an AI-generation detection report from 0 (would be flagged as AI) to 100 (authentic human prose): a scan calibrated to your own writing plus a Claude judge, with one-click *Humanize* for the passages a detector would catch.
-- **Images that earn their place, drawn by Claude.** A hero illustration that doubles as the thumbnail, concept icons, clarifying diagrams, data visualizations, screenshot placeholders, and a closing meme, all authored by Claude as SVG or Vega-Lite, rendered locally, placed inline and credited ("Author: You; Made with Claude Opus 5.5 (SVG)"). No other image service, nothing to set up. **Redraw** any image for a new take, **Replace** it with your own, or roll back through its versions.
+- **Images that earn their place, drawn by Claude.** A hero illustration that doubles as the thumbnail, concept icons, clarifying diagrams, data visualizations, screenshot placeholders, and a closing meme, all authored by Claude as SVG or Vega-Lite, rendered locally, placed inline and credited ("Author: You; Made with Claude Opus 5.5 (SVG)"). No other image service, nothing to set up. **Edit** any image by describing the change, **Redraw** it for a new take, **Replace** it with your own, or roll back through its versions. Give each post its own **brand kit** (style, palette, font, motif) and redraw every image in one click.
+- **Gets better as you edit.** Proseferno remembers what you cut, swap and ask for in its drafts and writes so you don't have to fix it again. Posts plan their own callbacks, so key ideas and running jokes come back and pay off.
 - **Export** for Medium, Substack, LinkedIn (article, feed post and a PDF/PowerPoint document carousel), X (an X Article with a 5:2 header and a teaser post), Gumroad (PDF), or Markdown/Word, as a zip or copy-and-paste HTML with images embedded.
 - **Day and night themes** in an inferno palette, a one-click Windows launcher, and a demo mode to try everything without API keys.
 
 ## Quick start
 
 **Windows:** double-click **`launch.bat`**. The first run installs what it needs (it asks before installing [uv](https://docs.astral.sh/uv/) or Node.js with winget), builds the app, and opens it in your browser.
+
+**Windows, no developer tools:** build a standalone app and installer once with `packaging\build_windows.bat` (needs uv and Node.js on the build machine; [Inno Setup 6](https://jrsoftware.org/isinfo.php) for the installer). It produces `Proseferno-Setup-<version>.exe`: a per-user install with Start menu and desktop shortcuts that needs no Python, Node or admin rights. Your data then lives in `%LOCALAPPDATA%\Proseferno`.
 
 **macOS / Linux:**
 
@@ -111,7 +114,7 @@ backend/                           FastAPI + uv (Python 3.13)
   src/proseferno/
     api/        HTTP routes (auth, settings, personas, samples, voice, projects, images, export, jobs/SSE)
     ingest/     Parsers, Medium clean-up, stylometrics
-    voice/      Sample analysis, research, voice profile synthesis, exemplar selection
+    voice/      Sample analysis, research, voice profile synthesis, exemplar selection, learning from edits
     writer/     Dials, plan, draft, critique/revise, feedback tweaks, text history, LinkedIn feed post
     authenticity/  AI-generation detection: calibrated scan + Claude judge
     images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
@@ -123,6 +126,7 @@ backend/                           FastAPI + uv (Python 3.13)
 frontend/                          React 19 + Vite + Tailwind CSS 4
   src/pages/    Posts, new post, editor, personas, settings, setup guide
   e2e/          Playwright smoke test (demo mode)
+packaging/                         Windows app + installer build (PyInstaller, Inno Setup)
 assets/brand/                      Logo and palette
 docs/                              Architecture and guides
 ```

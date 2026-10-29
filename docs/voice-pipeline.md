@@ -29,6 +29,15 @@ Each sample gets a structured analysis (`voice/schemas.py: SampleAnalysis`): hoo
 
 Influence samples are analyzed for **techniques to borrow**, never identity.
 
+**Voice profile settings** (Personas → Settings & defaults) control this step and the next one:
+
+| Setting | What it does | Default |
+| --- | --- | --- |
+| Voice profile length | Target length of `voice_profile.md`; every section scales to fit | about 2,000 words |
+| Words read from each sample | The analysis reads only the first N words of each sample (changing it re-analyzes) | the whole sample |
+| Skip samples shorter than | Samples under N words are left out of the analysis and the baseline | use every sample |
+| Influence samples (0-10) | How much influence samples shape technique: 0 leaves them out, 5 borrows what fits, 10 leans on them. Identity always comes from your own writing | 5 |
+
 ## 4. Research (optional)
 
 When a persona has web research turned on, Claude searches for current guidance on titles, storytelling, skimmable structure, humor, insight, credibility and teaching, and writes a cited best-practices guide. It is reused for 30 days.
@@ -37,14 +46,23 @@ When a persona has web research turned on, Claude searches for current guidance 
 
 `prompts/voice_synthesize.md` turns the baseline, analyses and research into `voice_profile.md` with fixed sections: Soul · Voice & Tone · Signature Moves · Structure Blueprint · Titles & Subtitles · Humor · Teaching Style · Credibility & Trust · Images & Captions (including a one-line **visual style** for generated images) · Lexicon (including a *never use* list of generic AI-writing tells) · Do / Don't · Voice Anchors (verbatim passages).
 
-Every version is kept. Editing it in the app saves a new version.
+Every version is kept. Editing it in the app saves a new version. The synthesis also sees what Proseferno has learned from your edits (below), so the next version's Lexicon and Do / Don't reflect it.
+
+### Learning from your edits
+
+`voice/lessons.py` keeps a per-persona list of what you change in generated posts (`Persona.edit_lessons`, most frequent first, at most 40):
+
+- **Manual edits**: when you save an edited post, the old and new text are diffed word by word. Short removals and replacements (up to eight words) become lessons, such as *cuts "Honestly,"* or *changes "leverage" to "use"*. Longer rewrites are content, not habits, and are ignored.
+- **Feedback**: each *Tweak with feedback* instruction is kept verbatim.
+
+Repeats are counted. The top 15 go into the writer's system prompt for every later post ("Edits the author keeps making"), so you stop making the same fix twice. You can review and forget them in Personas → Settings & defaults → *Learned from your edits*.
 
 ## 6. Writing a post
 
 1. **Exemplars**: the two or three of the author's own posts most similar to the brief (TF-IDF) are included in full, within a word budget, never truncated.
-2. **Plan**: five title options in the author's style, subtitle, hook, sections, closing, joke, and image slots (hero first, meme last).
-3. **Draft**: streamed to the UI, with `{{image:slot}}` placeholders. Placeholders stand alone: the writer is told not to add caption or credit lines, and `strip_image_captions` removes any it adds anyway ("Photo by ... on Unsplash", "Visualization: ..."), because each image gets its own caption and credit.
-4. **Critique**: an editor scores voice, tone, structure, humor match, education match, skimmability and image placement, with the measured style comparison, and lists concrete fixes.
+2. **Plan**: five title options in the author's style, subtitle, hook, sections, closing, joke, image slots (hero first, meme last), and one to three **callbacks**: key concepts and running jokes the post sets up, revisits with something new, and pays off. Running jokes are planned only at humor 3 or higher.
+3. **Draft**: streamed to the UI, with `{{image:slot}}` placeholders, following the planned callbacks. Placeholders stand alone: the writer is told not to add caption or credit lines, and `strip_image_captions` removes any it adds anyway ("Photo by ... on Unsplash", "Visualization: ..."), because each image gets its own caption and credit. The post must be ready to publish: the writer never leaves TODOs or notes to the author, and `strip_todos` removes any that slip through (outside code blocks). It also mentions specific tools only when the brief calls for them, not because the author's samples credit one.
+4. **Critique**: an editor scores voice, tone, structure, humor match, education match, skimmability, image placement and callbacks (each planned thread set up, revisited and paid off), with the measured style comparison, and lists concrete fixes.
 5. **Revise**: the draft is rewritten to address the critique (0-2 passes; default 1).
 
 After writing, the **Title** card lets the author edit the title text, pin options they like, and ask for **New options**: Claude replaces every option except the selected and pinned ones (`regenerate_titles`, `prompts/titles.md`). Pinned titles also survive *Regenerate post*.

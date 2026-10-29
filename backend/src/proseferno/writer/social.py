@@ -7,12 +7,13 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from proseferno.config import Settings
-from proseferno.db import Project, Sample, utcnow
+from proseferno.db import Persona, Project, Sample, utcnow
 from proseferno.export import fit_post
 from proseferno.export.linkedin import hashtags
 from proseferno.llm import LLM
 from proseferno.prompts import render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
+from proseferno.voice.lessons import format_lessons
 from proseferno.writer.pipeline import WriterError, writer_system
 
 
@@ -31,9 +32,11 @@ async def write_linkedin_post(*, llm: LLM, settings: Settings, engine: Engine, p
             raise WriterError("Generate the post before writing its LinkedIn post.")
         voice_profile = current_voice_profile(session, project.persona_id)
         samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
+        persona = session.get(Persona, project.persona_id)
     if voice_profile is None:
         raise WriterError("This persona has no voice profile yet.")
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)))
+    lessons = format_lessons(persona.edit_lessons if persona else None)
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
     post = await llm.structured(
         task="linkedin post",
         system=system,

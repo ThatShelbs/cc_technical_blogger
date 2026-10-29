@@ -13,9 +13,13 @@ $own_analyses
 ```
 
 ### Analyses of influence posts by other writers ($influence_count posts; borrow technique only)
+$influence_guide
 ```json
 $influence_analyses
 ```
+
+### Edits the author keeps making to generated posts (strong evidence of their taste; fold it into the Lexicon and Do / Don't)
+$edit_lessons
 
 ### Research on best practices (optional; adapt to the author, never override their voice)
 $best_practices
@@ -37,4 +41,4 @@ Return only the Markdown document, starting with `# Voice Profile: $persona_name
 11. `## Do / Don't`: 8-12 crisp rules.
 12. `## Voice Anchors`: 6-10 short verbatim passages from the author's own posts (each 1-4 sentences, quoted exactly, with the post title) chosen to show the voice at its most distinctive: an opening, a transition, a joke, an explanation, a closing.
 
-Be specific, evidence-based, and concise (aim for 1,500-2,500 words). This document will be used as the system prompt for writing every future post for this persona.
+Be specific, evidence-based, and concise: aim for about $target_words words in total, scaling every section to fit. This document will be used as the system prompt for writing every future post for this persona.

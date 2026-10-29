@@ -16,12 +16,16 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 
 ## Design and rendering
 
-For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice profile, and the persona's visual style, then returns a structured design: SVG markup or a chart spec, plus alt text and a caption in the author's caption style. The art direction prompt (`prompts/image_system.md`) asks for layered compositions, gradients, soft shadows and the inferno palette, so hero and illustration images look like finished editorial art rather than clip art.
+For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice profile, and the post's brand kit (below), then returns a structured design: SVG markup or a chart spec, plus alt text and a caption in the author's caption style. The art direction prompt (`prompts/image_system.md`) asks for layered compositions, gradients, soft shadows and the inferno palette, so hero and illustration images look like finished editorial art rather than clip art.
 
 Nothing a model writes is executed:
 
 - SVG is parsed with `lxml` and sanitized (no scripts, event handlers, `foreignObject` or external references), then rasterized locally by **resvg**.
 - Charts are declarative Vega-Lite (remote data URLs are rejected), rendered locally by **vl-convert**.
+
+## Brand kit (per post)
+
+Each post has its own image brand kit (`Project.brand_kit`): an image style, a palette of up to eight colors, a font for text in images, and a recurring motif. Set it under *Customize* when you start a post, or later in the **Image brand kit** card next to the post, where **Save and redraw images** gives every drawn image the new look (`POST /api/projects/{id}/images/redraw`; uploads and screenshots stay). Empty fields fall back to the persona's visual style and the inferno palette.
 
 ## Credits
 
@@ -29,7 +33,7 @@ Each image gets a credit from the persona's template (default `Author: {name}; M
 
 > The saddest pie; Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)
 
-Charts read "Made with Claude Opus 5.5 + Vega-Lite", and charts with made-up numbers are labeled *(illustrative data)*. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
+Charts read "Made with Claude Opus 5.5 + Vega-Lite", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
 
 ## When an image fails
 
@@ -37,6 +41,7 @@ One failed image never fails the post: it shows its error and a **Redraw** butto
 
 ## Redraw, new idea, replace, versions
 
+- **Edit**: tell Claude what to change ("make the arrows orange", "label the y-axis in percent"). Claude gets the current SVG or chart spec and changes only what you describe (`POST /api/images/{id}/edit`, `prompts/image_edit.md`). Only images Claude drew can be edited this way.
 - **Redraw**: Claude draws the same idea again with a different composition or treatment.
 - **New idea**: Claude throws out the concept and designs a different image for the same purpose.
 - **Replace**: upload your own image (PNG, JPEG, WebP, ...; converted to PNG).

@@ -21,7 +21,6 @@ TOPICS: dict[str, list[str]] = {
         "visualisation",
         "chart",
         "plot",
-        "tableau",
         "dashboard",
         "matplotlib",
         "viz",

@@ -36,6 +36,13 @@ export interface Body_upload_samples_api_personas__persona_id__samples_post {
   kind?: "own" | "influence";
 }
 
+export interface BrandKit {
+  style?: string;
+  palette?: string[];
+  font?: string;
+  motif?: string;
+}
+
 export interface CopyHtmlOut {
   html: string;
 }
@@ -57,6 +64,14 @@ export interface Dials {
   revision_passes?: number | null;
 }
 
+export interface EditLesson {
+  kind: string;
+  old: string;
+  new?: string;
+  count?: number;
+  last_seen?: string;
+}
+
 export interface GenerateIn {
   prompt?: string | null;
   dials?: Dials | null;
@@ -67,6 +82,10 @@ export interface Health {
   status?: "ok";
   version: string;
   demo?: boolean;
+}
+
+export interface ImageEditIn {
+  instruction: string;
 }
 
 export interface ImageHistoryOut {
@@ -158,6 +177,11 @@ export interface PersonaOut {
   default_platform: string;
   visual_style: string;
   credit_template: string;
+  voice_profile_words: number;
+  voice_sample_max_words: number;
+  voice_sample_min_words: number;
+  voice_influence_weight: number;
+  edit_lessons: EditLesson[];
   own_samples: number;
   influence_samples: number;
   voice_profile_version: number | null;
@@ -186,6 +210,10 @@ export interface PersonaUpdate {
   research_enabled?: boolean | null;
   visual_style?: string | null;
   credit_template?: string | null;
+  voice_profile_words?: number | null;
+  voice_sample_max_words?: number | null;
+  voice_sample_min_words?: number | null;
+  voice_influence_weight?: number | null;
   pinned_voice_profile_version?: number | null;
 }
 
@@ -193,6 +221,7 @@ export interface ProjectCreate {
   prompt: string;
   persona_id?: number | null;
   dials?: Dials;
+  brand_kit?: BrandKit | null;
   generate?: boolean;
 }
 
@@ -217,6 +246,7 @@ export interface ProjectOut {
   authenticity: Record<string, unknown> | null;
   social: Record<string, unknown> | null;
   pinned_titles: string[];
+  brand_kit: BrandKit;
   revisions: RevisionOut[];
   voice_profile_version: number | null;
   error: string | null;
@@ -243,6 +273,8 @@ export interface ProjectUpdate {
   title?: string | null;
   pinned_titles?: string[] | null;
   markdown?: string | null;
+  learn?: boolean;
+  brand_kit?: BrandKit | null;
   prompt?: string | null;
   dials?: Dials | null;
   persona_id?: number | null;

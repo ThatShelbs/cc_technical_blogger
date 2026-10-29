@@ -41,6 +41,15 @@ class Persona(SQLModel, table=True):
     visual_style: str = ""
     # How image credits read; {name} = display name, {tool} = what made the image.
     credit_template: str = "Author: {name}; Made with {tool}"
+    # Voice profile settings: target length of voice_profile.md, the sample budget, and how much
+    # influence samples shape it (0 = ignore them, 5 = borrow fitting techniques, 10 = lean on them).
+    voice_profile_words: int = 2000
+    # Words of each sample the analysis reads (0 = the whole sample); shorter samples are skipped.
+    voice_sample_max_words: int = 0
+    voice_sample_min_words: int = 0
+    voice_influence_weight: int = 5
+    # What the author keeps changing in generated posts (see voice.lessons), most frequent first.
+    edit_lessons: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -101,6 +110,8 @@ class Project(SQLModel, table=True):
     pinned_titles: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     # Earlier text versions, newest first (see writer.revisions): what "Undo" restores. Cleared by a full regeneration.
     revisions: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # This post's image look (see images.brand): palette, font, motif, style; empty = the persona's visual style.
+    brand_kit: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
     voice_profile_version: int | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)

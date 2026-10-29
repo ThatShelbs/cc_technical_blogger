@@ -18,7 +18,7 @@ from proseferno.writer import (
     set_title,
     split_title,
 )
-from proseferno.writer.pipeline import strip_image_captions
+from proseferno.writer.pipeline import strip_image_captions, strip_todos
 
 
 def slot(slot_id: str, kind: str, section: int = 0) -> ImageSlot:
@@ -124,7 +124,7 @@ def test_strip_image_captions_removes_credit_lines_next_to_images() -> None:
             "",
             "Source: internal survey",
             "{{image:img2}}",
-            "*Visualization: Shelby Temple, made with Tableau; data: made-up example numbers*",
+            "*Visualization: Shelby Temple, made with a spreadsheet; data: made-up example numbers*",
             "",
             "The chart above shows why. Images are great, but this paragraph is prose.",
             "",
@@ -141,6 +141,25 @@ def test_strip_image_captions_removes_credit_lines_next_to_images() -> None:
     assert "Made with Unsplash is a real sentence" in cleaned
     assert "The chart above shows why." in cleaned
     assert all(f"{{{{image:{s}}}}}" in cleaned for s in ("hero", "img2", "meme"))
+
+
+def test_strip_todos_removes_notes_but_not_code() -> None:
+    markdown = "\n".join(
+        [
+            "Uplift models need a holdout [TODO: verify the 10% figure]. Keep it.",
+            "TODO: add a link to the paper",
+            "- (todo: cite) Randomize first.",
+            "```python",
+            "# TODO: tune this",
+            "```",
+        ]
+    )
+    cleaned = strip_todos(markdown)
+
+    assert "Uplift models need a holdout. Keep it." in cleaned
+    assert "add a link" not in cleaned
+    assert "- Randomize first." in cleaned
+    assert "# TODO: tune this" in cleaned
 
 
 def test_merge_titles_dedupes_case_insensitively() -> None:
@@ -190,3 +209,21 @@ def test_revisions_are_newest_first_and_capped() -> None:
         project.markdown = f"v{i + 1}"
     assert len(project.revisions) == MAX_REVISIONS
     assert project.revisions[0]["label"] == f"change {MAX_REVISIONS + 2}" and project.revisions[0]["markdown"] == f"v{MAX_REVISIONS + 2}"
+
+
+def test_extract_and_record_lessons() -> None:
+    from proseferno.voice.lessons import extract_lessons, format_lessons, record_lessons
+
+    before = "Let's delve into it. Honestly, the model is a total game-changer for most teams."
+    after = "Let's dig into it. The model helps most teams."
+    lessons = extract_lessons(before, after)
+    assert {"kind": "replace", "old": "delve", "new": "dig"} in lessons
+    assert {"kind": "replace", "old": "Honestly, the", "new": "The"} in lessons
+    assert {"kind": "replace", "old": "is a total game-changer for", "new": "helps"} in lessons
+    persona = Persona(name="Me")
+    record_lessons(persona, lessons)
+    record_lessons(persona, lessons[:1])
+    assert persona.edit_lessons[0]["count"] == 2
+    assert "times)" in format_lessons(persona.edit_lessons)
+    # A long rewrite is content, not a habit.
+    assert extract_lessons("one two three four five six seven eight nine ten", "completely different text here") == []
