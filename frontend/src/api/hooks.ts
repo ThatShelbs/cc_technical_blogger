@@ -21,6 +21,7 @@ import type {
   ProjectSummary,
   ProjectUpdate,
   SampleOut,
+  SampleWritingOut,
   SeedSamplesOut,
   SettingsIn,
   SettingsOut,
@@ -39,6 +40,7 @@ export const keys = {
   voiceProfile: (personaId: number, version?: number) => ['personas', personaId, 'voice-profile', version ?? 'latest'] as const,
   voiceProfileVersions: (personaId: number) => ['personas', personaId, 'voice-profile-versions'] as const,
   seed: ['seed-samples'] as const,
+  sampleWriting: ['sample-writing'] as const,
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
   memeFormats: ['meme-formats'] as const,
@@ -125,6 +127,19 @@ export function usePersonaMutations() {
         void qc.invalidateQueries({ queryKey: keys.projects })
       },
     }),
+    /** Add the example persona, voice profile and finished post (built offline, no Claude call). */
+    createExample: useMutation({
+      mutationFn: () => api.post<PersonaOut>('/api/example'),
+      // Wait for the refetch: callers navigate home next, and an empty cached list would send them back to the setup guide.
+      onSuccess: () => Promise.all([refresh(), qc.invalidateQueries({ queryKey: keys.projects })]),
+    }),
+    removeExample: useMutation({
+      mutationFn: () => api.del<void>('/api/example'),
+      onSuccess: () => {
+        void refresh()
+        void qc.invalidateQueries({ queryKey: keys.projects })
+      },
+    }),
     duplicate: useMutation({
       mutationFn: ({ id, body }: { id: number; body: PersonaDuplicateIn }) => api.post<PersonaOut>(`/api/personas/${id}/duplicate`, body),
       onSuccess: refresh,
@@ -169,6 +184,8 @@ export const useSamples = (personaId: number) =>
 
 export const useSeedSamples = () => useQuery({ queryKey: keys.seed, queryFn: () => api.get<SeedSamplesOut>('/api/seed-samples') })
 
+export const useSampleWriting = () => useQuery({ queryKey: keys.sampleWriting, queryFn: () => api.get<SampleWritingOut>('/api/sample-writing') })
+
 export function useSampleMutations(personaId: number) {
   const qc = useQueryClient()
   const refresh = () => {
@@ -187,6 +204,10 @@ export function useSampleMutations(personaId: number) {
     }),
     importUrl: useMutation({
       mutationFn: ({ url, kind }: { url: string; kind: 'own' | 'influence' }) => api.post<SampleOut>(`/api/personas/${personaId}/samples/url`, { url, kind }),
+      onSuccess: refresh,
+    }),
+    importSampleWriting: useMutation({
+      mutationFn: () => api.post<UploadResult>(`/api/personas/${personaId}/samples/import-sample-writing`),
       onSuccess: refresh,
     }),
     importSeed: useMutation({

@@ -71,6 +71,8 @@ class Settings(BaseSettings):
 
     # Demo mode: canned AI responses and images (no keys, no cost).
     demo: bool = False
+    # In demo mode, start an empty database with the example persona and post so there is something to look at.
+    demo_seed: bool = True
 
     # OS keychain service name for stored secrets.
     keyring_service: str = "proseferno"

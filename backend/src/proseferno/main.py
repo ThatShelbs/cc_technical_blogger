@@ -10,10 +10,13 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import Session, select
 
 from proseferno import __version__
 from proseferno.api import jobs, personas, projects, system
 from proseferno.config import Settings, get_settings
+from proseferno.db import Persona
+from proseferno.example import ExampleError, seed_example
 from proseferno.services import Services, build_services
 
 log = logging.getLogger("proseferno")
@@ -34,6 +37,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # Jobs live in memory, so an image still "pending" at startup lost its job in a previous run.
         services.images.fail_pending()
+        await _seed_demo(settings, services)
         yield
         await services.jobs.shutdown()
 
@@ -43,6 +47,19 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         app.include_router(module.router)
     _mount_frontend(app, settings.frontend_dist)
     return app
+
+
+async def _seed_demo(settings: Settings, services: Services) -> None:
+    """A first demo run opens on the example persona and post instead of an empty app."""
+    if not (settings.demo and settings.demo_seed):
+        return
+    with Session(services.engine) as session:
+        if session.exec(select(Persona)).first() is not None:
+            return
+    try:
+        await seed_example(services, activate=True)
+    except ExampleError:
+        log.exception("Could not build the demo example; starting empty.")
 
 
 def _mount_frontend(app: FastAPI, dist: Path) -> None:

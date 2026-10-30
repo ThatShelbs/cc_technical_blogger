@@ -13,6 +13,11 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 - **Edit an image by instruction**: describe the change ("make the arrows orange") and Claude edits the current SVG or chart instead of drawing a new one.
 - **Per-post image brand kit**: style, palette, font and recurring motif for one post's images, with *Redraw all images*.
 - **Windows installer**: `packaging\build_windows.bat` builds a standalone app (PyInstaller) and a per-user installer (Inno Setup) that needs no Python or Node; data lives in `%LOCALAPPDATA%\Proseferno`.
+- **A first run that works with no files and no keys.** *Use 3 sample posts* in the setup guide adds three bundled posts by a fictional "Sample Author", so a voice profile and a post can be generated with nothing uploaded. The Posts page offers *See an example post* (an offline-built persona, voice profile and finished post with credited images; remove it in one click), New post has *Use an example prompt*, and demo mode now opens seeded with the example (`PROSEFERNO_DEMO_SEED=false` turns that off).
+- `proseferno doctor`: checks Python, the data folder, the web build, Node.js, the port, the keychain, the Claude connection, Claude Code and Windows path length, and prints a fix for each problem. A bare first launch from a terminal (no data, no Claude connection) offers to start in demo mode.
+- Developer scripts in `scripts/`: `setup` (one idempotent install of uv, Node.js 22+, packages and the optional browser), `dev` (now with a macOS/Linux version), and `check` (every CI check in CI order, with `--fix` and `--e2e`). On Windows they move the Python environment to a short path when the folder is deeply nested.
+- `docs/onboarding.md`: a cheat sheet, a first-day path, a "change X, edit Y" map, a glossary and troubleshooting. `docs/architecture.md` gains the repository layout and a "Life of a post" trace. CONTRIBUTING gains good first tasks. Every backend package has a docstring.
+- `launch.sh` opens an already-running instance, and points to `proseferno doctor` when setup fails (as `launch.bat` does).
 - **Three ways to revise a post**: *Tweak with feedback* (Claude makes surgical edits and keeps the rest of the text and images, redrawing only an image the feedback names), *Edit brief & settings* (see and refine the original brief or the outline Claude planned, change any dial, the platform or the persona, then regenerate), and *Regenerate post*.
 - Text version history: *Undo last change* and *Restore* for the last ten versions (before each tweak, passage rewrite, manual save or restore).
 - **X** as a platform: X Article writing conventions and an export with a 1500×600 header and a teaser post under 280 characters.
@@ -28,6 +33,8 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Changed
 
+- The first real persona becomes active even when the example persona exists (a persona is made active when none other than the example is).
+- Repository tidy-up: `dev.bat` moved to `scripts/`, `SECURITY.md` and `CODE_OF_CONDUCT.md` to `.github/`, `render_brand.py` to `backend/scripts/`, the e2e sample post to `frontend/e2e/fixtures/`, and the two near-empty sub-READMEs folded into `docs/onboarding.md`. `my_writing_examples/` is no longer tracked by git (it was already ignored; existing files stay on your disk). CI now lints and format-checks `backend/evals` too, and the e2e job covers a seeded demo tour as well as the first run.
 - "Voice soul" is now **voice profile** everywhere (UI, API routes `/voice-profile`, `voice_profile.md`, code, docs). Existing databases and saved files are migrated automatically on startup; earlier entries below keep the old name.
 - Every image is now drawn by Claude (SVG illustrations, icons, diagrams and memes; Vega-Lite charts). Credits name the Claude model, e.g. "Made with Claude Opus 5.5 (SVG)".
 

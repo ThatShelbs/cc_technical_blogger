@@ -136,6 +136,7 @@ class PersonaOut(BaseModel):
     name: str
     display_name: str
     is_active: bool
+    is_example: bool
     research_enabled: bool
     default_humor: int
     default_education: str
@@ -215,6 +216,13 @@ class SeedSamplesOut(BaseModel):
     available: bool
     directory: str
     files: list[str]
+
+
+class SampleWritingOut(BaseModel):
+    """The bundled sample posts a person can start from when they have none of their own."""
+
+    files: list[str]
+    author: str
 
 
 class VoiceProfileOut(BaseModel):

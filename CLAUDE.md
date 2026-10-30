@@ -93,11 +93,13 @@ This solution is specialized in writing technical blogs generally covering the f
 - **Windows build:** `packaging/` (PyInstaller spec, Inno Setup script, `build_windows.bat`; `uv` group `package`). `config.FROZEN` switches the frontend to the bundle and data to `%LOCALAPPDATA%\Proseferno`.
 - **Schema changes:** `db/engine.add_missing_columns` adds new columns to existing databases; give new columns a default.
 - **Privacy:** user writing (`my_writing_examples/`) and all runtime data (`data/`) are git-ignored. Secrets live in the OS keychain.
+- **First run with no files:** the app must work for someone with no writing and no keys. `sample_content/` bundles three sample posts (`POST /api/personas/{id}/samples/import-sample-writing`) and the hand-written example voice profile. `example.py` builds the "Sample Author" example persona (`Persona.is_example`) by running the real voice and writing pipelines against `demo.FakeLLM` through the job manager (`POST`/`DELETE /api/example`). Demo mode seeds it on an empty database (`PROSEFERNO_DEMO_SEED`), `main()` offers demo mode on a bare first launch from a terminal, and the first real persona takes over from the example as the active one. Empty-state behavior is covered by `tests/api/test_empty_state.py` and `frontend/e2e/tour.spec.ts`.
+- **Repo tidiness:** a few root files only (launchers, README, CONTRIBUTING, CHANGELOG, CLAUDE.md, LICENSE, configs); scripts in `scripts/` or `backend/scripts/`, community files in `.github/`, guides in `docs/`. No per-folder READMEs: `docs/onboarding.md` is the way in. Windows scripts share `scripts/_env.bat` (finds uv, shortens `UV_PROJECT_ENVIRONMENT` for deep paths, which also fixes the 260-character issue below).
 - **Port:** 8732 (8765 collided with another local app).
 
 ## Commands
 
-Windows one-click: `launch.bat` (add `--demo` for canned responses, no keys). Standalone app + installer: `packaging\build_windows.bat`. Developer mode: `dev.bat` (API with reload on :8732, Vite on :5173). macOS/Linux: `./launch.sh`.
+Windows one-click: `launch.bat` (add `--demo` for canned responses, no keys; demo opens seeded with the example persona and post). macOS/Linux: `./launch.sh`. Developer scripts live in `scripts/` as `.bat` + `.sh` pairs: `setup` (one idempotent install), `dev` (API with reload on :8732, Vite on :5173), `check` (every CI check in CI order; `--fix`, `--e2e`). `uv run --project backend proseferno doctor` diagnoses a machine. Standalone app + installer: `packaginguild_windows.bat`. Keep `scripts/check.*` and `.github/workflows/ci.yml` in step. New contributors start at `docs/onboarding.md`.
 
 Backend (run in `backend/`):
 
@@ -124,11 +126,11 @@ npm run build
 npm run e2e                       # Playwright smoke test in demo mode; PW_CHANNEL=msedge to use installed Edge
 ```
 
-Deep worktree paths can exceed Windows' 260-character limit inside `backend/.venv` (an Anthropic SDK file name is very long); if imports fail, set `UV_PROJECT_ENVIRONMENT` to a short path. On this Windows machine uv was installed by winget and may not be on PATH in a fresh shell; it lives under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*`. The Anthropic CLI is at `%LOCALAPPDATA%\Programs\ant\ant.exe`.
+Deep worktree paths can exceed Windows' 260-character limit inside `backend/.venv` (an Anthropic SDK file name is very long); the Windows scripts handle this automatically, otherwise set `UV_PROJECT_ENVIRONMENT` to a short path. On this Windows machine uv was installed by winget and may not be on PATH in a fresh shell; it lives under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*`. The Anthropic CLI is at `%LOCALAPPDATA%\Programs\ant\ant.exe`.
 
 ## Layout and conventions
 
-- `backend/src/proseferno/`: `api/` (routes only), `ingest/`, `voice/`, `writer/`, `authenticity/`, `images/`, `export/`, `llm/`, `prompts/` (Markdown templates with `$placeholders`), `db/`, `jobs.py`, `services.py` (wiring), `demo.py` (fakes for tests and demo mode).
+- `backend/src/proseferno/`: `api/` (routes only), `sample_content/` (bundled sample posts), `example.py`, `doctor.py`, `ingest/`, `voice/`, `writer/`, `authenticity/`, `images/`, `export/`, `llm/`, `prompts/` (Markdown templates with `$placeholders`), `db/`, `jobs.py`, `services.py` (wiring), `demo.py` (fakes for tests and demo mode).
 - All model calls go through the `LLM` protocol (`llm/base.py`); tests use `proseferno.demo.FakeLLM`. When adding a structured-output schema, add a payload for it in `demo.py`.
 - Long work runs as a job (`jobs.py`) and streams events over SSE; the frontend follows it with `useJob`.
 - Tests must never touch real services: `ClaudeAuth(..., discover_ant=False)` and `MemorySecretStore` in fixtures (a test once launched the real `ant auth login`).
@@ -139,4 +141,4 @@ Deep worktree paths can exceed Windows' 260-character limit inside `backend/.ven
 
 ## Docs
 
-`README.md`, `CONTRIBUTING.md`, `docs/` (architecture, voice pipeline + eval, AI detection, images, exporting, configuration). Update them when behavior changes; refresh README screenshots with `UPDATE_SCREENSHOTS=1 npm run e2e`.
+`README.md`, `CONTRIBUTING.md`, `docs/` (onboarding, architecture, voice pipeline + eval, AI detection, images, exporting, configuration). Update them when behavior changes; refresh README screenshots with `UPDATE_SCREENSHOTS=1 npm run e2e`.

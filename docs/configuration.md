@@ -34,6 +34,7 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | `PROSEFERNO_REVISION_PASSES` | Editing passes per post | `1` |
 | `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `DETECT` | see `config.py` |
 | `PROSEFERNO_DEMO` | Demo mode (canned responses) | `false` |
+| `PROSEFERNO_DEMO_SEED` | In demo mode, start an empty database with the example persona and post | `true` |
 | `PROSEFERNO_NO_BROWSER` | Do not open a browser on start | unset |
 | `ANTHROPIC_API_KEY` | Claude API key (overrides *Sign in with Claude*) | unset |
 | `PROSEFERNO_AI_DETECTION` | Claude judge in the AI-detection report | `true` |

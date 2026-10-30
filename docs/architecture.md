@@ -51,6 +51,60 @@ flowchart TB
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
 | `prompts/` | All prompts as Markdown templates. |
 | `demo.py` | Fake Claude used by tests and `--demo`. |
+| `example.py`, `sample_content/` | The offline "Sample Author" example persona and the bundled sample posts that let a first run work with no files (see below). |
+| `personas.py` | Persona helpers shared by the routes and the example seeding (add a sample, delete a persona). |
+| `doctor.py` | `proseferno doctor`: machine checks with a fix for each problem, and the first-launch demo offer. |
+
+## Repository layout
+
+```
+launch.bat / launch.sh             One-click start for people using the app
+scripts/                           Developer scripts: setup, dev, check
+backend/                           FastAPI + uv (Python 3.13)
+  src/proseferno/
+    api/        HTTP routes (auth, settings, personas, samples, voice, projects, images, export, jobs/SSE)
+    ingest/     Parsers, Medium clean-up, stylometrics
+    voice/      Sample analysis, research, voice profile synthesis, exemplar selection, learning from edits
+    writer/     Dials, plan, draft, critique/revise, feedback tweaks, text history, LinkedIn feed post
+    authenticity/  AI-generation detection: calibrated scan + Claude judge
+    images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
+    export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles
+    llm/        Claude client, sign-in resolution
+    prompts/    Every prompt, as readable Markdown
+    sample_content/  Bundled sample posts and the example voice profile
+  tests/        pytest (fake Claude)
+  evals/        Voice-fidelity and AI-detection evals (real API, opt-in)
+frontend/                          React 19 + Vite + Tailwind CSS 4
+  src/pages/    Posts, new post, editor, personas, settings, setup guide
+  e2e/          Playwright tests (demo mode)
+packaging/                         Windows app + installer build (PyInstaller, Inno Setup)
+assets/brand/                      Logo and palette
+docs/                              Guides (start with onboarding.md)
+```
+
+## Life of a post
+
+What happens when someone clicks **Write my post**, in the order the code runs:
+
+1. `frontend/src/pages/NewProjectPage.tsx` calls `useProjectMutations().create` (`frontend/src/api/hooks.ts`), which POSTs `/api/projects`.
+2. `create_project` in `backend/src/proseferno/api/projects.py` checks there is an active persona with a voice profile, saves a `Project` row, and calls `start_generation`.
+3. `start_generation` hands `writer.generate_article` to `JobManager.start` (`jobs.py`). The route returns the job id immediately (HTTP 201).
+4. The browser navigates to `/projects/{id}?job={job_id}`. `useJob` (`frontend/src/api/useJob.ts`) opens `/api/jobs/{id}/events` (`api/jobs.py`) and folds the server-sent events into progress and the streaming draft.
+5. In the job, `writer/pipeline.py` runs `write_post`: plan (`prompts/plan.md`), streamed draft (`draft.md`), critique (`critique.md`) and revision (`revise.md`), all through the `LLM` protocol, then the AI-detection report (`authenticity/`).
+6. `_generate` then creates the image rows and `images/service.py` designs and renders each image (Claude writes SVG or Vega-Lite, resvg or vl-convert renders it), crediting the persona and the Claude model. A failed image gets its own `error` status and never fails the post.
+7. The project becomes `ready`, the job finishes, and `ProjectPage.tsx` refetches the post and shows the editor.
+
+Everything the pipeline needs from Claude goes through `llm/base.py`, which is why the tests and the demo can swap in `demo.FakeLLM`.
+
+## The first run with no files
+
+A new user may have no writing and no Claude connection, so three pieces make the empty app useful:
+
+- **Sample posts** (`sample_content/*.md`): `POST /api/personas/{id}/samples/import-sample-writing` adds them as a persona's own writing, so the voice profile can be generated with nothing uploaded.
+- **The example** (`example.py`): `seed_example` creates "Sample Author" with those samples, a voice profile and one finished post, by running the *real* voice and writing pipelines against `demo.FakeLLM` through the normal job manager. It cannot drift from how the app stores things, costs nothing, and `POST /api/example` / `DELETE /api/example` add and remove it. The persona has `is_example = true`, and the UI labels it.
+- **Demo mode** seeds the example on its first start (`main._seed_demo`, turn off with `PROSEFERNO_DEMO_SEED=false`), and `main()` offers demo mode on a bare first launch from a terminal.
+
+The first real persona becomes the active one even when the example is on (`api/personas.create_persona`).
 
 ## Claude usage
 
@@ -83,4 +137,4 @@ All calls use `claude-opus-5-5` by default with adaptive thinking and the server
 - `src/components/`: app shell, UI primitives, article renderer, connection cards, sample uploader, voice profile panel.
 - `src/theme/`: day/night/system theme with tokens defined in `src/index.css`.
 
-In production the backend serves `frontend/dist`. In development (`dev.bat`) Vite proxies `/api` to the backend.
+In production the backend serves `frontend/dist`. In development (`scripts\dev.bat`) Vite proxies `/api` to the backend.

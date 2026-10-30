@@ -1,8 +1,8 @@
-import { FolderInput, Link2, Upload } from 'lucide-react'
+import { FolderInput, Link2, Sparkles, Upload } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 
 import { errorText } from '../api/client'
-import { useSampleMutations, useSeedSamples } from '../api/hooks'
+import { usePersona, useSampleMutations, useSampleWriting, useSeedSamples } from '../api/hooks'
 import { Button, Field, Input, Notice, Select } from './ui'
 import { cx } from '../lib/cx'
 
@@ -11,6 +11,8 @@ const ACCEPT = '.docx,.pdf,.md,.markdown,.txt,.html,.htm'
 export function SampleUploader({ personaId, defaultKind = 'own' }: { personaId: number; defaultKind?: 'own' | 'influence' }) {
   const mutations = useSampleMutations(personaId)
   const seed = useSeedSamples()
+  const sampleWriting = useSampleWriting()
+  const { data: persona } = usePersona(personaId)
   const [kind, setKind] = useState<'own' | 'influence'>(defaultKind)
   const [url, setUrl] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -130,6 +132,31 @@ export function SampleUploader({ personaId, defaultKind = 'own' }: { personaId: 
             }
           >
             Import them
+          </Button>
+        </div>
+      )}
+
+      {kind === 'own' && persona?.own_samples === 0 && sampleWriting.data && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/50 bg-accent-soft px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">No posts handy?</p>
+            <p className="text-sm text-muted">
+              Try {sampleWriting.data.files.length} short sample posts by a fictional “{sampleWriting.data.author}” to see how it works. Replace them with your
+              own writing any time.
+            </p>
+          </div>
+          <Button
+            icon={<Sparkles className="size-4" />}
+            loading={mutations.importSampleWriting.isPending}
+            onClick={() =>
+              mutations.importSampleWriting.mutate(undefined, {
+                onSuccess: (result) =>
+                  setMessages([{ tone: 'success', text: `Added ${result.added.length} sample posts. Delete them later from the persona page.` }]),
+                onError: (error) => setMessages([{ tone: 'error', text: errorText(error) }]),
+              })
+            }
+          >
+            Use {sampleWriting.data.files.length} sample posts
           </Button>
         </div>
       )}

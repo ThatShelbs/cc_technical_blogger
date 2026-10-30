@@ -179,6 +179,7 @@ export interface PersonaOut {
   name: string;
   display_name: string;
   is_active: boolean;
+  is_example: boolean;
   research_enabled: boolean;
   default_humor: number;
   default_education: string;
@@ -354,6 +355,11 @@ export interface SampleOut {
 
 export interface SampleUpdate {
   kind: "own" | "influence";
+}
+
+export interface SampleWritingOut {
+  files: string[];
+  author: string;
 }
 
 export interface SeedSamplesOut {

@@ -1,3 +1,5 @@
+"""Learn a voice: sample analysis, best-practice research, voice profile synthesis and example selection."""
+
 from proseferno.voice.exemplars import format_exemplars, rank_by_similarity, select_exemplars
 from proseferno.voice.pipeline import (
     VoiceError,

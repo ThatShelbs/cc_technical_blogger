@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import shutil
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from sqlmodel import Session, col, delete, func, select
+from sqlmodel import Session, col, func, select
 
 from proseferno.api.deps import ServicesDep, SessionDep, persona_or_404, sample_or_404
 from proseferno.api.schemas import (
@@ -19,6 +18,7 @@ from proseferno.api.schemas import (
     SampleKind,
     SampleOut,
     SampleUpdate,
+    SampleWritingOut,
     SeedSamplesOut,
     UploadResult,
     UrlImportIn,
@@ -28,9 +28,11 @@ from proseferno.api.schemas import (
     VoiceProfileOut,
     VoiceProfileVersion,
 )
-from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceProfile, utcnow
-from proseferno.ingest import SUPPORTED_EXTENSIONS, ParsedDocument, UnsupportedFormatError, fetch_url, parse_file
-from proseferno.ingest.stylometrics import compute
+from proseferno.db import Persona, Sample, VoiceProfile, utcnow
+from proseferno.example import ExampleError, remove_example, seed_example
+from proseferno.ingest import SUPPORTED_EXTENSIONS, UnsupportedFormatError, fetch_url, parse_file
+from proseferno.personas import add_sample, delete_persona_data
+from proseferno.sample_content import SAMPLE_AUTHOR, sample_posts
 from proseferno.services import Services
 from proseferno.storage import safe_filename
 from proseferno.voice import current_voice_profile, generate_voice_profile, latest_voice_profile, unpin, voice_profile_version
@@ -86,29 +88,6 @@ def voice_profile_out(session: Session, voice_profile: VoiceProfile) -> VoicePro
     )
 
 
-def add_sample(session: Session, persona_id: int, kind: str, source_name: str, doc: ParsedDocument) -> Sample:
-    if doc.word_count < 50:
-        raise ValueError(f"{source_name}: not enough text to learn from ({doc.word_count} words).")
-    sample = Sample(
-        persona_id=persona_id,
-        kind=kind,
-        source_name=source_name,
-        source_type=doc.source_type,
-        title=doc.title or source_name.rsplit(".", 1)[0],
-        subtitle=doc.subtitle,
-        author=doc.author,
-        markdown=doc.to_markdown(),
-        word_count=doc.word_count,
-        image_count=doc.image_count,
-        captions=doc.captions,
-        stylometrics=compute(doc),
-    )
-    session.add(sample)
-    session.commit()
-    session.refresh(sample)
-    return sample
-
-
 def set_active(session: Session, persona_id: int) -> None:
     for persona in session.exec(select(Persona)):
         persona.is_active = persona.id == persona_id
@@ -127,7 +106,12 @@ def list_personas(session: SessionDep, services: ServicesDep) -> list[PersonaOut
 
 @router.post("/personas", response_model=PersonaOut, status_code=201)
 def create_persona(body: PersonaCreate, session: SessionDep, services: ServicesDep) -> PersonaOut:
-    first = session.exec(select(func.count()).select_from(Persona)).one() == 0
+    # Exactly one persona is on. The first real persona takes over from the example (or from nothing).
+    active = list(session.exec(select(Persona).where(Persona.is_active == True)))  # noqa: E712
+    first = all(p.is_example for p in active)
+    for other in active if first else []:
+        other.is_active = False
+        session.add(other)
     persona = Persona(**body.model_dump(), is_active=first)
     if not persona.display_name:
         persona.display_name = persona.name
@@ -135,6 +119,21 @@ def create_persona(body: PersonaCreate, session: SessionDep, services: ServicesD
     session.commit()
     session.refresh(persona)
     return persona_out(session, persona, services)
+
+
+@router.post("/example", response_model=PersonaOut, status_code=201)
+async def create_example(session: SessionDep, services: ServicesDep) -> PersonaOut:
+    """Add the example persona (voice profile and finished post), built offline with no Claude call."""
+    try:
+        persona_id = await seed_example(services, activate=False)
+    except ExampleError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    return persona_out(session, persona_or_404(session, persona_id), services)
+
+
+@router.delete("/example", status_code=204)
+def delete_example(services: ServicesDep) -> None:
+    remove_example(services)
 
 
 @router.get("/personas/{persona_id}", response_model=PersonaOut)
@@ -238,20 +237,7 @@ def duplicate_persona(persona_id: int, body: PersonaDuplicateIn, session: Sessio
 
 @router.delete("/personas/{persona_id}", status_code=204)
 def delete_persona(persona_id: int, session: SessionDep, services: ServicesDep) -> None:
-    persona = persona_or_404(session, persona_id)
-    project_ids = list(session.exec(select(Project.id).where(Project.persona_id == persona_id)))
-    if project_ids:
-        session.exec(delete(ProjectImage).where(col(ProjectImage.project_id).in_(project_ids)))  # type: ignore[call-overload]
-        session.exec(delete(Project).where(col(Project.persona_id) == persona_id))  # type: ignore[call-overload]
-    session.exec(delete(Sample).where(col(Sample.persona_id) == persona_id))  # type: ignore[call-overload]
-    session.exec(delete(VoiceProfile).where(col(VoiceProfile.persona_id) == persona_id))  # type: ignore[call-overload]
-    was_active = persona.is_active
-    session.delete(persona)
-    session.commit()
-    shutil.rmtree(services.storage.persona_dir(persona_id), ignore_errors=True)
-    for pid in project_ids:
-        if pid is not None:
-            shutil.rmtree(services.storage.project_dir(pid), ignore_errors=True)
+    was_active = delete_persona_data(session, services.storage, persona_or_404(session, persona_id))
     if was_active:
         remaining = session.exec(select(Persona).order_by(col(Persona.created_at))).first()
         if remaining is not None and remaining.id is not None:
@@ -337,6 +323,25 @@ def import_seed_samples(persona_id: int, session: SessionDep, services: Services
             continue
         added.append(sample_out(sample))
     return UploadResult(added=added, errors=errors)
+
+
+@router.get("/sample-writing", response_model=SampleWritingOut)
+def sample_writing() -> SampleWritingOut:
+    """The bundled sample posts, for someone who has no writing of their own to upload yet."""
+    return SampleWritingOut(files=[name for name, _ in sample_posts()], author=SAMPLE_AUTHOR)
+
+
+@router.post("/personas/{persona_id}/samples/import-sample-writing", response_model=UploadResult)
+def import_sample_writing(persona_id: int, session: SessionDep) -> UploadResult:
+    """Add the bundled sample posts as this persona's writing (skipping any already added)."""
+    persona_or_404(session, persona_id)
+    existing = set(session.exec(select(Sample.source_name).where(Sample.persona_id == persona_id)))
+    added = [
+        sample_out(add_sample(session, persona_id, "own", name, parse_file(name, data)))
+        for name, data in sample_posts()
+        if name not in existing
+    ]
+    return UploadResult(added=added, errors=[])
 
 
 @router.get("/samples/{sample_id}", response_model=SampleDetail)

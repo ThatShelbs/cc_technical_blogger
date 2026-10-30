@@ -33,9 +33,9 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - name: Lint
-        run: uv run ruff check src tests scripts
+        run: uv run ruff check src tests scripts evals
       - name: Format
-        run: uv run ruff format --check src tests scripts
+        run: uv run ruff format --check src tests scripts evals
       - name: Type check
         run: uv run mypy
       - name: Tests
@@ -64,7 +64,7 @@ jobs:
       - run: npm run build
 
   e2e:
-    name: End-to-end (demo mode)
+    name: End-to-end (demo mode: first run and seeded tour)
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     steps:

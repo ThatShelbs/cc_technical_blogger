@@ -1,6 +1,6 @@
 """Render brand PNG/ICO assets from the SVG sources.
 
-Run from the repository root:  uv run --project backend python assets/brand/render_brand.py
+Run from the repository root:  uv run --project backend python backend/scripts/render_brand.py
 """
 
 from __future__ import annotations
@@ -11,8 +11,9 @@ from pathlib import Path
 import resvg_py
 from PIL import Image
 
-HERE = Path(__file__).resolve().parent
-PUBLIC = HERE.parents[1] / "frontend" / "public"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+HERE = REPO_ROOT / "assets" / "brand"
+PUBLIC = REPO_ROOT / "frontend" / "public"
 
 
 def png(svg_path: Path, width: int, background: str | None = None) -> bytes:

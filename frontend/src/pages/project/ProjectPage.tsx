@@ -359,6 +359,7 @@ export function ProjectPage() {
   const [params, setParams] = useSearchParams()
   const qc = useQueryClient()
   const { data: project, isLoading, error } = useProject(id)
+  const { data: allPersonas } = usePersonas()
   const { generate } = useProjectMutations(id)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // The last finished job, kept after the URL is cleared so its outcome can be shown.
@@ -418,6 +419,14 @@ export function ProjectPage() {
           {generating ? 'Writing…' : project.status}
         </Badge>
       </div>
+      {allPersonas?.find((p) => p.id === project.persona_id)?.is_example && (
+        <div className="mb-6">
+          <Notice title="This is an example post">
+            It was built offline to show what Proseferno produces: the illustrations are placeholders and no Claude call was made. Set up your own persona to
+            write in your voice, then remove the example from the Personas page.
+          </Notice>
+        </div>
+      )}
       {failed && (
         <div className="mb-6">
           <Notice tone="error" title={failed.kind === 'tweak_post' ? 'Could not apply your feedback' : 'Generation stopped'}>

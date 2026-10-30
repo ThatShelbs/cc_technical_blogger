@@ -3,11 +3,12 @@ rem ============================================================================
 rem  Proseferno developer mode (Windows): API with auto-reload + Vite dev server
 rem  with hot module replacement. Add --demo to use canned AI responses.
 rem ============================================================================
-setlocal EnableExtensions
-cd /d "%~dp0"
+setlocal EnableExtensions EnableDelayedExpansion
+cd /d "%~dp0.."
+call "%~dp0_env.bat"
 
-where uv >nul 2>&1 || ( echo uv is required: winget install --id=astral-sh.uv -e & exit /b 1 )
-where npm >nul 2>&1 || ( echo Node.js is required: https://nodejs.org & exit /b 1 )
+if not defined UV_OK ( echo uv is required. Run scripts\setup.bat first. & exit /b 1 )
+where npm >nul 2>&1 || ( echo Node.js is required. Run scripts\setup.bat first. & exit /b 1 )
 
 uv sync --project backend --quiet || exit /b 1
 if not exist "frontend\node_modules\" ( pushd frontend & call npm ci --no-audit --no-fund & popd )

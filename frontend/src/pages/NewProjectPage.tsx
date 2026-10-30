@@ -75,6 +75,11 @@ export function NewProjectPage() {
             <Textarea id="prompt" rows={12} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={EXAMPLE} required minLength={3} />
           </Field>
           {create.error && <Notice tone="error">{errorText(create.error)}</Notice>}
+          {!prompt.trim() && (
+            <Button variant="ghost" size="sm" onClick={() => setPrompt(EXAMPLE)}>
+              Use an example prompt
+            </Button>
+          )}
           <Button
             type="submit"
             variant="flame"
