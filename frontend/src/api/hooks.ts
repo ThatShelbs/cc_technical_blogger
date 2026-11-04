@@ -20,6 +20,7 @@ import type {
   ProjectOut,
   ProjectSummary,
   ProjectUpdate,
+  RewriteIn,
   SampleOut,
   SampleWritingOut,
   SeedSamplesOut,
@@ -281,7 +282,7 @@ export function useProjectMutations(projectId?: number) {
       onSuccess: setProject,
     }),
     rewrite: useMutation({
-      mutationFn: (body: { selection: string; instruction: string }) => api.post<ProjectOut>(`/api/projects/${projectId}/rewrite`, body),
+      mutationFn: (body: RewriteIn) => api.post<ProjectOut>(`/api/projects/${projectId}/rewrite`, body),
       onSuccess: setProject,
     }),
     /** Replace the title options; the current and pinned titles are kept. */

@@ -107,7 +107,13 @@ export function ReviseCard({
   )
 }
 
-const KIND_LABEL: Record<string, string> = { tweak: 'Before feedback', rewrite: 'Before rewrite', edit: 'Before edit', restore: 'Before restore' }
+const KIND_LABEL: Record<string, string> = {
+  tweak: 'Before feedback',
+  rewrite: 'Before rewrite',
+  section: 'Before section change',
+  edit: 'Before edit',
+  restore: 'Before restore',
+}
 
 function when(iso: string): string {
   const date = new Date(iso)

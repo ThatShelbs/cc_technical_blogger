@@ -444,7 +444,8 @@ class ProjectCreated(BaseModel):
 
 class RewriteIn(BaseModel):
     selection: str = Field(min_length=1)
-    instruction: str = ""
+    instruction: str = Field(default="", max_length=4000)
+    action: Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote"] = "custom"
 
 
 class CopyHtmlOut(BaseModel):

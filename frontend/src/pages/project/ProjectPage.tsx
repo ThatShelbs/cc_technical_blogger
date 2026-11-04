@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Eye, FileDown, PencilLine, Pin, RefreshCw, Save, Wand2 } from 'lucide-react'
+import { Eye, FileDown, PencilLine, Pin, RefreshCw, Save } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 
@@ -8,7 +8,8 @@ import { keys, usePersonas, useProject, useProjectMutations } from '../../api/ho
 import type { JobOut, ProjectOut } from '../../api/types.gen'
 import { useJob, type Critique, type JobState } from '../../api/useJob'
 import { Article } from '../../components/Article'
-import { Badge, Button, Card, Dialog, Field, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
+import { SectionActions, SectionToolbar, type SectionAction, type SectionRun } from '../../components/SectionToolbar'
+import { Badge, Button, Card, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { AuthenticityPanel } from './AuthenticityPanel'
 import { BrandKitCard } from './BrandKitCard'
@@ -199,10 +200,10 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
   const [mode, setMode] = useState<'preview' | 'markdown'>('preview')
   const [text, setText] = useState(project.markdown)
   const [selection, setSelection] = useState('')
-  const [rewriteOpen, setRewriteOpen] = useState(false)
-  const [instruction, setInstruction] = useState('')
+  const [pendingAction, setPendingAction] = useState<SectionAction | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const textarea = useRef<HTMLTextAreaElement>(null)
+  const preview = useRef<HTMLDivElement>(null)
   const dirty = text !== project.markdown
 
   // When the saved post changes (save, rewrite, title pick), reset the editor text to it.
@@ -215,6 +216,21 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
   const captureSelection = () => {
     const el = textarea.current
     if (el) setSelection(el.value.slice(el.selectionStart, el.selectionEnd))
+  }
+
+  /** Regenerate one highlighted section; `source` is the exact slice of the post's Markdown. */
+  const regenerate = (source: string, { action, instruction }: SectionRun) => {
+    setPendingAction(action)
+    rewrite.mutate(
+      { selection: source, action, instruction },
+      {
+        onSuccess: () => {
+          setSelection('')
+          window.getSelection()?.removeAllRanges()
+        },
+        onSettled: () => setPendingAction(null),
+      },
+    )
   }
 
   return (
@@ -248,16 +264,6 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
               <>
                 <Button
                   size="sm"
-                  variant="secondary"
-                  icon={<Wand2 className="size-4" />}
-                  disabled={!selection.trim() || dirty || busy}
-                  onClick={() => setRewriteOpen(true)}
-                  title={dirty ? 'Save your edits first' : 'Select text in the editor first'}
-                >
-                  Rewrite selection
-                </Button>
-                <Button
-                  size="sm"
                   icon={<Save className="size-4" />}
                   disabled={!dirty || busy}
                   loading={update.isPending}
@@ -274,17 +280,20 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
         </div>
 
         {mode === 'preview' ? (
-          <Card padded={false} className="p-6 sm:p-10">
-            <Article
-              markdown={project.markdown}
-              images={project.images}
-              renderImage={(_slot, image) => (image ? <ImageCard key={image.id} projectId={project.id} image={image} /> : null)}
-            />
+          <Card padded={false} className="relative p-6 sm:p-10">
+            <div ref={preview}>
+              <Article
+                markdown={project.markdown}
+                images={project.images}
+                renderImage={(_slot, image) => (image ? <ImageCard key={image.id} projectId={project.id} image={image} /> : null)}
+              />
+            </div>
+            <SectionToolbar container={preview} markdown={project.markdown} pending={pendingAction} disabled={busy} onRun={regenerate} />
           </Card>
         ) : (
           <Card padded={false} className="space-y-2 p-3">
             <p className="px-1 text-xs text-muted">
-              Keep <code>{'{{image:…}}'}</code> lines where images belong. Select a passage and choose “Rewrite selection” to have it rewritten in your voice.
+              Keep <code>{'{{image:…}}'}</code> lines where images belong. Select a passage to rewrite, compact, expand or add a source or quote.
             </p>
             <Textarea
               ref={textarea}
@@ -295,9 +304,19 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
               className="font-mono text-sm"
               aria-label="Post markdown"
             />
+            {selection.trim() && (
+              <div className="rounded-lg border border-line bg-sunken p-2">
+                {dirty ? (
+                  <p className="px-2 py-1 text-sm text-muted">Save your edits first, then regenerate the selection.</p>
+                ) : (
+                  <SectionActions pending={pendingAction} disabled={busy} onRun={(run) => regenerate(selection, run)} />
+                )}
+              </div>
+            )}
           </Card>
         )}
         {update.error && <Notice tone="error">{errorText(update.error)}</Notice>}
+        {rewrite.error && <Notice tone="error">{errorText(rewrite.error)}</Notice>}
       </div>
 
       <aside className="space-y-4">
@@ -317,39 +336,6 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
         onClose={() => setExportOpen(false)}
         initial={String((project.resolved_dials as Record<string, unknown>)?.platform ?? 'medium')}
       />
-      <Dialog open={rewriteOpen} onClose={() => setRewriteOpen(false)} title="Rewrite selection">
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            rewrite.mutate(
-              { selection, instruction },
-              {
-                onSuccess: () => {
-                  setRewriteOpen(false)
-                  setInstruction('')
-                  setSelection('')
-                },
-              },
-            )
-          }}
-        >
-          <blockquote className="max-h-40 overflow-auto rounded-lg border-l-4 border-accent bg-sunken p-3 text-sm whitespace-pre-wrap">{selection}</blockquote>
-          <Field label="How should it change?" hint="Leave empty for “make it sound more like me”." htmlFor="rewrite-instruction">
-            <Textarea
-              id="rewrite-instruction"
-              rows={3}
-              value={instruction}
-              onChange={(e) => setInstruction(e.target.value)}
-              placeholder="Punchier, add an analogy, explain it for beginners…"
-            />
-          </Field>
-          {rewrite.error && <Notice tone="error">{errorText(rewrite.error)}</Notice>}
-          <Button type="submit" loading={rewrite.isPending} icon={<Wand2 className="size-4" />}>
-            Rewrite in my voice
-          </Button>
-        </form>
-      </Dialog>
     </div>
   )
 }

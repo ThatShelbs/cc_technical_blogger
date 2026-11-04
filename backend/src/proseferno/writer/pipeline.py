@@ -25,7 +25,6 @@ from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
-from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
 log = logging.getLogger(__name__)
@@ -451,48 +450,6 @@ async def _generate(
     _save(engine, project.id, status="ready")
     await ctx.progress(1.0, "Your post is ready")
     return {"project_id": project.id}
-
-
-async def rewrite_passage(
-    *,
-    llm: LLM,
-    settings: Settings,
-    engine: Engine,
-    project_id: int,
-    selection: str,
-    instruction: str,
-) -> str:
-    with Session(engine) as session:
-        project = session.get(Project, project_id)
-        if project is None:
-            raise WriterError("Project not found.")
-        voice_profile = current_voice_profile(session, project.persona_id)
-        samples = list(session.exec(select(Sample).where(Sample.persona_id == project.persona_id)))
-        persona = session.get(Persona, project.persona_id)
-    if voice_profile is None:
-        raise WriterError("This persona has no voice profile yet.")
-    lessons = format_lessons(persona.edit_lessons if persona else None)
-    if selection not in project.markdown:
-        raise WriterError("The selected passage was not found in the post. It may have changed; select it again.")
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
-    replacement = await llm.text(
-        task="passage rewrite",
-        system=system,
-        prompt=render("rewrite", instruction=instruction or "Make it sound more like me.", markdown=project.markdown, selection=selection),
-        effort=settings.effort_critique,
-        max_tokens=16000,
-    )
-    new_markdown = project.markdown.replace(selection, replacement.strip(), 1)
-    with Session(engine) as session:
-        row = session.get(Project, project_id)
-        if row is None:
-            raise WriterError("Project not found.")
-        push_revision(row, f"Rewrite: {instruction or 'sound more like me'}", "rewrite")
-        row.markdown = new_markdown
-        row.updated_at = utcnow()
-        session.add(row)
-        session.commit()
-    return new_markdown
 
 
 TITLE_OPTION_COUNT = 5

@@ -415,6 +415,49 @@ def test_tweak_needs_a_post(client: TestClient, sample_docx: bytes) -> None:
     assert client.post(f"/api/projects/{created['project']['id']}/tweak", json={"feedback": "shorter"}).status_code == 409
 
 
+def test_section_actions(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    url = f"/api/projects/{project['id']}"
+    selection = "Bar charts. Seriously, bar charts."
+    assert selection in project["markdown"]
+    images_before = {i["slot_id"]: i["url"] for i in project["images"]}
+
+    # Compact changes only the selected span and keeps every image placeholder.
+    fake_llm.calls.clear()
+    out = client.post(f"{url}/rewrite", json={"selection": selection, "action": "compact"})
+    assert out.status_code == 200, out.text
+    body = out.json()
+    assert "Bar charts win." in body["markdown"] and selection not in body["markdown"]
+    assert body["markdown"].replace("Bar charts win.", selection, 1).count("{{image:") == project["markdown"].count("{{image:")
+    assert body["revisions"][0]["kind"] == "section" and body["revisions"][0]["label"] == "Compact section"
+    assert {i["slot_id"]: i["url"] for i in body["images"]} == images_before
+    assert "passage compact" in fake_llm.tasks() and "research" not in fake_llm.tasks()
+    assert "noticeably shorter" in next(c for c in fake_llm.calls if c.get("task") == "passage compact")["prompt"]
+
+    # Undo brings the original text back.
+    restored = client.post(f"{url}/revisions/0/restore").json()
+    assert selection in restored["markdown"]
+
+    # Sources and quotes are researched first, and the writer is handed the real URL.
+    for action, task in (("add_source", "passage add_source"), ("add_quote", "passage add_quote")):
+        fake_llm.calls.clear()
+        out = client.post(f"{url}/rewrite", json={"selection": selection, "action": action})
+        assert out.status_code == 200, out.text
+        assert fake_llm.tasks().index("research") < fake_llm.tasks().index(task)
+        assert "https://example.com/guide" in next(c for c in fake_llm.calls if c.get("task") == task)["prompt"]
+        client.post(f"{url}/revisions/0/restore")
+
+    # A custom brief is kept as a lesson for later posts.
+    fake_llm.calls.clear()
+    out = client.post(f"{url}/rewrite", json={"selection": selection, "instruction": "make it more positive"})
+    assert out.status_code == 200 and out.json()["revisions"][0]["label"] == "Rewrite: make it more positive"
+    assert "passage rewrite" in fake_llm.tasks()
+
+    # A stale selection and an unknown action are rejected.
+    assert client.post(f"{url}/rewrite", json={"selection": "not in the post", "action": "expand"}).status_code == 422
+    assert client.post(f"{url}/rewrite", json={"selection": selection, "action": "shout"}).status_code == 422
+
+
 def test_voice_profile_settings(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
     pid = create_persona(client)["id"]
     upload(client, pid, sample_docx)

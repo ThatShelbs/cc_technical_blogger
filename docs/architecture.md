@@ -45,7 +45,7 @@ flowchart TB
 | `llm/` | The `LLM` protocol; `RoutingLLM`, which sends each call to the connection chosen in Settings; `ClaudeLLM` for the Anthropic API (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching, retries); `ClaudeCodeLLM` for a Claude subscription, which runs the user's own `claude -p` with JSON output; and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
-| `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, passage rewrite, feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
+| `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, section regeneration (`section.py`: rewrite, compact, expand, add source or quote, custom brief), feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
 | `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the two-call meme generator and the composer that owns meme layout and type. |
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |

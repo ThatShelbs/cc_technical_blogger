@@ -61,6 +61,18 @@ So the next time you reach for a pie, reach for a bar instead. Your readers will
 """
 
 
+PASSAGES = {
+    "rewrite": "Bar charts win. Every. Single. Time.",
+    "compact": "Bar charts win.",
+    "expand": (
+        "Bar charts win. Every. Single. Time. The eye compares lengths faster than angles, "
+        "so the answer is on the page before the reader has finished the sentence."
+    ),
+    "add_source": "Bar charts win. Every. Single. Time. [The guide](https://example.com/guide) says the same.",
+    "add_quote": 'Bar charts win. Every. Single. Time. As the saying goes, "Simplicity is the ultimate sophistication."',
+}
+
+
 class FakeLLM:
     def __init__(self, delay: float = 0.0) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -99,8 +111,8 @@ class FakeLLM:
         self.calls.append({"kind": "text", "task": task, "prompt": prompt, "system": system})
         if task == "voice profile synthesis":
             text = VOICE_PROFILE
-        elif task == "passage rewrite":
-            text = "Bar charts win. Every. Single. Time."
+        elif task.startswith("passage "):
+            text = PASSAGES.get(task.removeprefix("passage "), PASSAGES["rewrite"])
         else:
             text = DRAFT
         if on_delta:
