@@ -90,9 +90,10 @@ What happens when someone clicks **Write my post**, in the order the code runs:
 2. `create_project` in `backend/src/proseferno/api/projects.py` checks there is an active persona with a voice profile, saves a `Project` row, and calls `start_generation`.
 3. `start_generation` hands `writer.generate_article` to `JobManager.start` (`jobs.py`). The route returns the job id immediately (HTTP 201).
 4. The browser navigates to `/projects/{id}?job={job_id}`. `useJob` (`frontend/src/api/useJob.ts`) opens `/api/jobs/{id}/events` (`api/jobs.py`) and folds the server-sent events into progress and the streaming draft.
-5. In the job, `writer/pipeline.py` runs `write_post`: plan (`prompts/plan.md`), streamed draft (`draft.md`), critique (`critique.md`) and revision (`revise.md`), all through the `LLM` protocol, then the AI-detection report (`authenticity/`).
-6. `_generate` then creates the image rows and `images/service.py` designs and renders each image (Claude writes SVG or Vega-Lite, resvg or vl-convert renders it), crediting the persona and the Claude model. A failed image gets its own `error` status and never fails the post.
-7. The project becomes `ready`, the job finishes, and `ProjectPage.tsx` refetches the post and shows the editor.
+5. In the job, `writer/pipeline.py` runs `write_post`: plan (`prompts/plan.md`), streamed draft (`draft.md`), critique (`critique.md`) and revision (`revise.md`), all through the `LLM` protocol.
+6. Still inside `write_post`, the `enrich` hook from `_generate` runs the references pass (`writer/references.py`): plan, web research per reference, one weave call, and code checks that every link and quote came from the search (see [references](references.md)). The AI-detection report (`authenticity/`) then scores the final text.
+7. `_generate` then creates the image rows and `images/service.py` designs and renders each image (Claude writes SVG or Vega-Lite, resvg or vl-convert renders it), crediting the persona and the Claude model. A failed image gets its own `error` status and never fails the post.
+8. The project becomes `ready`, the job finishes, and `ProjectPage.tsx` refetches the post and shows the editor.
 
 Everything the pipeline needs from Claude goes through `llm/base.py`, which is why the tests and the demo can swap in `demo.FakeLLM`.
 
@@ -121,6 +122,9 @@ The first real persona becomes the active one even when the example is on (`api/
 | AI-detection judge | structured output (`AIDetectionJudgement`) | low |
 | LinkedIn feed post | structured output (`LinkedInPost`) | medium |
 | Design an image | structured output (`SvgSpec`, `ChartSpec`) | medium |
+| Plan references | structured output (`ReferencePlan`) | medium |
+| Research one reference | `web_search` server tool | medium |
+| Weave references in | structured output (`ReferenceEdits`) | medium |
 | Pitch closing memes | structured output (`MemeIdeas`) | high |
 | Build a meme | structured output (`MemeBuild`) | medium |
 

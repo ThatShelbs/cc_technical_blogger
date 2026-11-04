@@ -19,6 +19,7 @@ from proseferno.api.schemas import (
 )
 from proseferno.images import model_label
 from proseferno.llm import LLMNotConfiguredError
+from proseferno.services import RUNTIME_SETTINGS
 
 router = APIRouter(prefix="/api")
 
@@ -117,6 +118,8 @@ def _settings_out(services: ServicesDep) -> SettingsOut:
         use_fallbacks=s.use_fallbacks,
         revision_passes=s.revision_passes,
         ai_detection=s.ai_detection,
+        reference_max_searches=s.reference_max_searches,
+        check_reference_links=s.check_reference_links,
         image_tool_label=f"{model_label(s.model)}: SVG illustrations, icons and diagrams; Vega-Lite charts",
         data_dir=str(s.data_dir),
         seed_samples_dir=str(s.seed_samples_dir),
@@ -132,7 +135,7 @@ def get_settings(services: ServicesDep) -> SettingsOut:
 
 @router.put("/settings", response_model=SettingsOut)
 def update_settings(body: SettingsIn, services: ServicesDep) -> SettingsOut:
-    for key in ("claude_connection", "model", "use_fallbacks", "revision_passes", "ai_detection"):
+    for key in RUNTIME_SETTINGS:
         value = getattr(body, key)
         if value is not None:
             services.save_runtime_setting(key, value.strip() if isinstance(value, str) else value)

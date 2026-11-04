@@ -11,13 +11,23 @@ import { Article } from '../../components/Article'
 import { SectionActions, SectionToolbar, type SectionAction, type SectionRun } from '../../components/SectionToolbar'
 import { Badge, Button, Card, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { referenceForHref } from '../../lib/references'
 import { AuthenticityPanel } from './AuthenticityPanel'
 import { BrandKitCard } from './BrandKitCard'
 import { ExportDialog } from './ExportDialog'
 import { GenerationView } from './GenerationView'
 import { ImageCard } from './ImageCard'
+import { ReferenceLink, ReferencesCard } from './ReferencesCard'
+import { useReferenceActions } from './useReferenceActions'
 import { PostSettingsDialog } from './PostSettingsDialog'
 import { BriefCard, HistoryCard, ReviseCard } from './RevisePanel'
+
+const REFERENCE_JOBS = ['enrich_post', 'redraw_reference']
+const FAILED_TITLE: Record<string, string> = {
+  tweak_post: 'Could not apply your feedback',
+  enrich_post: 'Could not add references',
+  redraw_reference: 'Could not redraw that reference',
+}
 
 const SCORE_LABELS: [keyof Critique, string][] = [
   ['voice', 'Sounds like you'],
@@ -158,7 +168,7 @@ function DialsSummary({ project }: { project: ProjectOut }) {
       <h2 className="mb-1 font-bold">Settings used</h2>
       <p>
         <span className="text-muted">Length:</span> ~{Number(d.target_words).toLocaleString()} words · <span className="text-muted">Images:</span>{' '}
-        {d.image_count}
+        {d.image_count} · <span className="text-muted">References:</span> {d.reference_count ?? 0}
       </p>
       <p>
         <span className="text-muted">Humor:</span> {d.humor}/10 · <span className="text-muted">Level:</span> {d.education}
@@ -197,6 +207,7 @@ interface EditorProps {
 
 function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakStarted }: EditorProps) {
   const { update, rewrite } = useProjectMutations(project.id)
+  const referenceActions = useReferenceActions(project.id, { busy, onJobStarted: onTweakStarted })
   const [mode, setMode] = useState<'preview' | 'markdown'>('preview')
   const [text, setText] = useState(project.markdown)
   const [selection, setSelection] = useState('')
@@ -286,6 +297,14 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
                 markdown={project.markdown}
                 images={project.images}
                 renderImage={(_slot, image) => (image ? <ImageCard key={image.id} projectId={project.id} image={image} /> : null)}
+                renderLink={(href, children) => {
+                  const reference = referenceForHref(project.references, href)
+                  return reference ? (
+                    <ReferenceLink reference={reference} actions={referenceActions}>
+                      {children}
+                    </ReferenceLink>
+                  ) : undefined
+                }}
               />
             </div>
             <SectionToolbar container={preview} markdown={project.markdown} pending={pendingAction} disabled={busy} onRun={regenerate} />
@@ -321,6 +340,7 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
 
       <aside className="space-y-4">
         <ReviseCard project={project} dirty={dirty} busy={busy} onTweakStarted={onTweakStarted} onOpenSettings={onOpenSettings} onRegenerate={onRegenerate} />
+        <ReferencesCard project={project} actions={referenceActions} />
         <HistoryCard project={project} busy={busy} dirty={dirty} />
         <TitlePicker project={project} />
         <BrandKitCard project={project} disabled={busy} />
@@ -364,8 +384,10 @@ export function ProjectPage() {
   if (error || !project) return <Notice tone="error">{error ? errorText(error) : 'Post not found.'}</Notice>
 
   const running = !!jobId && job.status !== 'succeeded' && job.status !== 'failed'
-  const generating = running && jobKind !== 'tweak_post'
+  // Only a full generation takes over the page; other text jobs (feedback, references) show a banner over the editor.
+  const generating = running && jobKind === 'generate_post'
   const tweaking = running && jobKind === 'tweak_post'
+  const referencing = running && REFERENCE_JOBS.includes(jobKind)
   const follow = (j: JobOut) => {
     setFinished(null)
     setParams({ job: j.id, kind: j.kind }, { replace: true })
@@ -374,13 +396,21 @@ export function ProjectPage() {
   const failed = finished?.state.status === 'failed' ? finished : null
 
   let banner: ReactNode = null
-  if (tweaking) {
+  if (tweaking || referencing) {
+    const what = tweaking ? 'Applying your feedback…' : jobKind === 'enrich_post' ? 'Finding references…' : 'Finding a new reference…'
     banner = (
       <Card className="space-y-2">
-        <p className="text-sm font-semibold">Applying your feedback…</p>
-        <ProgressBar value={job.progress} label="Feedback progress" />
+        <p className="text-sm font-semibold">{what}</p>
+        <ProgressBar value={job.progress} label={tweaking ? 'Feedback progress' : 'References progress'} />
         <p className="text-xs text-muted">{job.message || 'Starting'}</p>
       </Card>
+    )
+  } else if (finished?.kind === 'enrich_post' && finished.state.status === 'succeeded') {
+    const added = Number(finished.state.result?.added ?? 0)
+    banner = (
+      <Notice tone="success" title={`Added ${added} reference${added === 1 ? '' : 's'}`}>
+        Each one is marked next to its link in the post. Not quite right? Redraw it, or use “Undo last change”.
+      </Notice>
     )
   } else if (finished?.kind === 'tweak_post' && finished.state.status === 'succeeded') {
     const result = finished.state.result ?? {}
@@ -415,7 +445,7 @@ export function ProjectPage() {
       )}
       {failed && (
         <div className="mb-6">
-          <Notice tone="error" title={failed.kind === 'tweak_post' ? 'Could not apply your feedback' : 'Generation stopped'}>
+          <Notice tone="error" title={FAILED_TITLE[failed.kind] ?? 'Generation stopped'}>
             {failed.state.error}
           </Notice>
         </div>
@@ -433,7 +463,7 @@ export function ProjectPage() {
         <Editor
           project={project}
           banner={banner}
-          busy={tweaking}
+          busy={tweaking || referencing}
           onRegenerate={regenerate}
           onOpenSettings={() => setSettingsOpen(true)}
           onTweakStarted={follow}

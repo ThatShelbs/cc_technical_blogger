@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import type { ReferenceKind } from '../lib/references'
 import { api } from './client'
 import type {
   AuthStatusOut,
   AuthTestOut,
   CopyHtmlOut,
+  EnrichIn,
   GenerateIn,
   Health,
   ImageOut,
@@ -335,6 +337,28 @@ export function useImageMutations(projectId: number) {
     update: useMutation({
       mutationFn: ({ id, ...body }: { id: number; caption?: string; alt?: string; credit?: string }) => api.patch<ImageOut>(`/api/images/${id}`, body),
       onSuccess: refresh,
+    }),
+  }
+}
+
+/** References in a post: find more, redraw one (optionally as another kind), swap a version back, or remove one. */
+export function useReferenceMutations(projectId: number) {
+  const qc = useQueryClient()
+  const setProject = (project: ProjectOut) => qc.setQueryData(keys.project(projectId), project)
+  return {
+    enrich: useMutation({
+      mutationFn: (body: EnrichIn = {}) => api.post<JobOut>(`/api/projects/${projectId}/references`, body),
+    }),
+    redraw: useMutation({
+      mutationFn: ({ id, kind }: { id: number; kind?: ReferenceKind }) => api.post<JobOut>(`/api/references/${id}/redraw`, { kind: kind ?? null }),
+    }),
+    revert: useMutation({
+      mutationFn: ({ id, index }: { id: number; index: number }) => api.post<ProjectOut>(`/api/references/${id}/revert`, { index }),
+      onSuccess: setProject,
+    }),
+    remove: useMutation({
+      mutationFn: (id: number) => api.del<ProjectOut>(`/api/references/${id}`),
+      onSuccess: setProject,
     }),
   }
 }

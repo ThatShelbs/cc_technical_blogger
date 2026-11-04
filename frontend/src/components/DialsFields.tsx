@@ -1,5 +1,6 @@
 import type { PersonaOut } from '../api/types.gen'
 import { STYLE_DIALS, TOPICS, autoImageCount, personaStyle, shownDials, styleLabel, type DialsState, type Education, type IncludeCode } from '../pages/dials'
+import { REFERENCE_KINDS, autoReferenceCount, type ReferenceKind } from '../lib/references'
 import { Field, Input, Select, Slider } from './ui'
 
 /** The post customization controls shared by the new-post page and the post settings dialog (everything but platform). */
@@ -14,7 +15,12 @@ export function DialsFields({
   persona: PersonaOut | undefined
   idPrefix?: string
 }) {
-  const { targetWords, imageCount, humor, education, includeCode } = shownDials(dials, persona)
+  const { targetWords, imageCount, referenceCount, humor, education, includeCode } = shownDials(dials, persona)
+  const kinds = dials.referenceKinds ?? REFERENCE_KINDS.map((k) => k.kind)
+  const toggleKind = (kind: ReferenceKind, on: boolean) => {
+    const next = REFERENCE_KINDS.map((k) => k.kind).filter((k) => (k === kind ? on : kinds.includes(k)))
+    if (next.length) onChange({ referenceKinds: next.length === REFERENCE_KINDS.length ? null : next })
+  }
   const id = (name: string) => `${idPrefix}${name}`
   return (
     <div className="space-y-5">
@@ -38,6 +44,49 @@ export function DialsFields({
           Choose the number of images automatically
         </label>
         {imageCount !== null && <Slider label="Images" min={2} max={12} value={imageCount} onChange={(v) => onChange({ imageCount: v })} />}
+      </div>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={referenceCount === null}
+            onChange={(e) => onChange({ referenceCount: e.target.checked ? null : autoReferenceCount(targetWords) })}
+            className="accent-[var(--app-accent)]"
+          />
+          Choose the number of references automatically (~{autoReferenceCount(targetWords)})
+        </label>
+        {referenceCount !== null && (
+          <Slider
+            label="References"
+            min={0}
+            max={12}
+            value={referenceCount}
+            onChange={(v) => onChange({ referenceCount: v })}
+            format={(v) => (v === 0 ? 'None' : `${v} sources, quotes and resources`)}
+          />
+        )}
+        {referenceCount !== 0 && (
+          <fieldset className="space-y-1">
+            <legend className="text-sm font-semibold">Kinds of references</legend>
+            <div className="grid gap-1 sm:grid-cols-2">
+              {REFERENCE_KINDS.map(({ kind, label, hint }) => (
+                <label key={kind} className="flex items-center gap-2 text-sm" title={hint}>
+                  <input
+                    type="checkbox"
+                    checked={kinds.includes(kind)}
+                    onChange={(e) => toggleKind(kind, e.target.checked)}
+                    className="accent-[var(--app-accent)]"
+                    aria-describedby={id(`kind-${kind}-hint`)}
+                  />
+                  {label}
+                  <span id={id(`kind-${kind}-hint`)} className="sr-only">
+                    {hint}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
       </div>
       <Slider label="Humor" min={0} max={10} value={humor} onChange={(v) => onChange({ humor: v })} format={(v) => `${v}/10`} />
       {STYLE_DIALS.map(({ key, label, low, high }) => (

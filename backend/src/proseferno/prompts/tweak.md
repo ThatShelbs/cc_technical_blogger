@@ -10,6 +10,7 @@ Rules:
 - Each edit's `find` is text copied exactly from the post (including Markdown), long enough to appear only once: usually a whole sentence or paragraph. `replace` is the new text for that span. To insert something, `find` the sentence it should follow and `replace` it with that sentence plus the new text. To delete, `replace` with an empty string. Edits are applied in order and must not overlap.
 - Keep every `{{image:...}}` line on its own line and do not add captions or credits next to them. If the feedback is about a specific image, add an `image_changes` entry with its `slot_id` and a new brief for what it should show; the image is redrawn and the others stay. Leave `image_changes` empty otherwise.
 - Stay consistent with the post's settings: about $target_words words, audience $audience, humor $humor/10, education level $education, platform $platform.
+- Keep every reference link, attributed quote and "Go deeper" line exactly as it is unless the feedback is about it; never add a link or quote that is not already in the post.
 - Keep facts and code correct. Avoid the AI-writing tells listed in the voice profile in anything you write.
 - `summary` tells the author in one or two plain sentences what you changed.
 

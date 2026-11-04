@@ -12,6 +12,8 @@ from proseferno.db import Persona
 Education = Literal["beginner", "intermediate", "expert"]
 Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
 IncludeCode = Literal["auto", "yes", "no"]
+ReferenceKind = Literal["source", "quote", "social_post", "resource", "related_article"]
+REFERENCE_KINDS: tuple[ReferenceKind, ...] = ("source", "quote", "social_post", "resource", "related_article")
 
 TOPICS: dict[str, list[str]] = {
     "Data Science": ["data science", "data scientist", "analysis", "dataset", "statistics", "eda", "sql"],
@@ -170,6 +172,9 @@ class Dials(BaseModel):
 
     target_words: int | None = Field(None, ge=300, le=6000)
     image_count: int | None = Field(None, ge=2, le=15)
+    # External references worked into the post (0 = none); the kinds the mix may draw from (empty = all).
+    reference_count: int | None = Field(None, ge=0, le=12)
+    reference_kinds: list[ReferenceKind] | None = None
     humor: int | None = Field(None, ge=0, le=10)
     education: Education | None = None
     storytelling: int | None = Field(None, ge=0, le=10)
@@ -188,6 +193,8 @@ class Dials(BaseModel):
 class ResolvedDials(BaseModel):
     target_words: int
     image_count: int
+    reference_count: int
+    reference_kinds: list[ReferenceKind]
     humor: int
     humor_guide: str
     education: Education
@@ -220,6 +227,11 @@ def auto_image_count(target_words: int) -> int:
     return max(2, min(12, round(target_words / 350)))
 
 
+def auto_reference_count(target_words: int) -> int:
+    """At least five; one more for every 500 words past 2,000."""
+    return max(5, min(12, 5 + (target_words - 2000) // 500))
+
+
 def _guide(guides: dict[range, str], value: int) -> str:
     return next(text for span, text in guides.items() if value in span)
 
@@ -248,6 +260,10 @@ def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: i
     return ResolvedDials(
         target_words=target_words,
         image_count=dials.image_count or persona.default_image_count or auto_image_count(target_words),
+        reference_count=next(
+            n for n in (dials.reference_count, persona.default_reference_count, auto_reference_count(target_words)) if n is not None
+        ),
+        reference_kinds=[k for k in REFERENCE_KINDS if k in (dials.reference_kinds or REFERENCE_KINDS)],
         humor=humor,
         humor_guide=_guide(HUMOR_GUIDE, humor),
         education=education,

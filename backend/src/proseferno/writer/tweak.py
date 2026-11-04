@@ -35,7 +35,20 @@ from proseferno.writer.pipeline import (
 from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ImageSlot, PostEdits, TextEdit
 
-TEXT_JOBS = ("generate_post", "tweak_post")
+# Jobs that change a post's text; only one runs per project at a time.
+TEXT_JOBS = ("generate_post", "tweak_post", "enrich_post", "redraw_reference")
+
+
+def locate(markdown: str, text: str) -> tuple[int, int] | None:
+    """Where ``text`` first appears in the post: exactly, or word by word when the model reflowed its whitespace."""
+    if not text.strip():
+        return None
+    start = markdown.find(text)
+    if start >= 0:
+        return start, start + len(text)
+    pattern = r"\s+".join(re.escape(word) for word in text.split())
+    match = re.search(pattern, markdown)
+    return match.span() if match else None
 
 
 def apply_edits(markdown: str, edits: list[TextEdit]) -> tuple[str, int, list[str]]:
@@ -45,16 +58,11 @@ def apply_edits(markdown: str, edits: list[TextEdit]) -> tuple[str, int, list[st
     for edit in edits:
         if not edit.find.strip() or edit.find == edit.replace:
             continue
-        start = markdown.find(edit.find)
-        end = start + len(edit.find)
-        if start < 0:
-            # The model may reflow whitespace when copying a passage; match it word by word.
-            pattern = r"\s+".join(re.escape(word) for word in edit.find.split())
-            match = re.search(pattern, markdown)
-            if match is None:
-                skipped.append(edit.find[:120])
-                continue
-            start, end = match.span()
+        span = locate(markdown, edit.find)
+        if span is None:
+            skipped.append(edit.find[:120])
+            continue
+        start, end = span
         markdown = markdown[:start] + edit.replace + markdown[end:]
         applied += 1
     return markdown, applied, skipped

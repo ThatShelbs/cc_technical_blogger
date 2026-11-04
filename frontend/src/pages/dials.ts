@@ -1,4 +1,5 @@
 import type { Dials, PersonaOut } from '../api/types.gen'
+import type { ReferenceKind } from '../lib/references'
 
 export const TOPICS = [
   'Data Science',
@@ -48,6 +49,10 @@ export interface DialsState {
   targetWords: number | null
   /** null = use the persona's default (which may be automatic) */
   imageCount: number | null
+  /** null = use the persona's default (which may be automatic); 0 = no references */
+  referenceCount: number | null
+  /** null = every kind */
+  referenceKinds: ReferenceKind[] | null
   /** null = use the persona's default */
   humor: number | null
   /** null = use the persona's default */
@@ -64,6 +69,8 @@ export interface DialsState {
 export const emptyDials: DialsState = {
   targetWords: null,
   imageCount: null,
+  referenceCount: null,
+  referenceKinds: null,
   humor: null,
   education: null,
   style: {},
@@ -78,6 +85,8 @@ export function buildDials(state: DialsState): Dials {
   const dials: Dials = {}
   if (state.targetWords !== null) dials.target_words = state.targetWords
   if (state.imageCount !== null) dials.image_count = state.imageCount
+  if (state.referenceCount !== null) dials.reference_count = state.referenceCount
+  if (state.referenceKinds !== null) dials.reference_kinds = state.referenceKinds
   if (state.humor !== null) dials.humor = state.humor
   if (state.education !== null) dials.education = state.education
   for (const { key } of STYLE_DIALS) {
@@ -102,6 +111,8 @@ export function dialsToState(dials: Dials | Record<string, unknown> | null | und
   return {
     targetWords: d.target_words ?? null,
     imageCount: d.image_count ?? null,
+    referenceCount: d.reference_count ?? null,
+    referenceKinds: d.reference_kinds ?? null,
     humor: d.humor ?? null,
     education: d.education ?? null,
     style,
@@ -127,6 +138,7 @@ export function shownDials(dials: DialsState, persona: PersonaOut | undefined) {
   return {
     targetWords,
     imageCount: dials.imageCount ?? persona?.default_image_count ?? null,
+    referenceCount: dials.referenceCount ?? persona?.default_reference_count ?? null,
     humor: dials.humor ?? persona?.default_humor ?? 5,
     education: dials.education ?? (persona?.default_education as Education | undefined) ?? 'intermediate',
     includeCode: dials.includeCode ?? (persona?.default_include_code as IncludeCode | undefined) ?? 'auto',

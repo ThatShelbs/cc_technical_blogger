@@ -151,7 +151,7 @@ def update_persona(persona_id: int, body: PersonaUpdate, session: SessionDep, se
     if "default_image_count" in changes and not changes["default_image_count"]:
         changes["default_image_count"] = None  # 0 = automatic
     for key, value in changes.items():
-        if value is None and key not in ("pinned_voice_profile_version", "default_image_count"):
+        if value is None and key not in ("pinned_voice_profile_version", "default_image_count", "default_reference_count"):
             continue
         setattr(persona, key, value.strip() if isinstance(value, str) else value)
     persona.updated_at = utcnow()

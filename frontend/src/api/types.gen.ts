@@ -50,6 +50,8 @@ export interface CopyHtmlOut {
 export interface Dials {
   target_words?: number | null;
   image_count?: number | null;
+  reference_count?: number | null;
+  reference_kinds?: ("source" | "quote" | "social_post" | "resource" | "related_article")[] | null;
   humor?: number | null;
   education?: "beginner" | "intermediate" | "expert" | null;
   storytelling?: number | null;
@@ -70,6 +72,11 @@ export interface EditLesson {
   new?: string;
   count?: number;
   last_seen?: string;
+}
+
+export interface EnrichIn {
+  count?: number | null;
+  kinds?: ("source" | "quote" | "social_post" | "resource" | "related_article")[] | null;
 }
 
 export interface GenerateIn {
@@ -185,6 +192,7 @@ export interface PersonaOut {
   default_education: string;
   default_target_words: number;
   default_image_count: number | null;
+  default_reference_count: number | null;
   default_storytelling: number;
   default_opinion: number;
   default_formality: number;
@@ -215,6 +223,7 @@ export interface PersonaUpdate {
   default_education?: "beginner" | "intermediate" | "expert" | null;
   default_target_words?: number | null;
   default_image_count?: number | null;
+  default_reference_count?: number | null;
   default_storytelling?: number | null;
   default_opinion?: number | null;
   default_formality?: number | null;
@@ -268,6 +277,7 @@ export interface ProjectOut {
   voice_profile_version: number | null;
   error: string | null;
   images: ImageOut[];
+  references: ReferenceOut[];
   active_job_id: string | null;
   active_job_kind: string | null;
   created_at: string;
@@ -300,6 +310,35 @@ export interface ProjectUpdate {
 export interface RedrawIn {
   rethink?: boolean;
   meme_format?: string | null;
+}
+
+export interface ReferenceHistoryOut {
+  index: number;
+  kind: string;
+  url: string;
+  title: string;
+  created_at: string;
+}
+
+export interface ReferenceOut {
+  id: number;
+  slot_id: string;
+  position: number;
+  kind: string;
+  placement: string;
+  purpose: string;
+  url: string;
+  title: string;
+  speaker: string;
+  quote: string;
+  status: string;
+  error: string | null;
+  in_post: boolean;
+  history: ReferenceHistoryOut[];
+}
+
+export interface ReferenceRedrawIn {
+  kind?: "source" | "quote" | "social_post" | "resource" | "related_article" | null;
 }
 
 export interface RevertIn {
@@ -375,6 +414,8 @@ export interface SettingsIn {
   use_fallbacks?: boolean | null;
   revision_passes?: number | null;
   ai_detection?: boolean | null;
+  reference_max_searches?: number | null;
+  check_reference_links?: boolean | null;
 }
 
 export interface SettingsOut {
@@ -383,6 +424,8 @@ export interface SettingsOut {
   use_fallbacks: boolean;
   revision_passes: number;
   ai_detection: boolean;
+  reference_max_searches: number;
+  check_reference_links: boolean;
   image_tool_label: string;
   data_dir: string;
   seed_samples_dir: string;

@@ -69,13 +69,22 @@ PASSAGES = {
         "so the answer is on the page before the reader has finished the sentence."
     ),
     "add_source": "Bar charts win. Every. Single. Time. [The guide](https://example.com/guide) says the same.",
-    "add_quote": 'Bar charts win. Every. Single. Time. As the saying goes, "Simplicity is the ultimate sophistication."',
+    "add_quote": (
+        'Bar charts win. Every. Single. Time. As [the saying goes](https://example.com/guide), "Simplicity is the ultimate sophistication."'
+    ),
+}
+
+# Canned research for each reference kind: (exact words, who said them). Quotes and posts must appear in the research.
+REFERENCE_WORDS = {
+    "quote": ("All models are wrong, but some are useful.", "George Box"),
+    "social_post": ("Sort your bars. That is the whole post.", "Demo Analyst (@demo.analyst)"),
 }
 
 
 class FakeLLM:
     def __init__(self, delay: float = 0.0) -> None:
         self.calls: list[dict[str, Any]] = []
+        self._reference_numbers = itertools.count(1)
         # Seconds between streamed chunks; demo mode uses a small delay so streaming is visible.
         self.delay = delay
 
@@ -134,9 +143,21 @@ class FakeLLM:
         max_searches: int = 8,
         usage: UsageSink | None = None,
     ) -> ResearchResult:
-        self.calls.append({"kind": "research", "prompt": prompt})
+        self.calls.append({"kind": "research", "task": "research", "prompt": prompt})
+        kind = re.search(r"^Reference kind: (\w+)", prompt, re.MULTILINE)
+        if kind:
+            # A new example URL every time, and never one the prompt says was tried (the counter restarts with the app),
+            # so a redraw visibly finds something else.
+            tried = prompt.split("already tried:", 1)[-1].split("\n", 1)[0] if "already tried:" in prompt else ""
+            name = kind.group(1)
+            number = next(n for n in self._reference_numbers if f"/{name.replace('_', '-')}/{n}," not in f"{tried},")
+            url, title = f"https://example.com/{name.replace('_', '-')}/{number}", f"Example {name.replace('_', ' ')} {number}"
+            words, who = REFERENCE_WORDS.get(name, ("", ""))
+            text = f"Found [{title}]({url})." + (f' {who} said "{words}"' if words else "")
+            return ResearchResult(text=text, citations=[Citation(url=url, title=title, cited_text=words)])
         return ResearchResult(
-            text="# Best practices for technical blogging\n\n## Titles\n- Be specific.",
+            text="# Best practices for technical blogging\n\n## Titles\n- Be specific.\n\n"
+            'As the saying goes, "Simplicity is the ultimate sophistication."',
             citations=[Citation(url="https://example.com/guide", title="Guide")],
         )
 
@@ -247,6 +268,10 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
         }
     if name == "PostEdits":
         return _post_edits(prompt)
+    if name == "ReferencePlan":
+        return _reference_plan(prompt)
+    if name == "ReferenceEdits":
+        return _reference_edits(prompt)
     if name == "TitleOptions":
         # Shuffled so "New options" visibly changes the list in demo mode.
         return {"title_options": random.sample(DEMO_TITLES, 5)}
@@ -330,6 +355,64 @@ def _post_edits(prompt: str) -> dict[str, Any]:
         "edits": [{"find": paragraph, "replace": paragraph + DEMO_TWEAK}] if paragraph else [],
         "image_changes": image_changes,
     }
+
+
+_REFERENCE_PLACEMENT = {
+    "source": "inline",
+    "quote": "blockquote",
+    "social_post": "blockquote",
+    "resource": "go_deeper",
+    "related_article": "go_deeper",
+}
+
+
+def _reference_plan(prompt: str) -> dict[str, Any]:
+    """Anchor references in the first sentence of each plain paragraph that has no link yet."""
+    count = int(m.group(1)) if (m := re.search(r"Plan exactly (\d+)", prompt)) else 5
+    kinds_line = m.group(1) if (m := re.search(r"Kinds you may use: (.+)", prompt)) else ""
+    kinds = [k.strip() for k in kinds_line.split(",") if k.strip()] or list(_REFERENCE_PLACEMENT)
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    paragraphs = [
+        block.strip()
+        for block in post.split("\n\n")
+        if block.strip() and not block.lstrip().startswith(("#", "*", "{{", "```", "-", ">", "|")) and "](http" not in block
+    ]
+    anchors = iter(re.split(r"(?<=[.!?])\s", p, maxsplit=1)[0] for p in paragraphs)
+    slots: list[dict[str, Any]] = []
+    for kind in itertools.islice(itertools.cycle(kinds), count * 2):
+        if len(slots) >= count:
+            break
+        placement = _REFERENCE_PLACEMENT.get(kind, "inline")
+        anchor = "" if placement == "go_deeper" else next(anchors, None)
+        if anchor is None:
+            continue
+        slots.append({"kind": kind, "placement": placement, "anchor": anchor, "purpose": f"A {kind} for the reader", "query": kind})
+    return {"slots": slots}
+
+
+_SLOT_RE = re.compile(
+    r'<slot id="(?P<id>[^"]+)" kind="(?P<kind>[^"]+)" placement="(?P<placement>[^"]+)">\nAnchor: (?P<anchor>.*?)\nPurpose:'
+    r".*?Sources:\n- \[(?P<title>[^\]]*)\]\((?P<url>[^)]+)\)",
+    re.DOTALL,
+)
+
+
+def _reference_edits(prompt: str) -> dict[str, Any]:
+    """Work each slot's first source into its anchor: a link, a blockquote, or a "Go deeper" line."""
+    edits = []
+    for m in _SLOT_RE.finditer(prompt):
+        kind, placement, anchor, title, url = m["kind"], m["placement"], m["anchor"], m["title"], m["url"]
+        words, who = REFERENCE_WORDS.get(kind, ("", ""))
+        if placement == "go_deeper":
+            find, replace = "", f"- [{title}]({url}) — worth a look if you want more."
+        elif placement == "blockquote" and words:
+            find, replace = anchor, f'{anchor}\n\n> "{words}" — [{who}]({url})'
+        elif words:
+            find, replace = anchor, f'{anchor} As [{who}]({url}) put it, "{words}"'
+        else:
+            find, replace = anchor, f"{anchor} [{title}]({url}) says the same."
+        edits.append({"slot": m["id"], "find": find, "replace": replace, "url": url, "title": title, "speaker": who, "quote": words})
+    return {"go_deeper_heading": "Go deeper", "edits": edits}
 
 
 def png_bytes(width: int = 64, height: int = 48, color: str = "#ed6925") -> bytes:

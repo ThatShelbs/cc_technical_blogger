@@ -9,6 +9,12 @@ describe('dialsToState', () => {
     expect(buildDials(dialsToState(dials))).toEqual(dials)
   })
 
+  it('keeps the reference count (0 = none) and kinds', () => {
+    const dials = { reference_count: 0, reference_kinds: ['source', 'quote'] } as const
+    expect(buildDials(dialsToState(dials))).toEqual(dials)
+    expect(dialsToState({}).referenceCount).toBeNull()
+  })
+
   it('treats missing dials as persona defaults', () => {
     expect(dialsToState(null)).toEqual(emptyDials)
     expect(buildDials({ ...emptyDials, audience: '   ' })).toEqual({})

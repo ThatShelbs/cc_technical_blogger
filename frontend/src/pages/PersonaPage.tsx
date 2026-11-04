@@ -9,6 +9,7 @@ import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
 import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, Slider, Spinner, Switch } from '../components/ui'
 import { cx } from '../lib/cx'
+import { autoReferenceCount } from '../lib/references'
 import { PLATFORMS, STYLE_DIALS, autoImageCount, styleLabel, type Education, type IncludeCode, type Platform } from './dials'
 
 type Tab = 'samples' | 'voice' | 'settings'
@@ -89,6 +90,8 @@ function defaultsFrom(persona: PersonaOut) {
     default_education: persona.default_education as Education,
     default_target_words: persona.default_target_words,
     default_image_count: persona.default_image_count ?? 0,
+    // null = automatic (at least five), 0 = none
+    default_reference_count: persona.default_reference_count,
     default_storytelling: persona.default_storytelling,
     default_opinion: persona.default_opinion,
     default_formality: persona.default_formality,
@@ -234,6 +237,14 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
           value={draft.default_image_count}
           onChange={(v) => set({ default_image_count: v === 1 ? 2 : v })}
           format={(v) => (v === 0 ? `Automatic (~${autoImageCount(draft.default_target_words)})` : `${v} images`)}
+        />
+        <Slider
+          label="References per post"
+          min={-1}
+          max={12}
+          value={draft.default_reference_count ?? -1}
+          onChange={(v) => set({ default_reference_count: v < 0 ? null : v })}
+          format={(v) => (v < 0 ? `Automatic (~${autoReferenceCount(draft.default_target_words)})` : v === 0 ? 'None' : `${v} references`)}
         />
         <Slider label="Humor" min={0} max={10} value={draft.default_humor} onChange={(v) => set({ default_humor: v })} format={(v) => `${v}/10`} />
         {STYLE_DIALS.map(({ key, label, low, high }) => (
