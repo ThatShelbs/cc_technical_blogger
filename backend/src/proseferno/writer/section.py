@@ -13,13 +13,15 @@ from sqlmodel import Session, select
 
 from proseferno.authenticity import analyze, author_profile
 from proseferno.config import Settings
-from proseferno.db import Persona, Project, Sample, utcnow
+from proseferno.db import Persona, Project, ProjectReference, Sample, utcnow
 from proseferno.llm import LLM, ResearchResult, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons, record_feedback
 from proseferno.writer.pipeline import WriterError, measure, split_title, writer_system
+from proseferno.writer.references import PlannedReference, check_edit, links_in, project_references, research_block
 from proseferno.writer.revisions import push_revision
+from proseferno.writer.schemas import ReferenceEdit
 from proseferno.writer.tweak import finish_text
 
 SectionAction = Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote"]
@@ -42,8 +44,8 @@ GUIDANCE: dict[str, str] = {
     ),
     "add_quote": (
         "Work in exactly one short, well-known quote that fits this passage, introduced the way the author would introduce it "
-        "and attributed to its speaker. Use only a quote that appears in the supplied research, worded exactly as found. "
-        "Never paraphrase it or invent one."
+        "and attributed to its speaker, with a markdown link to the page where it was found. Use only a quote that appears in "
+        "the supplied research, worded exactly as found, and only a URL from the supplied sources. Never paraphrase it or invent one."
     ),
 }
 LABEL: dict[str, str] = {
@@ -57,12 +59,7 @@ LABEL: dict[str, str] = {
 RESEARCH_ACTIONS = ("add_source", "add_quote")
 
 
-def _research_block(result: ResearchResult) -> str:
-    sources = "\n".join(f"- [{c.title or c.url}]({c.url})" for c in result.citations)
-    return f"<research>\n{result.text.strip()}\n\nSources:\n{sources}\n</research>"
-
-
-async def _research(llm: LLM, settings: Settings, action: str, title: str, selection: str, instruction: str) -> str:
+async def _research(llm: LLM, settings: Settings, action: str, title: str, selection: str, instruction: str) -> ResearchResult:
     result = await llm.research(
         system=[SystemBlock(raw("section_research_system"))],
         prompt=render(
@@ -82,7 +79,48 @@ async def _research(llm: LLM, settings: Settings, action: str, title: str, selec
         raise WriterError(
             f"Couldn't find a verifiable {what} for that passage. Try a more specific passage, or write your own with a custom brief."
         )
-    return _research_block(result)
+    return result
+
+
+def _checked_reference(action: str, selection: str, replacement: str, result: ResearchResult) -> dict[str, str] | None:
+    """The source or quote the passage now links, checked against the research; None for a quote with no link."""
+    kind = "source" if action == "add_source" else "quote"
+    if kind == "quote" and not links_in(replacement):
+        return None
+    planned = PlannedReference(slot_id="", kind=kind, placement="inline", anchor=selection, purpose="", query="")
+    edit = ReferenceEdit(slot="", find=selection, replace=replacement, url="", title="", speaker="", quote="")
+    error, fields = check_edit(planned, edit, result)
+    if error:
+        raise WriterError(error.replace(" Click Redraw to try again.", " Try again."))
+    return fields
+
+
+def _record_reference(session: Session, project_id: int, action: str, selection: str, fields: dict[str, str]) -> None:
+    """Track a source or quote added from a highlight like the ones the references pass adds, so it gets Redraw too."""
+    rows = project_references(session, project_id)
+    numbers = [int(r.slot_id[1:]) for r in rows if r.slot_id[1:].isdigit()]
+    kind = "source" if action == "add_source" else "quote"
+    entry = {k: fields[k] for k in ("url", "title", "speaker", "quote")}
+    session.add(
+        ProjectReference(
+            project_id=project_id,
+            slot_id=f"r{max(numbers, default=0) + 1}",
+            position=max((r.position for r in rows), default=-1) + 1,
+            kind=kind,
+            placement="inline",
+            anchor=selection,
+            purpose=f"Added from a highlighted passage ({LABEL[action].lower()})",
+            url=fields["url"],
+            title=fields["title"],
+            speaker=fields["speaker"],
+            quote=fields["quote"],
+            original=selection,
+            inserted=fields["replace"],
+            status="ready",
+            tried_urls=[fields["url"]],
+            history=[{**entry, "kind": kind, "inserted": fields["replace"], "created_at": utcnow().isoformat()}],
+        )
+    )
 
 
 async def rewrite_passage(
@@ -112,8 +150,10 @@ async def rewrite_passage(
         raise WriterError("The selected passage was not found in the post. It may have changed; select it again.")
 
     research = ""
+    found: ResearchResult | None = None
     if action in RESEARCH_ACTIONS:
-        research = await _research(llm, settings, action, project.title, selection, instruction)
+        found = await _research(llm, settings, action, project.title, selection, instruction)
+        research = research_block(found)
 
     system = writer_system(
         voice_profile.markdown,
@@ -137,6 +177,7 @@ async def rewrite_passage(
     replacement = replacement.strip()
     if not replacement:
         raise WriterError("Claude returned an empty passage. Try again.")
+    reference = _checked_reference(action, selection, replacement, found) if found is not None else None
     new_markdown = finish_text(project.markdown.replace(selection, replacement, 1), project.plan)
     title, subtitle = split_title(new_markdown)
     authenticity = await analyze(
@@ -159,6 +200,8 @@ async def rewrite_passage(
         row.authenticity = authenticity
         row.updated_at = utcnow()
         session.add(row)
+        if reference is not None and reference["replace"] in new_markdown:
+            _record_reference(session, project_id, action, selection, reference)
         if action == "custom" and instruction.strip() != "Make it sound more like me.":
             persona_row = session.get(Persona, project.persona_id)
             if persona_row is not None:

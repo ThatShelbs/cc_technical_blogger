@@ -19,9 +19,18 @@ from proseferno.llm.claude_code import ClaudeCodeLLM
 from proseferno.llm.router import RoutingLLM
 from proseferno.secrets import KeyringSecretStore, SecretStore
 from proseferno.storage import Storage
+from proseferno.writer.links import HttpLinkChecker, LinkChecker, NoLinkChecker
 
 # Settings the user can change in the app; persisted in the app_setting table.
-RUNTIME_SETTINGS = ("claude_connection", "model", "use_fallbacks", "revision_passes", "ai_detection")
+RUNTIME_SETTINGS = (
+    "claude_connection",
+    "model",
+    "use_fallbacks",
+    "revision_passes",
+    "ai_detection",
+    "reference_max_searches",
+    "check_reference_links",
+)
 
 
 @dataclass
@@ -34,6 +43,8 @@ class Services:
     llm: LLM
     images: ImageService
     jobs: JobManager
+    # Checks that reference URLs still exist; tests and demo mode trust every link instead of going online.
+    links: LinkChecker
 
     def save_runtime_setting(self, key: str, value: Any) -> None:
         if key not in RUNTIME_SETTINGS:
@@ -61,7 +72,10 @@ def build_services(
     llm: LLM | None = None,
     auth: ClaudeAuth | None = None,
     inline_jobs: bool = False,
+    links: LinkChecker | None = None,
 ) -> Services:
+    # Only the real Claude finds real links worth checking; a stand-in LLM (tests, demo mode) never goes online.
+    links = links or (HttpLinkChecker() if llm is None and not settings.demo else NoLinkChecker())
     engine = make_engine(settings.db_path)
     load_runtime_settings(engine, settings)
     storage = Storage(settings.data_dir)
@@ -89,4 +103,5 @@ def build_services(
         llm=llm,
         images=images,
         jobs=jobs,
+        links=links,
     )

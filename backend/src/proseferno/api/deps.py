@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request
 from sqlmodel import Session
 
-from proseferno.db import Persona, Project, ProjectImage, Sample
+from proseferno.db import Persona, Project, ProjectImage, ProjectReference, Sample
 from proseferno.services import Services
 
 
@@ -51,3 +51,10 @@ def image_or_404(session: Session, image_id: int) -> ProjectImage:
     if image is None:
         raise HTTPException(404, "Image not found.")
     return image
+
+
+def reference_or_404(session: Session, reference_id: int) -> ProjectReference:
+    reference = session.get(ProjectReference, reference_id)
+    if reference is None:
+        raise HTTPException(404, "Reference not found.")
+    return reference

@@ -21,10 +21,12 @@ describe('reduceJob', () => {
 
   it('records failures, critiques and finished images', () => {
     let state = reduceJob(initialJobState, { type: 'critique', data: { voice: 7, overall: 8 } })
+    state = reduceJob(state, { type: 'references', data: { ready: 4, total: 5 } })
     state = reduceJob(state, { type: 'image_ready', data: { image_id: 4 } })
     state = reduceJob(state, { type: 'status', data: { status: 'failed', error: 'Rate limited' } })
     expect(state.critique?.voice).toBe(7)
     expect(state.imagesReady).toEqual([4])
+    expect(state.references).toEqual({ ready: 4, total: 5 })
     expect(state.status).toBe('failed')
     expect(state.error).toBe('Rate limited')
   })

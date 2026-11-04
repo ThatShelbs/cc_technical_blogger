@@ -6,6 +6,9 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Added
 
+- **References in every post.** After the voice edit, Claude plans where references would strengthen the post, researches each one on the web and weaves it in with small edits in your voice: sources for claims, famous quotes, widely shared posts from AI/ML voices, tutorials, packages and videos, and related articles (at least five by default, more for long posts; tutorials and related reads can go in a short *Go deeper* list before the meme). Every link must come from the search and every quote must match it word for word, and links that are gone are dropped. Each reference has **Redraw**, **Switch to…** another kind, **Versions** and **Remove**, from a chip next to its link or the new **References** card; *Find references* adds them to older posts. New `reference_count` / `reference_kinds` dials and a persona default.
+- *Add source* and *Add quote* now check their link and quote against the search and appear in the References card.
+
 - **Regenerate any highlighted section.** Select text in the preview (or in *Edit Markdown*) and choose *Rewrite*, *Compact*, *Expand*, *Add source*, *Add quote*, or a *Custom brief* such as "make it more positive". Only that span changes, in your voice; sources and quotes come from a web search so links are real and quotes are attributed, and nothing is added if none is found. The result is re-scored for AI-detection and fidelity, kept in the undo history, and custom briefs are remembered as lessons.
 - **Memes people remember**: the closing meme now comes from a writers' room. Claude reads the whole post (including its planned running jokes), pitches five jokes across 18 formats (Drake-style *Nope / Yep*, pointing twins, distracted robot, expanding brain, *This is fine*, two buttons, the midwit bell curve, a four-step plan, a terrible 3D pie, a spurious correlation chart, Venn diagrams, three- and four-panel comics, a team chat, a terminal, a Nutrition Facts label and an alignment chart), scores them and draws the best. Layout and typography are done by code, so text always fits and panels line up. *New idea* tries the next pitch, a format menu remakes the meme in the format you choose, and `scripts/meme_gallery.py` renders every format for review.
 - **Learns from your edits**: Proseferno remembers what you cut, replace and ask for in generated posts (manual edits are diffed; tweak feedback is kept) and writes every later post, and the next voice profile, with those lessons. Review or forget them per persona.
@@ -33,6 +36,9 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 - Additive database migration so existing databases gain new columns automatically.
 
 ### Changed
+
+- Word exports keep link URLs ("text (url)") and style blockquotes as quotes.
+- Web research on the API connection keeps text and citations from every round when a search turn pauses, not just the last one.
 
 - The first real persona becomes active even when the example persona exists (a persona is made active when none other than the example is).
 - Repository tidy-up: `dev.bat` moved to `scripts/`, `SECURITY.md` and `CODE_OF_CONDUCT.md` to `.github/`, `render_brand.py` to `backend/scripts/`, the e2e sample post to `frontend/e2e/fixtures/`, and the two near-empty sub-READMEs folded into `docs/onboarding.md`. `my_writing_examples/` is no longer tracked by git (it was already ignored; existing files stay on your disk). CI now lints and format-checks `backend/evals` too, and the e2e job covers a seeded demo tour as well as the first run.

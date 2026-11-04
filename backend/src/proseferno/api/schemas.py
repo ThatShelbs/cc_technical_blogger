@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from proseferno.config import Connection
-from proseferno.writer.dials import Dials, IncludeCode, Platform
+from proseferno.writer.dials import Dials, IncludeCode, Platform, ReferenceKind
 
 Education = Literal["beginner", "intermediate", "expert"]
 SampleKind = Literal["own", "influence"]
@@ -57,6 +57,8 @@ class SettingsOut(BaseModel):
     use_fallbacks: bool
     revision_passes: int
     ai_detection: bool
+    reference_max_searches: int
+    check_reference_links: bool
     image_tool_label: str
     data_dir: str
     seed_samples_dir: str
@@ -70,6 +72,8 @@ class SettingsIn(BaseModel):
     use_fallbacks: bool | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
     ai_detection: bool | None = None
+    reference_max_searches: int | None = Field(None, ge=1, le=8)
+    check_reference_links: bool | None = None
 
 
 # -- personas / samples / voice ----------------------------------------------------
@@ -91,6 +95,8 @@ class PersonaDefaults(BaseModel):
     default_target_words: int | None = Field(None, ge=300, le=6000)
     # 0 = choose automatically from the length.
     default_image_count: int | None = Field(None, ge=0, le=15)
+    # null = choose from the length (at least 5), 0 = no references.
+    default_reference_count: int | None = Field(None, ge=0, le=12)
     default_storytelling: int | None = Field(None, ge=0, le=10)
     default_opinion: int | None = Field(None, ge=0, le=10)
     default_formality: int | None = Field(None, ge=0, le=10)
@@ -142,6 +148,7 @@ class PersonaOut(BaseModel):
     default_education: str
     default_target_words: int
     default_image_count: int | None
+    default_reference_count: int | None
     default_storytelling: int
     default_opinion: int
     default_formality: int
@@ -398,6 +405,43 @@ class RevertIn(BaseModel):
     index: int = Field(ge=0)
 
 
+class ReferenceHistoryOut(BaseModel):
+    index: int
+    kind: str
+    url: str
+    title: str
+    created_at: str
+
+
+class ReferenceOut(BaseModel):
+    id: int
+    slot_id: str
+    position: int
+    kind: str
+    placement: str
+    purpose: str
+    url: str
+    title: str
+    speaker: str
+    quote: str
+    status: str
+    error: str | None
+    # False once the author edited the reference's text out of the post.
+    in_post: bool
+    history: list[ReferenceHistoryOut]
+
+
+class ReferenceRedrawIn(BaseModel):
+    # Switch to another kind (e.g. a quote instead of a source); left out = the same kind.
+    kind: ReferenceKind | None = None
+
+
+class EnrichIn(BaseModel):
+    # How many references to add; left out = enough to reach the post's reference count.
+    count: int | None = Field(None, ge=1, le=12)
+    kinds: list[ReferenceKind] | None = None
+
+
 class ProjectSummary(BaseModel):
     id: int
     persona_id: int
@@ -431,6 +475,7 @@ class ProjectOut(BaseModel):
     voice_profile_version: int | None
     error: str | None
     images: list[ImageOut]
+    references: list[ReferenceOut]
     active_job_id: str | None
     active_job_kind: str | None
     created_at: datetime

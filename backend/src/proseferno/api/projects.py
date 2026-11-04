@@ -28,13 +28,15 @@ from proseferno.api.schemas import (
     ProjectSummary,
     ProjectUpdate,
     RedrawIn,
+    ReferenceHistoryOut,
+    ReferenceOut,
     RevertIn,
     RevisionOut,
     RewriteIn,
     TweakIn,
 )
 from proseferno.authenticity import analyze, author_profile
-from proseferno.db import Persona, Project, ProjectImage, Sample, utcnow
+from proseferno.db import Persona, Project, ProjectImage, ProjectReference, Sample, utcnow
 from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
 from proseferno.images.memes import FAMILIES, FORMATS, get_format, load_state
@@ -59,6 +61,7 @@ from proseferno.writer import (
     word_count,
 )
 from proseferno.writer.pipeline import measure
+from proseferno.writer.references import delete_references, in_post, project_references
 from proseferno.writer.social import write_linkedin_post
 
 router = APIRouter(prefix="/api")
@@ -107,6 +110,25 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
     return MemeInfoOut(format=fmt.id if fmt else "", format_name=fmt.name if fmt else "", premise=premise, ideas_left=left)
 
 
+def reference_out(row: ProjectReference, markdown: str) -> ReferenceOut:
+    assert row.id is not None
+    history = [
+        ReferenceHistoryOut(
+            index=i,
+            kind=str(entry.get("kind", "")),
+            url=str(entry.get("url", "")),
+            title=str(entry.get("title", "")),
+            created_at=str(entry.get("created_at", "")),
+        )
+        for i, entry in enumerate(row.history or [])
+    ]
+    return ReferenceOut(
+        **row.model_dump(exclude={"project_id", "anchor", "query", "original", "inserted", "tried_urls", "history", "created_at"}),
+        in_post=in_post(row, markdown),
+        history=history,
+    )
+
+
 def project_images(session: Session, project_id: int) -> list[ProjectImage]:
     return list(session.exec(select(ProjectImage).where(ProjectImage.project_id == project_id).order_by(col(ProjectImage.position))))
 
@@ -136,6 +158,7 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
         revisions=revisions,
         resolved_dials=resolved,
         images=[image_out(i) for i in project_images(session, project.id)],
+        references=[reference_out(r, project.markdown) for r in project_references(session, project.id)],
         active_job_id=active[0].id if active else None,
         active_job_kind=active[0].kind if active else None,
     )
@@ -168,6 +191,7 @@ async def start_generation(services: Services, project_id: int) -> str:
             images=services.images,
             project_id=project_id,
             ctx=ctx,
+            links=services.links,
         ),
         project_id=project_id,
     )
@@ -263,6 +287,7 @@ def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, se
 def delete_project(project_id: int, session: SessionDep, services: ServicesDep) -> None:
     project = project_or_404(session, project_id)
     session.exec(delete(ProjectImage).where(col(ProjectImage.project_id) == project_id))  # type: ignore[call-overload]
+    delete_references(session, [project_id])
     session.delete(project)
     session.commit()
     shutil.rmtree(services.storage.project_dir(project_id), ignore_errors=True)

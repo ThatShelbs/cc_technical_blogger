@@ -112,6 +112,8 @@ class ClaudeLLM:
         messages: Any = [{"role": "user", "content": prompt}]
         tools: Any = [{"type": WEB_SEARCH_TOOL, "name": "web_search", "max_uses": max_searches}]
         response: Any = None
+        # Text written before a pause is not repeated after it, so keep the content of every round.
+        content: list[Any] = []
         for _ in range(6):
 
             async def attempt() -> Any:
@@ -124,6 +126,7 @@ class ClaudeLLM:
 
             response = await _with_retries("web research", attempt)
             self._record(response, usage)
+            content.extend(response.content)
             if response.stop_reason != "pause_turn":
                 break
             # Server tool hit its per-turn iteration limit: send the turn back to resume.
@@ -133,7 +136,7 @@ class ClaudeLLM:
 
         texts: list[str] = []
         citations: dict[str, Citation] = {}
-        for block in response.content:
+        for block in content:
             if block.type != "text":
                 continue
             texts.append(block.text)

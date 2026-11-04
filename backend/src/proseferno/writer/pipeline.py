@@ -1,4 +1,4 @@
-"""Generate a full post: plan -> streamed draft -> critique/revise -> images."""
+"""Generate a full post: plan -> streamed draft -> critique/revise -> references -> images."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -25,6 +25,7 @@ from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
+from proseferno.writer.links import LinkChecker, NoLinkChecker
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
 log = logging.getLogger(__name__)
@@ -207,6 +208,7 @@ async def generate_article(
     images: ImageService,
     project_id: int,
     ctx: JobContext,
+    links: LinkChecker | None = None,
 ) -> dict[str, Any]:
     # expire_on_commit=False: these rows are read for the rest of the (long) job after the session closes.
     with Session(engine, expire_on_commit=False) as session:
@@ -227,7 +229,7 @@ async def generate_article(
         raise WriterError("Generate a voice profile for this persona before writing a post.")
 
     try:
-        return await _generate(engine, llm, settings, images, project, persona, voice_profile, samples, ctx)
+        return await _generate(engine, llm, settings, images, project, persona, voice_profile, samples, ctx, links or NoLinkChecker())
     except Exception as exc:
         with Session(engine) as session:
             row = session.get(Project, project_id)
@@ -269,8 +271,9 @@ async def write_post(
     lessons: str = "",
     on_plan: Callable[[ArticlePlan], None] | None = None,
     on_draft: Callable[[str, dict[str, Any]], None] | None = None,
+    enrich: Callable[[str, ArticlePlan, list[SystemBlock]], Awaitable[str]] | None = None,
 ) -> WrittenPost:
-    """Plan -> streamed draft -> critique/revise. Text only; images are a separate step."""
+    """Plan -> streamed draft -> critique/revise -> optional ``enrich`` pass (references). Images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
     system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons)
     settings_text = prompt_settings(dials)
@@ -359,8 +362,22 @@ async def write_post(
         await reporter.emit("draft_reset", {})
         await reporter.emit("draft_delta", {"text": draft})
 
-    # 4. AI-generation detection report
-    await reporter.progress(0.66, "Checking how human the post reads")
+    # 4. References: a later pass over the finished text, so they never get in the way of the voice edit.
+    if enrich is not None:
+        try:
+            enriched = await enrich(draft, plan, system)
+        except Exception:
+            # References make a post stronger; failing to find them must never cost the author the post.
+            log.exception("Adding references failed; keeping the post without them")
+        else:
+            if enriched != draft:
+                draft = enriched
+                measured = measure(draft, voice_profile.baseline_stylometrics)
+                await reporter.emit("draft_reset", {})
+                await reporter.emit("draft_delta", {"text": draft})
+
+    # 5. AI-generation detection report
+    await reporter.progress(0.69, "Checking how human the post reads")
     authenticity = await analyze(
         llm=llm,
         settings=settings,
@@ -385,10 +402,33 @@ async def _generate(
     voice_profile: VoiceProfile,
     samples: list[Sample],
     ctx: JobContext,
+    links: LinkChecker,
 ) -> dict[str, Any]:
+    from proseferno.writer import references  # imports this module
+
     assert project.id is not None
     project_id = project.id
     dials = resolve(Dials(**(project.dials or {})), persona, project.prompt, default_revisions=settings.revision_passes)
+
+    async def add_references(draft: str, plan: ArticlePlan, system: list[SystemBlock]) -> str:
+        markdown, woven = await references.weave_references(
+            llm=llm,
+            settings=settings,
+            links=links,
+            system=system,
+            markdown=draft,
+            title=plan.chosen_title,
+            dials=dials,
+            image_plan=plan.model_dump(),
+            reporter=ctx,
+            count=dials.reference_count,
+            kinds=list(dials.reference_kinds),
+        )
+        references.replace_references(engine, project_id, woven)
+        return markdown
+
+    # Old references belong to the old text.
+    references.replace_references(engine, project_id, [])
     post = await write_post(
         llm=llm,
         settings=settings,
@@ -409,6 +449,7 @@ async def _generate(
         ),
         # The old text versions belong to the old images, so a regeneration starts a fresh history.
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured, revisions=[]),
+        enrich=add_references,
     )
     draft, plan, slots = post.markdown, post.plan, post.plan.image_slots
 
@@ -424,7 +465,7 @@ async def _generate(
         authenticity=post.authenticity,
     )
 
-    # 5. Images
+    # 6. Images
     await ctx.progress(0.7, f"Creating {len(slots)} images")
     image_ids = _create_image_rows(engine, project.id, slots)
     finished = 0

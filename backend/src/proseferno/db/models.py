@@ -30,6 +30,8 @@ class Persona(SQLModel, table=True):
     default_target_words: int = 1500
     # None = choose the number of images from the length.
     default_image_count: int | None = None
+    # None = choose the number of references (sources, quotes, posts, resources) from the length; 0 = none.
+    default_reference_count: int | None = None
     default_storytelling: int = 5
     default_opinion: int = 5
     default_formality: int = 5
@@ -144,6 +146,41 @@ class ProjectImage(SQLModel, table=True):
     status: str = "pending"
     error: str | None = None
     history: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+
+
+class ProjectReference(SQLModel, table=True):
+    """One external reference woven into a post: a source, quote, social post, resource or related article.
+
+    The post stays plain Markdown; ``inserted`` is the exact text this reference put there and ``original``
+    the text it replaced, so a redraw can swap it and a removal can put the original back.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    slot_id: str
+    position: int = 0
+    # source | quote | social_post | resource | related_article
+    kind: str
+    # inline | blockquote | go_deeper
+    placement: str = "inline"
+    # The sentence it backs up (inline and blockquote), or the "Go deeper" heading (go_deeper).
+    anchor: str = Field(default="", sa_column=Column(Text))
+    purpose: str = ""
+    query: str = ""
+    url: str = ""
+    title: str = ""
+    # Who said or wrote it (quotes and social posts).
+    speaker: str = ""
+    quote: str = Field(default="", sa_column=Column(Text))
+    original: str = Field(default="", sa_column=Column(Text))
+    inserted: str = Field(default="", sa_column=Column(Text))
+    # pending | ready | error
+    status: str = "pending"
+    error: str | None = None
+    tried_urls: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # Every version placed in the post, oldest first (the current one included).
+    history: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class Job(SQLModel, table=True):

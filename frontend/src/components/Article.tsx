@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import type { ImageOut } from '../api/types.gen'
@@ -15,18 +15,37 @@ export function Figure({ image }: { image: ImageOut }) {
   )
 }
 
-export function Markdown({ children }: { children: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+/** Render a link yourself (e.g. to add a reference's actions next to it); return undefined for a plain link. */
+export type RenderLink = (href: string | undefined, children: ReactNode) => ReactNode | undefined
+
+export function Markdown({ children, renderLink }: { children: string; renderLink?: RenderLink }) {
+  const components: Components | undefined = renderLink
+    ? {
+        a: ({ href, children: label, node: _node, ...rest }) =>
+          renderLink(href, label) ?? (
+            <a href={href} {...rest}>
+              {label}
+            </a>
+          ),
+      }
+    : undefined
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      {children}
+    </ReactMarkdown>
+  )
 }
 
 export function Article({
   markdown,
   images = [],
   renderImage,
+  renderLink,
 }: {
   markdown: string
   images?: ImageOut[]
   renderImage?: (slot: string, image: ImageOut | undefined) => ReactNode
+  renderLink?: RenderLink
 }) {
   const { title, subtitle, body } = splitHeader(markdown)
   const bySlot = new Map(images.map((img) => [img.slot_id, img]))
@@ -36,7 +55,9 @@ export function Article({
       {subtitle && <p className="subtitle">{subtitle}</p>}
       {splitArticle(body).map((part, index) =>
         part.type === 'text' ? (
-          <Markdown key={index}>{part.text}</Markdown>
+          <Markdown key={index} renderLink={renderLink}>
+            {part.text}
+          </Markdown>
         ) : (
           <div key={`${part.slot}-${index}`}>
             {renderImage ? renderImage(part.slot, bySlot.get(part.slot)) : bySlot.get(part.slot) && <Figure image={bySlot.get(part.slot)!} />}

@@ -14,6 +14,6 @@ $markdown
 $selection
 </passage_to_rewrite>
 
-Keep any `{{image:...}}` placeholder lines in the passage exactly as they are, each on its own line. Add no captions, headings the passage did not have, or TODOs.
+Keep any `{{image:...}}` placeholder lines in the passage exactly as they are, each on its own line. Keep the passage's links and attributed quotes unless the instruction says otherwise. Add no captions, headings the passage did not have, or TODOs.
 
 Return only the rewritten passage, nothing else.

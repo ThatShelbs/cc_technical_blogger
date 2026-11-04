@@ -17,7 +17,7 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | Voice profile settings: profile length, words read per sample, minimum sample length, influence weight | Personas → (persona) → Settings & defaults | about 2,000 words, whole samples, every sample, influence 5/10 |
 | Edits learned from your changes and feedback (review or forget) | Personas → (persona) → Settings & defaults | learned automatically |
 | Image brand kit for one post: style, palette, font, motif | New post → Customize, or the post's **Image brand kit** card | the persona's visual style |
-| Default dials for new posts: length, images, humor, storytelling, opinion strength, formality, technical depth, skimmability, education level, code, platform | Personas → (persona) → Settings & defaults | 1,500 words, automatic images, humor 5, style dials 5 ("as I write"), intermediate, code where it helps, Medium |
+| Default dials for new posts: length, images, references, humor, storytelling, opinion strength, formality, technical depth, skimmability, education level, code, platform | Personas → (persona) → Settings & defaults | 1,500 words, automatic images, humor 5, style dials 5 ("as I write"), intermediate, code where it helps, Medium |
 | Per-post brief, persona, platform, audience and every dial | New post → Customize; on a written post, **Edit brief & settings** (regenerates the post) | the persona's defaults; audience = your usual readers |
 | Voice profile version in use | Sidebar persona switcher, or the Voice profile tab | always the latest |
 
@@ -32,7 +32,9 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | `PROSEFERNO_MODEL` | Claude model | `claude-opus-5-5` |
 | `PROSEFERNO_USE_FALLBACKS` | Server-side refusal fallback | `true` |
 | `PROSEFERNO_REVISION_PASSES` | Editing passes per post | `1` |
-| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `DETECT` | see `config.py` |
+| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `DETECT`, `REFERENCES` | see `config.py` |
+| `PROSEFERNO_REFERENCE_MAX_SEARCHES` | Web searches per reference | `3` |
+| `PROSEFERNO_CHECK_REFERENCE_LINKS` | Fetch each reference URL once and drop the ones that are gone | `true` |
 | `PROSEFERNO_DEMO` | Demo mode (canned responses) | `false` |
 | `PROSEFERNO_DEMO_SEED` | In demo mode, start an empty database with the example persona and post | `true` |
 | `PROSEFERNO_NO_BROWSER` | Do not open a browser on start | unset |

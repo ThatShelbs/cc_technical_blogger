@@ -63,8 +63,14 @@ class Settings(BaseSettings):
     # The meme writers' room: pitching and judging five jokes is worth more thought than drawing one.
     effort_meme_ideas: Effort = "high"
     effort_detect: Effort = "low"
+    # Planning, researching and weaving references (sources, quotes, social posts, resources) into a post.
+    effort_references: Effort = "medium"
     revision_passes: int = 1
     research_max_searches: int = 8
+    # Web searches per reference; each reference is researched on its own.
+    reference_max_searches: int = 3
+    # Fetch every reference URL once and drop the ones that are gone (404/410/no such host).
+    check_reference_links: bool = True
 
     # Score every generated post for AI-writing tells with a Claude judge (heuristics always run).
     ai_detection: bool = True

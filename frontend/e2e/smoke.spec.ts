@@ -55,6 +55,16 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()
   await shot(page, 'editor-day')
 
+  // References: five sources, quotes and resources worked into the post, each one redrawable
+  await expect(page.getByRole('heading', { name: 'References' })).toBeVisible()
+  await expect(page.getByText('5 of 5 in the post')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Show actions/ })).toHaveCount(5)
+  const source = page.getByRole('listitem', { name: /^Source: / })
+  const before = (await source.getByRole('link').textContent()) ?? ''
+  await source.getByRole('button', { name: 'Redraw' }).click()
+  await expect(source.getByRole('link')).not.toHaveText(before, { timeout: 60_000 })
+  await expect(page.getByText('5 of 5 in the post')).toBeVisible()
+
   // Pick another title
   await page.getByRole('button', { name: 'Stop Baking Pies', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Stop Baking Pies' }).first()).toBeVisible()

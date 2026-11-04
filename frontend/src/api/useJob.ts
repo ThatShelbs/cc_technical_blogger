@@ -30,6 +30,8 @@ export interface JobState {
   plan: Record<string, unknown> | null
   critique: Critique | null
   imagesReady: number[]
+  /** How many references the references pass placed, once it has run. */
+  references: { ready: number; total: number } | null
   /** What the job returned, once it succeeded. */
   result: Record<string, unknown> | null
 }
@@ -44,6 +46,7 @@ export const initialJobState: JobState = {
   plan: null,
   critique: null,
   imagesReady: [],
+  references: null,
   result: null,
 }
 
@@ -68,6 +71,8 @@ export function reduceJob(state: JobState, event: JobEvent): JobState {
       return { ...state, plan: data }
     case 'critique':
       return { ...state, critique: data as unknown as Critique }
+    case 'references':
+      return { ...state, references: { ready: Number(data.ready ?? 0), total: Number(data.total ?? 0) } }
     case 'image_ready':
       return { ...state, imagesReady: [...state.imagesReady, Number(data.image_id)] }
     case 'status': {
@@ -85,7 +90,7 @@ export function reduceJob(state: JobState, event: JobEvent): JobState {
   }
 }
 
-const EVENT_TYPES = ['progress', 'draft_delta', 'draft_reset', 'voice_delta', 'plan', 'critique', 'image_ready', 'status']
+const EVENT_TYPES = ['progress', 'draft_delta', 'draft_reset', 'voice_delta', 'plan', 'critique', 'references', 'image_ready', 'status']
 
 /**
  * Follow a background job over Server-Sent Events. Events carry a sequence id, so a

@@ -8,7 +8,8 @@ import { cx } from '../../lib/cx'
 const STEPS = [
   { label: 'Plan', until: 0.12 },
   { label: 'Draft', until: 0.45 },
-  { label: 'Voice edit', until: 0.7 },
+  { label: 'Voice edit', until: 0.62 },
+  { label: 'Sources & quotes', until: 0.7 },
   { label: 'Images', until: 0.99 },
   { label: 'Ready', until: 1.01 },
 ]
@@ -52,7 +53,15 @@ export function GenerationView({ job }: { job: JobState }) {
                 ) : (
                   <span className="size-4 rounded-full border border-line" aria-hidden />
                 )}
-                <span className={cx(i === active ? 'font-semibold' : i > active ? 'text-muted' : '')}>{step.label}</span>
+                <span className={cx(i === active ? 'font-semibold' : i > active ? 'text-muted' : '')}>
+                  {step.label}
+                  {step.label === 'Sources & quotes' && job.references && (
+                    <span className="text-muted">
+                      {' '}
+                      · {job.references.ready} of {job.references.total} added
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
           </ol>

@@ -243,8 +243,13 @@ def _docx(markdown: str, figures: dict[str, Figure], title: str, subtitle: str) 
 
     tokens = MarkdownIt("commonmark").parse(strip_title(markdown))
     list_stack: list[str] = []
+    quote_depth = 0
     for i, tok in enumerate(tokens):
-        if tok.type in ("bullet_list_open", "ordered_list_open"):
+        if tok.type == "blockquote_open":
+            quote_depth += 1
+        elif tok.type == "blockquote_close":
+            quote_depth -= 1
+        elif tok.type in ("bullet_list_open", "ordered_list_open"):
             list_stack.append("List Number" if tok.type == "ordered_list_open" else "List Bullet")
         elif tok.type in ("bullet_list_close", "ordered_list_close"):
             list_stack.pop()
@@ -263,7 +268,7 @@ def _docx(markdown: str, figures: dict[str, Figure], title: str, subtitle: str) 
                         run.italic = True
                         run.font.size = Pt(9)
                 continue
-            style = list_stack[-1] if list_stack else None
+            style = list_stack[-1] if list_stack else ("Quote" if quote_depth else None)
             document.add_paragraph(_plain(content), style=style)
         elif tok.type in ("fence", "code_block"):
             para = document.add_paragraph()
@@ -279,4 +284,5 @@ def _plain(markdown_inline: str) -> str:
     text = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), markdown_inline)
     text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|_(.+?)_", lambda m: m.group(1) or m.group(2), text)
     text = re.sub(r"`([^`]+)`", r"\1", text)
-    return re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    # Word has no Markdown links; keep the URL so sources and references survive the export.
+    return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r"\1 (\2)", text)
