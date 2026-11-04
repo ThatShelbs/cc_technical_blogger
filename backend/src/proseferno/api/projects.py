@@ -349,6 +349,7 @@ async def rewrite(project_id: int, body: RewriteIn, session: SessionDep, service
             project_id=project_id,
             selection=body.selection,
             instruction=body.instruction,
+            action=body.action,
         )
     except (WriterError, LLMError) as exc:
         raise HTTPException(422, str(exc)) from exc

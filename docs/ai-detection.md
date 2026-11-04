@@ -21,7 +21,7 @@ The scan is **calibrated to you**: it learns from your own writing samples which
 
 ## Fixing flagged passages
 
-The report lists the passages a detector would catch. **Humanize** rewrites one in your voice with the tell removed (the same rewrite used by *Rewrite selection*), then **Re-check** re-scores the post.
+The report lists the passages a detector would catch. **Humanize** rewrites one in your voice with the tell removed (the same rewrite used for section regeneration), then **Re-check** re-scores the post.
 
 The scan also runs inside generation: the editor pass sees the AI tells in the draft and the revision fixes them, so most posts arrive already cleaned up.
 

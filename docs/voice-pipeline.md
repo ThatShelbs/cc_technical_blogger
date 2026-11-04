@@ -77,7 +77,7 @@ The **Revise** card offers three ways to change a written post:
 
 ![The Brief & settings dialog](screenshots/post-settings.png)
 
-Tweaks, passage rewrites, manual saves and restores keep the previous text (`Project.revisions`, newest first, last ten). **Undo last change** or **Restore** brings a version back, and the current text is kept as a version too. A full regeneration starts a new history, because old text refers to the old images.
+Tweaks, section regenerations, manual saves and restores keep the previous text (`Project.revisions`, newest first, last ten). **Undo last change** or **Restore** brings a version back, and the current text is kept as a version too. A full regeneration starts a new history, because old text refers to the old images.
 
 ## Measuring voice fidelity
 

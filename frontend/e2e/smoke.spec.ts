@@ -68,6 +68,31 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await page.getByRole('button', { name: 'Undo last change' }).click()
   await expect(page.getByText(/nobody stopped them/)).toHaveCount(0)
 
+  // Highlight a sentence in the preview, compact it in place, then undo
+  const sentence = 'Bar charts. Seriously, bar charts.'
+  await page.evaluate((needle) => {
+    const walker = document.createTreeWalker(document.querySelector('.article')!, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const at = node.textContent?.indexOf(needle) ?? -1
+      if (at < 0) continue
+      const range = document.createRange()
+      range.setStart(node, at)
+      range.setEnd(node, at + needle.length)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+      return
+    }
+    throw new Error('sentence not found')
+  }, sentence)
+  await expect(page.getByRole('toolbar', { name: 'Section actions' })).toBeVisible()
+  await page.getByRole('button', { name: 'Compact' }).click()
+  await expect(page.getByText(/Bar charts win\./)).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(sentence)).toHaveCount(0)
+  await expect(page.locator('figure img')).toHaveCount(4)
+  await page.getByRole('button', { name: 'Undo last change' }).click()
+  await expect(page.getByText(sentence)).toBeVisible()
+
   // Brief & settings: the original brief, the planned outline, every dial
   await page.getByRole('button', { name: 'Edit brief & settings' }).click()
   const settings = page.getByRole('dialog', { name: 'Brief & settings' })

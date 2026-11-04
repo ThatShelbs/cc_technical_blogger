@@ -317,6 +317,7 @@ export interface RevisionOut {
 export interface RewriteIn {
   selection: string;
   instruction?: string;
+  action?: "custom" | "rewrite" | "compact" | "expand" | "add_source" | "add_quote";
 }
 
 export interface SampleDetail {

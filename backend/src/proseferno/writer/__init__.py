@@ -9,17 +9,18 @@ from proseferno.writer.pipeline import (
     merge_titles,
     normalize_slots,
     regenerate_titles,
-    rewrite_passage,
     set_title,
     split_title,
     write_post,
 )
 from proseferno.writer.revisions import MAX_REVISIONS, push_revision, word_count
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, PostEdits, TextEdit, TitleOptions
+from proseferno.writer.section import SECTION_ACTIONS, SectionAction, rewrite_passage
 from proseferno.writer.tweak import TEXT_JOBS, apply_edits, finish_text, tweak_post
 
 __all__ = [
     "MAX_REVISIONS",
+    "SECTION_ACTIONS",
     "TEXT_JOBS",
     "ArticlePlan",
     "Critique",
@@ -27,6 +28,7 @@ __all__ = [
     "ImageSlot",
     "PostEdits",
     "ResolvedDials",
+    "SectionAction",
     "TextEdit",
     "TitleOptions",
     "WriterError",
