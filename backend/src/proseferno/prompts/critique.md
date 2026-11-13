@@ -5,6 +5,9 @@ Requested settings: humor $humor/10 ($humor_guide); education level $education (
 Style dials (5 = the author's natural level):
 $style_guide
 
+$formula_guide
+Check the draft against the formula and count it in the `structure` score: say which part (article type, opener, body, closer) misses and how to fix it. An opener or closer that follows the formula but does not sound like the author is still a voice problem.
+
 Measured style of this draft compared with the author's baseline (closer is better):
 ```json
 $fidelity

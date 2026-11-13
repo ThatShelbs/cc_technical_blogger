@@ -17,6 +17,9 @@ Settings:
 Style dials (5 = the author's natural level; adjust emphasis within the author's voice, never abandon it):
 $style_guide
 
+$formula_guide
+Plan to the formula: `hook` is the opener, `sections` follow the body structure, and `closing` is the closer. Where a part is left to the author's usual way, plan it as the voice profile describes. Titles should suit the article type and still follow the author's title formulas.
+
 Image slot rules (every image is drawn by Claude as SVG or a Vega-Lite chart, so plan images that vector art can do brilliantly):
 - The first slot is the hero (`slot_id` "hero", kind "hero", `section_index` -1): it is also the thumbnail.
 - The last slot is the closing meme (`slot_id` "meme", kind "meme", placed in the last section): a funny, relevant joke that lands the ending. The best ones pay off a running joke or key concept from this post; say which in `joke`, and the kind of meme that fits (a famous format, a chart joke, a short comic, a fake chat or terminal, a Nutrition Facts label, an alignment chart).

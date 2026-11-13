@@ -5,6 +5,7 @@ import { errorText } from '../../api/client'
 import { usePersonas, useProjectMutations } from '../../api/hooks'
 import type { JobOut, ProjectOut } from '../../api/types.gen'
 import { DialsFields } from '../../components/DialsFields'
+import { FormulaFields } from '../../components/FormulaFields'
 import { Button, Dialog, Field, Notice, Select, Textarea } from '../../components/ui'
 import { planOutline } from '../../lib/outline'
 import { PLATFORMS, buildDials, dialsToState, emptyDials, type DialsState, type Platform } from '../dials'
@@ -115,7 +116,18 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
               ))}
             </Select>
           </Field>
-          <DialsFields dials={dials} onChange={set} persona={persona} idPrefix="settings-" />
+          <div className="space-y-3 border-t border-line pt-4">
+            <h3 className="font-bold">Formula</h3>
+            <FormulaFields
+              value={dials.formula}
+              onChange={(patch) => set({ formula: { ...dials.formula, ...patch } })}
+              defaults={persona?.default_formula}
+              idPrefix="settings-"
+            />
+          </div>
+          <div className="border-t border-line pt-4">
+            <DialsFields dials={dials} onChange={set} persona={persona} idPrefix="settings-" />
+          </div>
           <Button type="button" variant="ghost" size="sm" icon={<RotateCcw className="size-4" />} disabled={!changedDials} onClick={() => setDials(emptyDials)}>
             Reset to persona defaults
           </Button>

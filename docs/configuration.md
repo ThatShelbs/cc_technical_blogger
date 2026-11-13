@@ -18,6 +18,7 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | Edits learned from your changes and feedback (review or forget) | Personas → (persona) → Settings & defaults | learned automatically |
 | Image brand kit for one post: style, palette, font, motif | New post → Customize, or the post's **Image brand kit** card | the persona's visual style |
 | Default dials for new posts: length, images, references, humor, storytelling, opinion strength, formality, technical depth, skimmability, education level, code, platform | Personas → (persona) → Settings & defaults | 1,500 words, automatic images, humor 5, style dials 5 ("as I write"), intermediate, code where it helps, Medium |
+| Formula: article type, opener, body, closer, your own instructions for each, saved formulas ([formulas.md](formulas.md)) | New post → Formula; **Edit brief & settings**; Personas → (persona) → Settings & defaults → Default formula | automatic: the shape your voice profile describes |
 | Per-post brief, persona, platform, audience and every dial | New post → Customize; on a written post, **Edit brief & settings** (regenerates the post) | the persona's defaults; audience = your usual readers |
 | Voice profile version in use | Sidebar persona switcher, or the Voice profile tab | always the latest |
 

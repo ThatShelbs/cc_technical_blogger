@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { EMPTY_CATALOG } from '../lib/formula'
 import type { ReferenceKind } from '../lib/references'
 import { api } from './client'
 import type {
@@ -7,6 +8,9 @@ import type {
   AuthTestOut,
   CopyHtmlOut,
   EnrichIn,
+  FormulaCatalogOut,
+  FormulaIn,
+  FormulaOut,
   GenerateIn,
   Health,
   ImageOut,
@@ -47,6 +51,8 @@ export const keys = {
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
   memeFormats: ['meme-formats'] as const,
+  formulaCatalog: ['formula-catalog'] as const,
+  formulas: ['formulas'] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -307,6 +313,30 @@ export function useProjectMutations(projectId?: number) {
 /** Every format a closing meme can take; it never changes while the app runs. */
 export const useMemeFormats = (enabled = true) =>
   useQuery({ queryKey: keys.memeFormats, queryFn: () => api.get<MemeFormatOut[]>('/api/meme-formats'), staleTime: Infinity, enabled })
+
+// -- formulas ------------------------------------------------------------------
+
+/** Every article type, opener, body and closer style; it never changes while the app runs. */
+export function useFormulaCatalog() {
+  const query = useQuery({ queryKey: keys.formulaCatalog, queryFn: () => api.get<FormulaCatalogOut>('/api/formulas/catalog'), staleTime: Infinity })
+  return { ...query, data: query.data?.article_types ? query.data : EMPTY_CATALOG }
+}
+
+/** The formulas the author saved under a name. */
+export function useFormulas() {
+  const query = useQuery({ queryKey: keys.formulas, queryFn: () => api.get<FormulaOut[]>('/api/formulas') })
+  return { ...query, data: Array.isArray(query.data) ? query.data : [] }
+}
+
+export function useFormulaMutations() {
+  const qc = useQueryClient()
+  const onSuccess = () => qc.invalidateQueries({ queryKey: keys.formulas })
+  return {
+    create: useMutation({ mutationFn: (body: FormulaIn) => api.post<FormulaOut>('/api/formulas', body), onSuccess }),
+    update: useMutation({ mutationFn: ({ id, body }: { id: number; body: FormulaIn }) => api.put<FormulaOut>(`/api/formulas/${id}`, body), onSuccess }),
+    remove: useMutation({ mutationFn: (id: number) => api.del<void>(`/api/formulas/${id}`), onSuccess }),
+  }
+}
 
 export function useImageMutations(projectId: number) {
   const qc = useQueryClient()

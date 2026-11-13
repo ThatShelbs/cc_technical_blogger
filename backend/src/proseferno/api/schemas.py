@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from proseferno.config import Connection
 from proseferno.writer.dials import Dials, IncludeCode, Platform, ReferenceKind
+from proseferno.writer.formulas import ArticleType, FormulaOption, FormulaParts
 
 Education = Literal["beginner", "intermediate", "expert"]
 SampleKind = Literal["own", "influence"]
@@ -104,6 +105,8 @@ class PersonaDefaults(BaseModel):
     default_skimmability: int | None = Field(None, ge=0, le=10)
     default_include_code: IncludeCode | None = None
     default_platform: Platform | None = None
+    # The formula new posts start from; {} = everything automatic.
+    default_formula: FormulaParts | None = None
 
 
 class PersonaUpdate(PersonaDefaults):
@@ -156,6 +159,7 @@ class PersonaOut(BaseModel):
     default_skimmability: int
     default_include_code: str
     default_platform: str
+    default_formula: FormulaParts
     visual_style: str
     credit_template: str
     voice_profile_words: int
@@ -258,6 +262,39 @@ class VoiceProfileGenerateIn(BaseModel):
 
 class VoiceProfileLabelIn(BaseModel):
     label: str = Field(max_length=80)
+
+
+# -- formulas -----------------------------------------------------------------------
+
+
+class FormulaCatalogOut(BaseModel):
+    article_types: list[ArticleType]
+    openers: list[FormulaOption]
+    bodies: list[FormulaOption]
+    closers: list[FormulaOption]
+
+
+class FormulaIn(FormulaParts):
+    """A formula saved under a name. Parts left out are automatic (the author's usual way)."""
+
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field("", max_length=200)
+
+
+class FormulaOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    article_type: str
+    opener: str
+    body: str
+    closer: str
+    opener_note: str
+    body_note: str
+    closer_note: str
+    # The parts by name, e.g. "Tutorial · Cold open · Step by step".
+    label: str
+    created_at: datetime
 
 
 # -- jobs -------------------------------------------------------------------------

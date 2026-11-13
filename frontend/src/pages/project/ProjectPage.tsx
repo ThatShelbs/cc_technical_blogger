@@ -178,6 +178,11 @@ function DialsSummary({ project }: { project: ProjectOut }) {
         <span className="text-muted">Formality:</span> {d.formality} · <span className="text-muted">Depth:</span> {d.technical_depth} ·{' '}
         <span className="text-muted">Skim:</span> {d.skimmability}
       </p>
+      {d.formula_label && (
+        <p>
+          <span className="text-muted">Formula:</span> {d.formula_label}
+        </p>
+      )}
       <p>
         <span className="text-muted">Topic:</span> {d.topic} · <span className="text-muted">For:</span> {String(d.platform)}
       </p>

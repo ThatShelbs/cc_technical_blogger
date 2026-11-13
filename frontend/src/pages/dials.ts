@@ -1,4 +1,5 @@
-import type { Dials, PersonaOut } from '../api/types.gen'
+import type { Dials, FormulaParts, PersonaOut } from '../api/types.gen'
+import { buildFormula, formulaFrom } from '../lib/formula'
 import type { ReferenceKind } from '../lib/references'
 
 export const TOPICS = [
@@ -58,6 +59,8 @@ export interface DialsState {
   /** null = use the persona's default */
   education: Education | null
   style: Partial<Record<StyleKey, number>>
+  /** Only the formula parts changed for this post; the rest follow the persona's default formula */
+  formula: FormulaParts
   topic: string
   /** Who the post is for; empty = the author's usual readers */
   audience: string
@@ -74,6 +77,7 @@ export const emptyDials: DialsState = {
   humor: null,
   education: null,
   style: {},
+  formula: {},
   topic: '',
   audience: '',
   platform: null,
@@ -97,7 +101,7 @@ export function buildDials(state: DialsState): Dials {
   if (state.audience.trim()) dials.audience = state.audience.trim()
   if (state.platform !== null) dials.platform = state.platform
   if (state.includeCode !== null) dials.include_code = state.includeCode
-  return dials
+  return { ...dials, ...buildFormula(state.formula) }
 }
 
 /** The inverse of buildDials: a saved post's dials back into form state. */
@@ -116,6 +120,7 @@ export function dialsToState(dials: Dials | Record<string, unknown> | null | und
     humor: d.humor ?? null,
     education: d.education ?? null,
     style,
+    formula: formulaFrom(d),
     topic: d.topic ?? '',
     audience: d.audience ?? '',
     platform: d.platform ?? null,

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
 from proseferno import __version__
-from proseferno.api import jobs, personas, projects, references, system
+from proseferno.api import formulas, jobs, personas, projects, references, system
 from proseferno.config import Settings, get_settings
 from proseferno.db import Persona
 from proseferno.example import ExampleError, seed_example
@@ -45,7 +45,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
 
     app = FastAPI(title="Proseferno", version=__version__, lifespan=lifespan)
     app.state.services = services
-    for module in (system, personas, projects, references, jobs):
+    for module in (system, personas, projects, references, formulas, jobs):
         app.include_router(module.router)
     _mount_frontend(app, settings.frontend_dist)
     return app

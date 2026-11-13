@@ -5,10 +5,12 @@ import { useNavigate, useParams } from 'react-router'
 import { errorText } from '../api/client'
 import { usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
 import type { PersonaOut, PersonaUpdate } from '../api/types.gen'
+import { FormulaFields } from '../components/FormulaFields'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
 import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, Slider, Spinner, Switch } from '../components/ui'
 import { cx } from '../lib/cx'
+import { buildFormula, formulaFrom } from '../lib/formula'
 import { autoReferenceCount } from '../lib/references'
 import { PLATFORMS, STYLE_DIALS, autoImageCount, styleLabel, type Education, type IncludeCode, type Platform } from './dials'
 
@@ -99,6 +101,7 @@ function defaultsFrom(persona: PersonaOut) {
     default_skimmability: persona.default_skimmability,
     default_include_code: persona.default_include_code as IncludeCode,
     default_platform: persona.default_platform as Platform,
+    default_formula: buildFormula(formulaFrom(persona.default_formula)),
     voice_profile_words: persona.voice_profile_words,
     voice_sample_max_words: persona.voice_sample_max_words,
     voice_sample_min_words: persona.voice_sample_min_words,
@@ -283,6 +286,21 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
             </Select>
           </Field>
         </div>
+      </Card>
+
+      <Card className="h-fit space-y-5">
+        <div>
+          <h2 className="text-lg font-bold">Default formula</h2>
+          <p className="text-sm text-muted">
+            The shape new posts start from: article type, opener, body and closer. Leave a part automatic to write it the way your voice profile describes. You
+            can still change it per post.
+          </p>
+        </div>
+        <FormulaFields
+          value={draft.default_formula}
+          onChange={(patch) => set({ default_formula: buildFormula({ ...draft.default_formula, ...patch }) })}
+          idPrefix="p-"
+        />
       </Card>
 
       <Card className="h-fit space-y-5">

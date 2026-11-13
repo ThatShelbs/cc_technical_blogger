@@ -36,6 +36,7 @@ from proseferno.sample_content import SAMPLE_AUTHOR, sample_posts
 from proseferno.services import Services
 from proseferno.storage import safe_filename
 from proseferno.voice import current_voice_profile, generate_voice_profile, latest_voice_profile, unpin, voice_profile_version
+from proseferno.writer.formulas import clean as clean_formula
 
 router = APIRouter(prefix="/api")
 
@@ -153,6 +154,8 @@ def update_persona(persona_id: int, body: PersonaUpdate, session: SessionDep, se
     for key, value in changes.items():
         if value is None and key not in ("pinned_voice_profile_version", "default_image_count", "default_reference_count"):
             continue
+        if key == "default_formula":
+            value = clean_formula(value)
         setattr(persona, key, value.strip() if isinstance(value, str) else value)
     persona.updated_at = utcnow()
     session.add(persona)

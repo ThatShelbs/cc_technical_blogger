@@ -571,6 +571,7 @@ def prompt_settings(dials: ResolvedDials) -> dict[str, Any]:
         "education": dials.education,
         "education_guide": dials.education_guide,
         "style_guide": dials.style_guide,
+        "formula_guide": dials.formula_guide,
         "include_code": include_code,
         "platform": dials.platform,
         "platform_guide": dials.platform_guide,

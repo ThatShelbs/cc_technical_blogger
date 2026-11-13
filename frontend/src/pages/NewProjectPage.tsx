@@ -8,6 +8,7 @@ import { PLATFORMS, buildDials, emptyDials, shownDials, type DialsState, type Pl
 import { BrandKitFields } from '../components/BrandKitFields'
 import { emptyBrandKit, isEmptyBrandKit } from '../lib/brandKit'
 import { DialsFields } from '../components/DialsFields'
+import { FormulaFields } from '../components/FormulaFields'
 import { Button, Card, Field, Notice, PageHeader, Select, Textarea } from '../components/ui'
 
 const EXAMPLE = `Why most A/B tests at big companies are underpowered
@@ -102,7 +103,19 @@ export function NewProjectPage() {
               ))}
             </Select>
           </Field>
-          <button type="button" className="flex w-full items-center justify-between font-bold" aria-expanded={custom} onClick={() => setCustom((v) => !v)}>
+          <div className="space-y-3 border-t border-line pt-4">
+            <div>
+              <h3 className="font-bold">Formula</h3>
+              <p className="text-sm text-muted">The shape of the post. Your voice still writes every sentence.</p>
+            </div>
+            <FormulaFields value={dials.formula} onChange={(patch) => set({ formula: { ...dials.formula, ...patch } })} defaults={persona?.default_formula} />
+          </div>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between border-t border-line pt-4 font-bold"
+            aria-expanded={custom}
+            onClick={() => setCustom((v) => !v)}
+          >
             Customize
             <ChevronDown className={`size-5 transition ${custom ? 'rotate-180' : ''}`} aria-hidden />
           </button>

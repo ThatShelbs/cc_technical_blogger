@@ -4,6 +4,16 @@ export interface ApiKeyIn {
   api_key: string;
 }
 
+export interface ArticleType {
+  id: string;
+  label: string;
+  summary: string;
+  guide: string;
+  openers: string[];
+  bodies: string[];
+  closers: string[];
+}
+
 export interface AuthStatusOut {
   signed_in: boolean;
   source: string;
@@ -48,6 +58,13 @@ export interface CopyHtmlOut {
 }
 
 export interface Dials {
+  article_type?: string | null;
+  opener?: string | null;
+  body?: string | null;
+  closer?: string | null;
+  opener_note?: string | null;
+  body_note?: string | null;
+  closer_note?: string | null;
   target_words?: number | null;
   image_count?: number | null;
   reference_count?: number | null;
@@ -77,6 +94,58 @@ export interface EditLesson {
 export interface EnrichIn {
   count?: number | null;
   kinds?: ("source" | "quote" | "social_post" | "resource" | "related_article")[] | null;
+}
+
+export interface FormulaCatalogOut {
+  article_types: ArticleType[];
+  openers: FormulaOption[];
+  bodies: FormulaOption[];
+  closers: FormulaOption[];
+}
+
+export interface FormulaIn {
+  article_type?: string | null;
+  opener?: string | null;
+  body?: string | null;
+  closer?: string | null;
+  opener_note?: string | null;
+  body_note?: string | null;
+  closer_note?: string | null;
+  name: string;
+  description?: string;
+}
+
+export interface FormulaOption {
+  id: string;
+  label: string;
+  summary: string;
+  group: string;
+  guide: string;
+}
+
+export interface FormulaOut {
+  id: number;
+  name: string;
+  description: string;
+  article_type: string;
+  opener: string;
+  body: string;
+  closer: string;
+  opener_note: string;
+  body_note: string;
+  closer_note: string;
+  label: string;
+  created_at: string;
+}
+
+export interface FormulaParts {
+  article_type?: string | null;
+  opener?: string | null;
+  body?: string | null;
+  closer?: string | null;
+  opener_note?: string | null;
+  body_note?: string | null;
+  closer_note?: string | null;
 }
 
 export interface GenerateIn {
@@ -200,6 +269,7 @@ export interface PersonaOut {
   default_skimmability: number;
   default_include_code: string;
   default_platform: string;
+  default_formula: FormulaParts;
   visual_style: string;
   credit_template: string;
   voice_profile_words: number;
@@ -231,6 +301,7 @@ export interface PersonaUpdate {
   default_skimmability?: number | null;
   default_include_code?: "auto" | "yes" | "no" | null;
   default_platform?: "medium" | "substack" | "linkedin" | "x" | "gumroad" | "markdown" | null;
+  default_formula?: FormulaParts | null;
   name?: string | null;
   display_name?: string | null;
   research_enabled?: boolean | null;

@@ -3,6 +3,7 @@
 from proseferno.db.engine import make_engine
 from proseferno.db.models import (
     AppSetting,
+    Formula,
     Job,
     Persona,
     Project,
@@ -15,6 +16,7 @@ from proseferno.db.models import (
 
 __all__ = [
     "AppSetting",
+    "Formula",
     "Job",
     "Persona",
     "Project",
