@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Eye, FileDown, PencilLine, Pin, RefreshCw, Save } from 'lucide-react'
+import { Dices, Eye, FileDown, PencilLine, Pin, RefreshCw, Save } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 
@@ -158,7 +158,7 @@ export function TitlePicker({ project }: { project: ProjectOut }) {
   )
 }
 
-function DialsSummary({ project }: { project: ProjectOut }) {
+function DialsSummary({ project, onEdit, disabled }: { project: ProjectOut; onEdit: () => void; disabled: boolean }) {
   const { data: personas } = usePersonas()
   const d = project.resolved_dials as Record<string, string | number>
   if (!d || !d.target_words) return null
@@ -178,6 +178,12 @@ function DialsSummary({ project }: { project: ProjectOut }) {
         <span className="text-muted">Formality:</span> {d.formality} · <span className="text-muted">Depth:</span> {d.technical_depth} ·{' '}
         <span className="text-muted">Skim:</span> {d.skimmability}
       </p>
+      {d.formula_label && (
+        <p>
+          <span className="text-muted">Formula:</span> {d.formula_label}
+          {d.article_type_detected ? ' (type read from your brief)' : ''}
+        </p>
+      )}
       <p>
         <span className="text-muted">Topic:</span> {d.topic} · <span className="text-muted">For:</span> {String(d.platform)}
       </p>
@@ -190,6 +196,16 @@ function DialsSummary({ project }: { project: ProjectOut }) {
         {persona ? `${persona.name} · ` : ''}
         {project.voice_profile_version ? `voice profile v${project.voice_profile_version}` : ''}
       </p>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={<Dices className="size-4" />}
+        disabled={disabled}
+        title="Open the settings, shuffle or change the formula, and regenerate"
+        onClick={onEdit}
+      >
+        Try another formula
+      </Button>
     </Card>
   )
 }
@@ -347,7 +363,7 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
         <AuthenticityPanel project={project} />
         <FidelityPanel project={project} />
         <BriefCard project={project} onEdit={onOpenSettings} disabled={busy} />
-        <DialsSummary project={project} />
+        <DialsSummary project={project} onEdit={onOpenSettings} disabled={busy} />
       </aside>
 
       <ExportDialog

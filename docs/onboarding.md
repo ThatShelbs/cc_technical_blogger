@@ -103,6 +103,7 @@ npm run e2e          # Playwright, against the real backend in demo mode
 | How posts are written | `prompts/writer_system.md`, `plan.md`, `draft.md`, `critique.md`, `revise.md` | Same eval. |
 | A post setting (a "dial") | `writer/dials.py`, `api/schemas.py`, `frontend/src/pages/dials.ts`, `components/DialsFields.tsx` | Regenerate types. |
 | An export platform | `backend/src/proseferno/export/` and `PLATFORMS` in `export/bundle.py` | Add a writing guide, see [exporting.md](exporting.md). |
+| An article type, opener, body or closer style (formulas) | `writer/formulas.py` (the catalog; the UI reads it from the API) | See [formulas.md](formulas.md); `uv run pytest tests/unit/test_formulas.py tests/api/test_formulas.py`. |
 | Which references a post gets, and how they are checked | `prompts/reference_*.md`, `writer/references.py` | See [references.md](references.md); `uv run pytest tests/unit/test_references.py tests/api/test_references.py`. |
 | What images look like | `prompts/image_system.md`, `image_spec.md`, `images/service.py` | See [images.md](images.md). |
 | A screen | `frontend/src/pages/` | Check day and night mode. |

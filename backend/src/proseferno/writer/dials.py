@@ -8,6 +8,16 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from proseferno.db import Persona
+from proseferno.writer.formulas import (
+    AUTO,
+    NOTE_FIELDS,
+    PART_FIELDS,
+    FormulaParts,
+    detect_article_type,
+    formula_guide,
+    formula_label,
+    resolve_formula,
+)
 
 Education = Literal["beginner", "intermediate", "expert"]
 Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
@@ -167,8 +177,11 @@ PLATFORM_GUIDE: dict[str, str] = {
 }
 
 
-class Dials(BaseModel):
-    """What the user can set. Every field is optional and falls back to the persona's defaults."""
+class Dials(FormulaParts):
+    """What the user can set. Every field is optional and falls back to the persona's defaults.
+
+    The formula fields (article type, opener, body, closer and the author's notes on them) come from ``FormulaParts``.
+    """
 
     target_words: int | None = Field(None, ge=300, le=6000)
     image_count: int | None = Field(None, ge=2, le=15)
@@ -205,6 +218,18 @@ class ResolvedDials(BaseModel):
     technical_depth: int
     skimmability: int
     style_guide: str
+    # The formula: catalog ids ("auto" = the author's usual way), the author's notes, and the prompt text.
+    article_type: str
+    opener: str
+    body: str
+    closer: str
+    opener_note: str
+    body_note: str
+    closer_note: str
+    # True when nobody chose the article type and it was read from the brief.
+    article_type_detected: bool
+    formula_label: str
+    formula_guide: str
     topic: str
     audience: str
     platform: Platform
@@ -257,7 +282,17 @@ def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: i
     for key in STYLE_DIALS:
         value = getattr(dials, key)
         styles[key] = max(0, min(10, value if value is not None else getattr(persona, f"default_{key}", 5)))
+    chosen = {field: getattr(dials, field) for field in (*PART_FIELDS, *NOTE_FIELDS)}
+    formula = resolve_formula(chosen, persona.default_formula)
+    # Smart default: with no article type chosen, read it from the brief (nothing found = the author's usual shape).
+    detected = formula.article_type == AUTO and detect_article_type(prompt) != AUTO
+    if detected:
+        formula = formula.model_copy(update={"article_type": detect_article_type(prompt)})
     return ResolvedDials(
+        **formula.model_dump(),
+        article_type_detected=detected,
+        formula_label=formula_label(formula),
+        formula_guide=formula_guide(formula),
         target_words=target_words,
         image_count=dials.image_count or persona.default_image_count or auto_image_count(target_words),
         reference_count=next(

@@ -39,6 +39,8 @@ class Persona(SQLModel, table=True):
     default_skimmability: int = 5
     default_include_code: str = "auto"
     default_platform: str = "medium"
+    # The formula new posts start from (see writer.formulas): article_type, opener, body, closer and notes; {} = all automatic.
+    default_formula: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
     # Voice profile version used for new posts; None = always the latest.
     pinned_voice_profile_version: int | None = None
     # One line that keeps a post's generated images looking like a set.
@@ -181,6 +183,25 @@ class ProjectReference(SQLModel, table=True):
     # Every version placed in the post, oldest first (the current one included).
     history: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class Formula(SQLModel, table=True):
+    """A formula the author built and named, to reuse across posts and personas (see writer.formulas)."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    description: str = ""
+    # Catalog ids; "auto" = the author's usual way.
+    article_type: str = "auto"
+    opener: str = "auto"
+    body: str = "auto"
+    closer: str = "auto"
+    # The author's own instructions for each part.
+    opener_note: str = ""
+    body_note: str = ""
+    closer_note: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class Job(SQLModel, table=True):
