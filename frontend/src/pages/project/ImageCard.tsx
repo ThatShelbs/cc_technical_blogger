@@ -1,14 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Dices, History, ImagePlus, Lightbulb, PencilLine, Wand2 } from 'lucide-react'
+import { Dices, History, ImagePlus, Lightbulb, PencilLine, Type, Wand2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { errorText } from '../../api/client'
 import { keys, useImageMutations, useMemeFormats } from '../../api/hooks'
-import type { ImageOut, MemeFormatOut } from '../../api/types.gen'
+import type { ImageOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
 import { fullCaption } from '../../lib/article'
-import { Badge, Button, Dialog, Field, Input, Notice, Select, Spinner, Textarea } from '../../components/ui'
+import { Badge, Button, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { MemeIdeasDialog, MemeWordsDialog } from './MemeDialogs'
 
 const PROVIDER_LABEL: Record<string, string> = {
   'claude-svg': 'Claude SVG',
@@ -50,7 +51,15 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
   const editable = image.provider === 'claude-svg' || image.provider === 'vega-lite' || image.provider === 'claude-meme'
   const isMeme = image.kind === 'meme'
   const memeFormats = useMemeFormats(isMeme)
-  const redraw = (rethink: boolean, memeFormat?: string) => mutations.redraw.mutate({ id: image.id, rethink, memeFormat }, { onSuccess: (j) => setJobId(j.id) })
+  const [ideasOpen, setIdeasOpen] = useState(false)
+  const [wordsOpen, setWordsOpen] = useState(false)
+  const redraw = (rethink: boolean, meme: { memeFormat?: string; memeConcept?: number } = {}) => {
+    setIdeasOpen(false)
+    mutations.redraw.mutate({ id: image.id, rethink, ...meme }, { onSuccess: (j) => setJobId(j.id) })
+  }
+  // A meme whose format has no art is drawn by the template alone, so there is nothing for Redraw to redraw.
+  const hasArt = !image.meme || image.meme.has_art
+  const hasIdeas = !!image.meme?.pitches.length
   const edit = () =>
     mutations.edit.mutate(
       { id: image.id, instruction: instruction.trim() },
@@ -106,6 +115,11 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           {image.meme.format_name}: {image.meme.premise}
         </p>
       )}
+      {image.meme?.fallback_from && (
+        <p className="mt-1 text-center text-xs text-muted">
+          Claude could not draw the “{image.meme.fallback_from}” format, so this is a stand-in. Open Ideas to try another.
+        </p>
+      )}
       {image.kind === 'screenshot' && image.status === 'placeholder' && (
         <p className="mt-2 text-center text-xs text-muted">Replace this placeholder with a real screenshot: {image.purpose}</p>
       )}
@@ -123,34 +137,55 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             Edit
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={<Dices className="size-4" />}
-          onClick={() => redraw(false)}
-          disabled={busy}
-          title="Claude draws the same idea a new way"
-        >
-          Redraw
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={<Lightbulb className="size-4" />}
-          onClick={() => redraw(true)}
-          disabled={busy}
-          title={
-            isMeme && image.meme
-              ? image.meme.ideas_left
-                ? `Try the next of the ${image.meme.ideas_left} other jokes Claude pitched`
-                : 'Ask Claude to pitch new jokes'
-              : 'Ask Claude for a different idea'
-          }
-        >
-          New idea
-        </Button>
-        {isMeme && memeFormats.data && (
-          <MemeFormatPicker formats={memeFormats.data} value={image.meme?.format ?? ''} disabled={busy} onPick={(id) => redraw(false, id)} />
+        {hasArt && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Dices className="size-4" />}
+            onClick={() => redraw(false)}
+            disabled={busy}
+            title="Claude draws the same idea a new way"
+          >
+            Redraw
+          </Button>
+        )}
+        {hasIdeas ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Lightbulb className="size-4" />}
+            onClick={() => setIdeasOpen(true)}
+            disabled={busy}
+            title="See every joke Claude pitched, pick one, or ask for more"
+          >
+            Ideas
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Lightbulb className="size-4" />}
+            onClick={() => redraw(true)}
+            disabled={busy}
+            title="Ask Claude for a different idea"
+          >
+            New idea
+          </Button>
+        )}
+        {!!image.meme?.slots.length && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Type className="size-4" />}
+            onClick={() => {
+              mutations.memeWords.reset()
+              setWordsOpen(true)
+            }}
+            disabled={busy}
+            title="Retype the meme's text; the art stays and Claude is not asked"
+          >
+            Words
+          </Button>
         )}
         <Button size="sm" variant="secondary" icon={<ImagePlus className="size-4" />} onClick={() => fileInput.current?.click()} disabled={busy}>
           Replace
@@ -186,6 +221,28 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           }}
         />
       </div>
+
+      {image.meme && hasIdeas && (
+        <MemeIdeasDialog
+          open={ideasOpen}
+          onClose={() => setIdeasOpen(false)}
+          meme={image.meme}
+          formats={memeFormats.data ?? []}
+          onPick={(index) => redraw(false, { memeConcept: index })}
+          onNext={() => redraw(true)}
+          onFormat={(id) => redraw(false, { memeFormat: id })}
+        />
+      )}
+      {image.meme && wordsOpen && (
+        <MemeWordsDialog
+          open
+          onClose={() => setWordsOpen(false)}
+          slots={image.meme.slots}
+          saving={mutations.memeWords.isPending}
+          error={mutations.memeWords.error ? errorText(mutations.memeWords.error) : null}
+          onSave={(words) => mutations.memeWords.mutate({ id: image.id, words }, { onSuccess: () => setWordsOpen(false) })}
+        />
+      )}
 
       <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} title="Image versions" wide>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -258,33 +315,5 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
         </form>
       </Dialog>
     </figure>
-  )
-}
-
-/** Remake the meme in a chosen format: Claude pitches jokes for that format and draws the best one. */
-function MemeFormatPicker({ formats, value, disabled, onPick }: { formats: MemeFormatOut[]; value: string; disabled: boolean; onPick: (id: string) => void }) {
-  const families = [...new Set(formats.map((f) => f.family_label))]
-  return (
-    <Select
-      aria-label="Meme format"
-      title="Remake the meme in another format"
-      className="h-8 w-56 max-w-full text-sm"
-      value={value}
-      disabled={disabled}
-      onChange={(e) => e.target.value && e.target.value !== value && onPick(e.target.value)}
-    >
-      {!value && <option value="">Meme format…</option>}
-      {families.map((family) => (
-        <optgroup key={family} label={family}>
-          {formats
-            .filter((f) => f.family_label === family)
-            .map((f) => (
-              <option key={f.id} value={f.id} title={f.when_to_use}>
-                {f.name}
-              </option>
-            ))}
-        </optgroup>
-      ))}
-    </Select>
   )
 }

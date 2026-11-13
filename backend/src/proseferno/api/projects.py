@@ -22,6 +22,9 @@ from proseferno.api.schemas import (
     LinkedInPostOut,
     MemeFormatOut,
     MemeInfoOut,
+    MemePitchOut,
+    MemeSlotOut,
+    MemeWordsIn,
     ProjectCreate,
     ProjectCreated,
     ProjectOut,
@@ -106,8 +109,35 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
     fmt = get_format(str(state.get("format", "")))
     premise = concepts[chosen].get("premise", "") if isinstance(chosen, int) and 0 <= chosen < len(concepts) else ""
     tried = set(state.get("tried") or [])
-    left = sum(1 for i, c in enumerate(concepts) if i not in tried and get_format(str(c.get("format", ""))))
-    return MemeInfoOut(format=fmt.id if fmt else "", format_name=fmt.name if fmt else "", premise=premise, ideas_left=left)
+    pitches = [
+        MemePitchOut(
+            index=i,
+            format=pitch_fmt.id,
+            format_name=pitch_fmt.name,
+            premise=str(c.get("premise", "")),
+            words=[str(t.get("text", "")).strip() for t in c.get("texts") or [] if str(t.get("text", "")).strip()],
+            tried=i in tried,
+            current=i == chosen,
+        )
+        for i, c in enumerate(concepts)
+        if (pitch_fmt := get_format(str(c.get("format", ""))))
+    ]
+    words = {str(t.get("slot")): str(t.get("text", "")) for t in (state.get("build") or {}).get("texts") or []}
+    slots = [
+        MemeSlotOut(name=s.name, hint=s.hint, text=words.get(s.name, ""), max_chars=s.max_chars, optional=s.optional)
+        for s in (fmt.slots if fmt and state.get("build") else ())
+    ]
+    failed = get_format(str(state.get("fallback_from", "")))
+    return MemeInfoOut(
+        format=fmt.id if fmt else "",
+        format_name=fmt.name if fmt else "",
+        premise=premise,
+        ideas_left=sum(1 for p in pitches if not p.tried),
+        has_art=bool(fmt and fmt.regions),
+        fallback_from=failed.name if failed else "",
+        pitches=pitches,
+        slots=slots,
+    )
 
 
 def reference_out(row: ProjectReference, markdown: str) -> ReferenceOut:
@@ -454,7 +484,14 @@ def update_image(image_id: int, body: ImageUpdate, session: SessionDep) -> Image
 
 
 async def _image_job(
-    services: Services, session: Session, image_id: int, *, rethink: bool = False, instruction: str = "", meme_format: str | None = None
+    services: Services,
+    session: Session,
+    image_id: int,
+    *,
+    rethink: bool = False,
+    instruction: str = "",
+    meme_format: str | None = None,
+    meme_concept: int | None = None,
 ) -> JobOut:
     image = image_or_404(session, image_id)
     project = project_or_404(session, image.project_id)
@@ -477,6 +514,7 @@ async def _image_job(
             brand_kit=brand_kit,
             instruction=instruction,
             meme_format=meme_format,
+            meme_concept=meme_concept,
             usage=ctx.add_usage,
         )
         if result.status == "error":
@@ -489,13 +527,30 @@ async def _image_job(
 
 @router.post("/images/{image_id}/redraw", response_model=JobOut, status_code=202)
 async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, services: ServicesDep) -> JobOut:
-    """Make a new version of one image (redesign it with ``rethink``; memes can switch format with ``meme_format``)."""
-    if body.meme_format is not None:
-        if image_or_404(session, image_id).kind != "meme":
-            raise HTTPException(422, "Only memes have formats.")
-        if not get_format(body.meme_format):
+    """Make a new version of one image (redesign it with ``rethink``).
+
+    Memes can switch format with ``meme_format`` or to one of their stored pitches with ``meme_concept``."""
+    if body.meme_format is not None or body.meme_concept is not None:
+        image = image_or_404(session, image_id)
+        if image.kind != "meme":
+            raise HTTPException(422, "Only memes have formats and pitches.")
+        if body.meme_format is not None and not get_format(body.meme_format):
             raise HTTPException(422, f"Unknown meme format {body.meme_format!r}.")
-    return await _image_job(services, session, image_id, rethink=body.rethink, meme_format=body.meme_format)
+        if body.meme_concept is not None and body.meme_concept >= len((load_state(image.spec) or {}).get("concepts") or []):
+            raise HTTPException(422, "This meme has no such pitch.")
+    return await _image_job(services, session, image_id, rethink=body.rethink, meme_format=body.meme_format, meme_concept=body.meme_concept)
+
+
+@router.put("/images/{image_id}/meme-words", response_model=ImageOut)
+def set_meme_words(image_id: int, body: MemeWordsIn, session: SessionDep, services: ServicesDep) -> ImageOut:
+    """Retype a meme's words. The meme is drawn again at once, with the same art and no call to Claude."""
+    image = image_or_404(session, image_id)
+    project = project_or_404(session, image.project_id)
+    persona = persona_or_404(session, project.persona_id)
+    try:
+        return image_out(services.images.set_meme_words(image_id, body.words, persona=persona, brand_kit=dict(project.brand_kit or {})))
+    except ImageProviderError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/meme-formats", response_model=list[MemeFormatOut])

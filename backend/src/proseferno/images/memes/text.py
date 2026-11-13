@@ -8,12 +8,13 @@ from pathlib import Path
 
 from PIL import ImageDraw, ImageFont
 
+from proseferno.images.render import FONT_DIR
+
 Font = ImageFont.FreeTypeFont | ImageFont.ImageFont
 
-# Bundled fonts (if present) win, then common system fonts, so output looks alike on every OS.
-_BUNDLED = Path(__file__).parent / "fonts"
+# The bundled fonts win, so memes look alike on every OS; system fonts are only a safety net.
 _DIRS = [
-    _BUNDLED,
+    FONT_DIR,
     Path("C:/Windows/Fonts"),
     Path("/System/Library/Fonts/Supplemental"),
     Path("/Library/Fonts"),

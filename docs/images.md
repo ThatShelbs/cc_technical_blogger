@@ -14,6 +14,8 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **screenshot** | A real UI/console screenshot would help | Placeholder card; replace it with your screenshot |
 | **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Proseferno owns layout and type ([below](#closing-memes)) |
 
+Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the hero (as wide as 5:2), so the hero keeps its subject in the middle band.
+
 ## Design and rendering
 
 For each slot Claude reads the text around the image, the author's *Images & Captions* guidance from the voice profile, and the post's brand kit (below), then returns a structured design: SVG markup or a chart spec, plus alt text and a caption in the author's caption style. The art direction prompt (`prompts/image_system.md`) asks for layered compositions, gradients, soft shadows and the inferno palette, so hero and illustration images look like finished editorial art rather than clip art.
@@ -21,17 +23,21 @@ For each slot Claude reads the text around the image, the author's *Images & Cap
 Nothing a model writes is executed:
 
 - SVG is parsed with `lxml` and sanitized (no scripts, event handlers, `foreignObject` or external references), then rasterized locally by **resvg**.
-- Charts are declarative Vega-Lite (remote data URLs are rejected), rendered locally by **vl-convert**.
+- Charts are declarative Vega-Lite (remote data URLs are rejected), rendered locally by **vl-convert**. A brand kit palette of three or more colors becomes the chart's color scheme in code, and a chart whose numbers are made up says *Illustrative data* under its title, so the label survives when the image is shared without its caption.
+
+A design that cannot be drawn (SVG that is not SVG, a chart spec Vega-Lite rejects) is sent back to Claude once with the error quoted (`draw_with_retry` in `images/base.py`). Smaller slips never get that far: a bare `&` or an unclosed tag is repaired by the parser (`render.parse_xml`) before sanitizing.
+
+Fonts are bundled in `images/memes/fonts/` (Anton, Inter, Comic Neue and JetBrains Mono, all under the SIL Open Font License; the license texts sit next to them). Meme text always uses them, and SVG text falls back to them when it names a font the machine lacks, so images look the same on Windows, macOS, Linux and in the packaged app.
 
 ## Closing memes
 
 The meme is the last thing a reader sees and the thing they share, so it gets its own pipeline (`images/memes/`):
 
-1. **Writers' room** (`prompts/meme_ideas.md`, effort `effort_meme_ideas`, default high). Claude reads the whole post, the plan's closing joke and its running jokes and key concepts, the humor dial and the voice profile's *Humor* section, then pitches five concepts across at least three format families, writes the words for every slot, and scores each on relevance, instant recognizability, surprise, clarity, voice fit and whether it works shared on its own. The best one wins.
-2. **Production** (`prompts/meme_build.md`). Claude fills the chosen format: final words for each text slot, SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel), and chart data where the format needs it. Missing pieces or overlong text get one retry with the problems quoted back.
+1. **Writers' room** (`prompts/meme_ideas.md`, effort `effort_meme_ideas`, default high). Claude reads the whole post (a very long post keeps its opening and its ending, where callbacks pay off), the plan's closing joke and its running jokes and key concepts, the humor dial and the voice profile's *Humor* section, then pitches five concepts across at least three format families. Each pitch has the final words for every slot, chart data where the format needs it and a caption, and is scored on relevance, instant recognizability, surprise, clarity, voice fit and whether it works shared on its own. The best one wins. The room is told which formats the author's last three memes used, so posts do not all end the same way. It is also told the post's [formula](formulas.md#the-closing-meme) (article type, opener, body, closer), because the meme lands straight after the closer: it must add a beat, not repeat the closer, and a post that opened on a joke can have that joke brought back.
+2. **Production** (`prompts/meme_build.md`), only for formats with art. Claude draws SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel) and may tighten the words. Missing pieces or overlong text get one retry with the problems quoted back. The seven formats with no art (chat, terminal, Nutrition Facts, alignment chart, pie, spurious correlation, Venn) skip this call: they are composed straight from the pitch.
 3. **Composer** (`compose.py`). Code draws the layout, panel frames, speech bubbles, charts and chrome, places Claude's art in its regions (sanitized, ids made unique), and typesets every string with Pillow: each one is sized to the largest font that fits its box, parallel slots (rows, cells, panels) share one size, and words are only broken when nothing else fits. Text cannot overflow.
 
-If a build still cannot be drawn, the meme falls back to a classic top/bottom caption meme over the Proseferno robot instead of failing.
+If a build still cannot be drawn, the meme becomes the best other pitch in a format with no art (which cannot fail), so the reader still gets a whole joke. Only when there is none (for example, the author asked for one format) does it fall back to a classic top/bottom caption meme over the Proseferno robot. Either way the card says which format could not be drawn (`fallback_from` in the meme's state).
 
 | Family | Formats |
 | --- | --- |
@@ -43,11 +49,16 @@ If a build still cannot be drawn, the meme falls back to a classic top/bottom ca
 
 Chart jokes are captioned *(data: entirely made up)*. A brand kit palette recolors the pie and Venn; Claude's art follows the brand style and palette.
 
-On the meme card, **New idea** moves to the next-best pitch from the writers' room without asking Claude to pitch again (it pitches fresh jokes, avoiding the old ones, once all five are used), **Redraw** draws the same joke again, **Edit** changes words or art by instruction, and the **format** menu remakes the meme in a format you pick (`POST /api/images/{id}/redraw` with `meme_format`; formats from `GET /api/meme-formats`).
+On the meme card:
+
+- **Ideas** opens the pitch board: all five jokes with their format and words. *Use this idea* draws one (`POST /api/images/{id}/redraw` with `meme_concept`), *Next best idea* moves to the best untried pitch (fresh pitches, avoiding the old ones, once all five are used), and the format menu asks for five new pitches in a format you pick (`meme_format`; formats from `GET /api/meme-formats`). Moving between pitches never asks Claude to pitch again, and a pitch with no art appears at once.
+- **Words** lets you retype any text in the meme (`PUT /api/images/{id}/meme-words`). The art is kept, the text is refitted, the alt text is rebuilt from the new words, and Claude is not called.
+- **Redraw** draws the same joke with new art (hidden for formats with no art).
+- **Edit** changes words or art by instruction.
 
 To review every format, run `uv run python scripts/meme_gallery.py` (canned builds, free) and open `data/meme-gallery/index.html`. `--real --yes` asks Claude for new memes for your latest posts (costs money).
 
-**Adding a format:** add a `MemeFormat` to `FORMATS` in `images/memes/formats.py` (text slots with boxes and character limits, art regions with briefs, `groups` for slots that should share a size). If the template draws anything (frames, charts, chrome), add a scene function to `SCENES` in `compose.py`. Add canned words to `DEMO_MEME_TEXTS` in `demo.py`; the tests render every format.
+**Adding a format:** add a `MemeFormat` to `FORMATS` in `images/memes/formats.py` (text slots with boxes and character limits, art regions with briefs, `groups` for slots that should share a size). A format with no `regions` is drawn from the pitch alone; if it needs chart data, describe it in `data` (the pitch menu shows that text). If the template draws anything (frames, charts, chrome), add a scene function to `SCENES` in `compose.py`. Add canned words to `DEMO_MEME_TEXTS` in `demo.py`; the tests render every format.
 
 ## Brand kit (per post)
 

@@ -17,7 +17,7 @@ from proseferno.images.memes import charts
 from proseferno.images.memes.formats import ArtRegion, Box, MemeFormat
 from proseferno.images.memes.specs import MemeDatum, MemeText
 from proseferno.images.memes.text import STYLES, Fitted, draw_fitted, fit_text
-from proseferno.images.render import SVG_NS, svg_to_png
+from proseferno.images.render import SVG_NS, parse_xml, svg_to_png
 
 XLINK_NS = "http://www.w3.org/1999/xlink"
 INK = "#14101f"
@@ -48,17 +48,15 @@ class Scene:
 # -- SVG fragments from Claude ----------------------------------------------------
 
 _PROLOG_RE = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>", re.IGNORECASE)
-_PARSER = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False, remove_comments=True)
 
 
 def _parse(fragment: str, what: str) -> tuple[list[etree._Element], str | None]:
     """Parse model SVG that may or may not have its own <svg> wrapper; returns its elements and viewBox."""
     body = _PROLOG_RE.sub("", fragment or "").strip()
-    try:
-        root = etree.fromstring(f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}">{body}</svg>'.encode(), _PARSER)
-    except etree.XMLSyntaxError as exc:
-        raise ImageProviderError(f"The SVG for {what} is not valid XML: {exc}") from exc
+    root = parse_xml(f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}">{body}</svg>'.encode(), what)
     children = [c for c in root if isinstance(c.tag, str)]
+    if body and not children:
+        raise ImageProviderError(f"The SVG for {what} has nothing that can be drawn.")
     if len(children) == 1 and etree.QName(children[0]).localname == "svg":
         inner = children[0]
         return [c for c in inner if isinstance(c.tag, str)], inner.get("viewBox")

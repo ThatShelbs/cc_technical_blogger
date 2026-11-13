@@ -9,11 +9,12 @@ from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
 from proseferno.config import Settings
-from proseferno.demo import FakeLLM, meme_build_payload
+from proseferno.demo import DEMO_MEME_TEXTS, FakeLLM, meme_build_payload, meme_ideas_payload
 from proseferno.images import ImageProviderError
 from proseferno.images.memes import FORMATS, ArtDirection, MemeContext, MemeMaker, get_format, load_state, plan_callbacks
 from proseferno.images.memes.compose import compose, region_svg
 from proseferno.images.memes.formats import ArtRegion, build_spec, menu
+from proseferno.images.memes.generate import clip_post
 from proseferno.images.memes.specs import MemeBuild
 from proseferno.images.memes.text import STYLES, fit_text
 
@@ -65,8 +66,13 @@ def test_region_ids_are_made_unique_and_scripts_never_survive() -> None:
         "classic_caption", art=[{"region": "scene", "svg": '<rect width="10" height="10" onclick="x()"/><script>alert(1)</script>'}]
     )
     assert png.startswith(b"\x89PNG")
+    # A slip a browser would forgive (a bare ampersand, an unclosed tag) is repaired, not sent back to Claude.
+    repaired, _, _ = render(
+        "classic_caption", art=[{"region": "scene", "svg": '<g><rect width="9" height="9" fill="red"/><title>R&D</title>'}]
+    )
+    assert repaired.startswith(b"\x89PNG")
     with pytest.raises(ImageProviderError):
-        render("classic_caption", art=[{"region": "scene", "svg": "<rect"}])
+        render("classic_caption", art=[{"region": "scene", "svg": "I could not draw this."}])
 
 
 def test_brand_palette_recolors_chart_marks() -> None:
@@ -106,7 +112,69 @@ async def test_new_idea_moves_through_pitches_without_new_ideation() -> None:
 
     # Every pitch used: the room is asked again, told what to avoid.
     await maker.make(spec, POST, ART, rethink=True)
-    assert llm.tasks().count("meme ideas") == 2 and "already used" in llm.calls[-2]["prompt"]
+    pitches = [c for c in llm.calls if c["task"] == "meme ideas"]
+    assert len(pitches) == 2 and "already used" in pitches[-1]["prompt"]
+
+
+async def test_a_format_with_no_art_is_drawn_from_the_pitch_alone() -> None:
+    llm = FakeLLM()
+    maker = MemeMaker(llm, Settings())
+    first = await maker.make("", POST, ART, meme_format="joke_pie_3d")
+    assert llm.tasks() == ["meme ideas"]
+    state = load_state(first.spec)
+    assert state and state["format"] == "joke_pie_3d" and first.caption == "Pie logic (data: entirely made up)"
+    assert "What pie charts are good for" in first.alt and "Showing two slices: 6" in first.alt
+
+    # Another pitch in the same art-free format, and a redraw: still no call to Claude.
+    await maker.make(first.spec, POST, ART, rethink=True)
+    await maker.make(first.spec, POST, ART, redraw=True)
+    assert llm.tasks() == ["meme ideas"]
+
+    # A pitch saved before pitches carried chart data cannot be drawn directly, so production is asked.
+    old = json.loads(first.spec)
+    for concept in old["concepts"]:
+        del concept["data"], concept["caption"]
+    await maker.make(json.dumps(old), POST, ART, redraw=True)
+    assert llm.tasks()[-1] == "meme build (joke_pie_3d)"
+
+
+async def test_the_author_picks_a_pitch_and_retypes_words_without_claude() -> None:
+    llm = FakeLLM()
+    maker = MemeMaker(llm, Settings())
+    first = await maker.make("", POST, ART, meme_format="terminal")
+    llm.calls.clear()
+
+    picked = await maker.make(first.spec, POST, ART, concept_index=3)
+    state = load_state(picked.spec)
+    assert state and state["chosen"] == 3 and state["tried"] == [0, 3] and llm.calls == []
+    with pytest.raises(ImageProviderError):
+        await maker.make(first.spec, POST, ART, concept_index=9)
+
+    reworded = maker.reword(picked.spec, {"out3": "fatal: nobody owns this chart"}, ART)
+    state = load_state(reworded.spec)
+    assert state and llm.calls == [] and reworded.png != picked.png
+    words = {t["slot"]: t["text"] for t in state["build"]["texts"]}
+    assert words["out3"] == "fatal: nobody owns this chart" and words["cmd1"] == "python make_chart.py --type pie"
+    assert "nobody owns this chart" in reworded.alt
+    # The pitch keeps the new words, so a redraw does not bring the old ones back.
+    assert {t["slot"]: t["text"] for t in state["concepts"][3]["texts"]}["out3"] == "fatal: nobody owns this chart"
+    with pytest.raises(ImageProviderError):
+        maker.reword(picked.spec, {"out3": ""}, ART)  # a required slot cannot be emptied
+
+
+def test_a_long_post_keeps_its_ending_for_the_writers_room() -> None:
+    post = "Opening line. " + "middle " * 6000 + "The pie stops itself."
+    clipped = clip_post(post + "\n\n{{image:meme}}")
+    assert len(clipped) < 24200 and clipped.startswith("Opening line.") and clipped.endswith("The pie stops itself.")
+    assert "middle of the post is omitted" in clipped and "{{image" not in clipped
+    assert clip_post("Short post.") == "Short post."
+
+
+async def test_the_room_is_told_which_formats_the_author_just_used() -> None:
+    llm = FakeLLM()
+    recent = MemeContext(**{**POST.__dict__, "recent_formats": ("Venn diagram", "Terminal session")})
+    await MemeMaker(llm, Settings()).make("", recent, ART)
+    assert "last memes used: Venn diagram, Terminal session" in llm.calls[0]["prompt"]
 
 
 async def test_a_new_brief_or_format_starts_a_fresh_pitch() -> None:
@@ -138,7 +206,28 @@ async def test_an_undrawable_build_is_retried_then_falls_back_to_a_caption_meme(
     builds = [c for c in llm.calls if c["task"].startswith("meme build")]
     assert len(builds) == 2 and "has no drawing" in builds[1]["prompt"]
     state = load_state(llm_first.spec)
+    # Every pitch is in the format the author asked for, so the caption meme is all that is left.
     assert state and state["format"] == "classic_caption" and llm_first.png.startswith(b"\x89PNG")
+    assert state["fallback_from"] == "nope_yep"
+
+
+async def test_an_undrawable_format_falls_back_to_a_pitch_that_needs_no_art() -> None:
+    llm = BrokenBuildLLM()
+    maker = MemeMaker(llm, Settings())
+    ideas = meme_ideas_payload("Only use the format `nope_yep`")
+    for concept, fmt in zip(ideas["concepts"][1:], ("terminal", "venn"), strict=False):
+        concept.update(format=fmt, texts=[{"slot": s, "text": t, "speaker": ""} for s, t in DEMO_MEME_TEXTS[fmt].items()])
+    ideas["concepts"][2]["scores"]["surprise"] = 5  # the Venn is the best of the rest
+    state = {"version": 2, "brief": POST.brief, "concepts": ideas["concepts"], "chosen": 0, "tried": []}
+
+    meme = await maker.make(json.dumps(state), POST, ART, redraw=True)
+    after = load_state(meme.spec)
+    assert after and after["format"] == "venn" and after["chosen"] == 2 and after["tried"] == [0, 2]
+    assert after["fallback_from"] == "nope_yep" and "Pizza" in meme.alt
+
+    # The next meme that draws cleanly is no longer marked as a stand-in.
+    again = await maker.make(meme.spec, POST, ART, redraw=True)
+    assert "fallback_from" not in (load_state(again.spec) or {})
 
 
 async def test_editing_a_meme_keeps_its_format_and_joke() -> None:

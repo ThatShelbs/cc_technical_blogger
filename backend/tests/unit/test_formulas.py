@@ -14,6 +14,7 @@ from proseferno.writer.formulas import (
     detect_article_type,
     formula_guide,
     formula_label,
+    meme_note,
     resolve_formula,
 )
 from proseferno.writer.pipeline import prompt_settings
@@ -123,3 +124,18 @@ def test_unknown_ids_fall_back_to_auto() -> None:
         "body": "auto",
         "closer": "kicker",
     }
+
+
+def test_the_closing_meme_is_told_the_shape_of_the_post() -> None:
+    assert meme_note(ResolvedFormula()) == ""  # no formula: the room is told nothing new
+
+    note = meme_note(ResolvedFormula(article_type="comparison", opener="joke_confession", closer="verdict", closer_note="Pick one."))
+    assert "Article type: X vs. Y comparison." in note and "Closer: The verdict." in note and "The author adds: Pick one." in note
+    assert "never restate the closer's last line" in note and "The post opens on a joke." in note
+    assert "Body:" not in note  # parts left to the voice profile are not listed
+
+    # A full-circle closer already echoes the opening, so the meme is told to land somewhere else.
+    circle = meme_note(ResolvedFormula(opener="joke_confession", closer="full_circle"))
+    assert "should not echo the opening a second time" in circle and "The post opens on a joke." not in circle
+
+    assert "Opener (the author's own instructions): Start at 3 a.m." in meme_note(ResolvedFormula(opener_note="Start at 3 a.m."))

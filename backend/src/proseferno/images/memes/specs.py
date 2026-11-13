@@ -20,11 +20,19 @@ class ConceptScores(BaseModel):
     standalone: int = Field(description="Still funny shared on its own, without the article. 1-5.")
 
 
+class MemeDatum(BaseModel):
+    label: str = Field(description="Category, slice or x value.")
+    value: float
+    series: str = Field(description="Series name for multi-series charts; empty otherwise.")
+
+
 class MemeConcept(BaseModel):
     format: str = Field(description="A format id from the menu.")
     premise: str = Field(description="The joke in one sentence.")
     callback: str = Field(description="The moment, term or running gag in the post this pays off.")
-    texts: list[MemeText] = Field(description="Draft words for every text slot of the format.")
+    texts: list[MemeText] = Field(description="Final words for every text slot of the format.")
+    data: list[MemeDatum] = Field(description="Chart data, only for formats whose menu entry asks for it; empty list otherwise.")
+    caption: str = Field(description="A short caption to sit under the image, in the author's style. Never repeats the meme's words.")
     scores: ConceptScores
 
 
@@ -37,12 +45,6 @@ class MemeIdeas(BaseModel):
 class MemeArt(BaseModel):
     region: str = Field(description="Art region name from the format spec.")
     svg: str = Field(description="SVG elements for this region, drawn in the region's own viewBox (no outer <svg> needed).")
-
-
-class MemeDatum(BaseModel):
-    label: str = Field(description="Category, slice or x value.")
-    value: float
-    series: str = Field(description="Series name for multi-series charts; empty otherwise.")
 
 
 class MemeBuild(BaseModel):

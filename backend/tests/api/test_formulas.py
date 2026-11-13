@@ -78,5 +78,10 @@ def test_formula_drives_the_post(client: TestClient, sample_docx: bytes, fake_ll
         assert "The author adds: Mention the 3 a.m. dashboard." in prompt
         assert "Closer: the author's usual way of ending" in prompt
 
+    # The closing meme's writers' room is told the same formula, so the joke lands after the closer and can bring the opening joke back.
+    room = next(c["prompt"] for c in fake_llm.calls if c.get("task") == "meme ideas")
+    assert "Article type: Top N countdown." in room and "Opener: Joke: the misdirection." in room
+    assert "The author adds: Mention the 3 a.m. dashboard." in room and "The post opens on a joke." in room
+
     # Clearing the persona default.
     assert client.patch(f"/api/personas/{pid}", json={"default_formula": {}}).json()["default_formula"]["article_type"] is None

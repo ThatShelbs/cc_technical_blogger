@@ -234,6 +234,32 @@ export interface MemeInfoOut {
   format_name: string;
   premise: string;
   ideas_left: number;
+  has_art: boolean;
+  fallback_from: string;
+  pitches: MemePitchOut[];
+  slots: MemeSlotOut[];
+}
+
+export interface MemePitchOut {
+  index: number;
+  format: string;
+  format_name: string;
+  premise: string;
+  words: string[];
+  tried: boolean;
+  current: boolean;
+}
+
+export interface MemeSlotOut {
+  name: string;
+  hint: string;
+  text: string;
+  max_chars: number;
+  optional: boolean;
+}
+
+export interface MemeWordsIn {
+  words: Record<string, string>;
 }
 
 export interface PersonaCreate {
@@ -382,6 +408,7 @@ export interface ProjectUpdate {
 export interface RedrawIn {
   rethink?: boolean;
   meme_format?: string | null;
+  meme_concept?: number | null;
 }
 
 export interface ReferenceHistoryOut {

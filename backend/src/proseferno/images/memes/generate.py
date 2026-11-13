@@ -1,6 +1,9 @@
-"""Two calls make a meme: the writers' room pitches and scores five concepts, then production
-draws the winner into its format. Concepts are kept on the image, so "New idea" moves to the
-next-best pitch without another ideation call, and "Redraw" draws the same joke again."""
+"""The writers' room pitches and scores five concepts, then the winner is drawn into its format.
+
+A format with art needs a second call (production draws it); a format with none (chat, terminal, label,
+charts) is composed straight from the pitch. Concepts are kept on the image, so "New idea" and the ideas
+board move between pitches without another ideation call, "Redraw" draws the same joke again, and the
+author can retype the words with no model call at all."""
 
 from __future__ import annotations
 
@@ -11,10 +14,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from proseferno.config import Settings
-from proseferno.images.base import ImageProviderError
+from proseferno.images.base import PLACEHOLDER_RE, ImageProviderError, draw_with_retry
 from proseferno.images.memes.compose import MASCOT_SCENE, compose
 from proseferno.images.memes.formats import CAST, FALLBACK, MemeFormat, build_spec, get_format, menu
-from proseferno.images.memes.specs import MemeArt, MemeBuild, MemeConcept, MemeIdeas, MemeText
+from proseferno.images.memes.specs import MemeArt, MemeBuild, MemeConcept, MemeDatum, MemeIdeas, MemeText
 from proseferno.llm import LLM, SystemBlock
 from proseferno.llm.base import UsageSink
 from proseferno.prompts import raw, render
@@ -23,8 +26,9 @@ log = logging.getLogger(__name__)
 
 STATE_VERSION = 2
 POST_LIMIT = 24000
-PLACEHOLDER_RE = re.compile(r"\{\{image:[A-Za-z0-9_\-]+\}\}")
+POST_TAIL = 8000
 MADE_UP = "(data: entirely made up)"
+OLD_MEME = "This meme was made by an older version; click New idea to make one that can be edited."
 
 HUMOR_GUIDE = {
     range(0, 3): "Dry and gentle: a wry chart joke, Venn or artifact; one quiet twist, nothing absurd.",
@@ -32,6 +36,8 @@ HUMOR_GUIDE = {
     range(6, 9): "Playful: famous formats, comics and puns are all welcome.",
     range(9, 11): "Go big: absurd escalation, shameless puns, callbacks to the post's running gags.",
 }
+
+Built = tuple[MemeBuild, bytes, int, int]
 
 
 @dataclass
@@ -45,6 +51,10 @@ class MemeContext:
     joke: str = ""
     callbacks: str = ""
     humor: int = 5
+    # Formats this author's last memes used, newest first: the room avoids repeating them.
+    recent_formats: tuple[str, ...] = ()
+    # The post's formula as the room should read it (``writer.formulas.meme_note``); "" when none is in force.
+    formula: str = ""
 
 
 @dataclass
@@ -73,6 +83,7 @@ def humor_guide(level: int) -> str:
 
 
 def voice_section(voice_profile: str, heading: str) -> str:
+    """The body of the voice profile's ``## <heading>...`` section ('' when there is none)."""
     match = re.search(rf"^##\s+{heading}.*?$(.*?)(?=^##\s|\Z)", voice_profile, flags=re.MULTILINE | re.DOTALL)
     return match.group(1).strip() if match else ""
 
@@ -88,6 +99,14 @@ def plan_callbacks(plan: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def clip_post(markdown: str, limit: int = POST_LIMIT, tail: int = POST_TAIL) -> str:
+    """The post without image placeholders. A long post keeps its opening and its ending, where the callbacks pay off."""
+    text = PLACEHOLDER_RE.sub("", markdown).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - tail].rstrip()}\n\n[... the middle of the post is omitted ...]\n\n{text[-tail:].lstrip()}"
+
+
 def load_state(spec: str) -> dict[str, Any] | None:
     """The meme's stored concepts and build, or None for older memes (plain SVG + captions)."""
     try:
@@ -95,6 +114,11 @@ def load_state(spec: str) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return state if isinstance(state, dict) and state.get("version") == STATE_VERSION else None
+
+
+def load_concepts(state: dict[str, Any]) -> list[MemeConcept]:
+    """The stored pitches (ones saved before pitches carried chart data and a caption get empty ones)."""
+    return [MemeConcept.model_validate({"data": [], "caption": "", **c}) for c in state.get("concepts", [])]
 
 
 def total(concept: MemeConcept) -> tuple[int, int]:
@@ -135,6 +159,25 @@ def render_build(fmt: MemeFormat, build: MemeBuild, palette: tuple[str, ...] = (
     )
 
 
+def alt_text(fmt: MemeFormat, texts: list[MemeText], data: list[MemeDatum]) -> str:
+    """Alt text written from the meme's own parts, so it is always right: the format and every word in it."""
+    words = " / ".join(t.text.strip() for t in texts if t.text.strip())
+    chart = "; ".join(f"{d.label}: {d.value:g}" for d in data)
+    return f"{fmt.name} meme. Text: {words}." + (f" Data: {chart}." if chart else "")
+
+
+def concept_build(fmt: MemeFormat, concept: MemeConcept) -> MemeBuild:
+    """A format with no art needs no production call: the pitch already has its words, data and caption."""
+    return MemeBuild(
+        texts=concept.texts,
+        cast_defs="",
+        art=[],
+        data=concept.data,
+        alt=alt_text(fmt, concept.texts, concept.data),
+        caption=concept.caption,
+    )
+
+
 def fallback_build(concept: MemeConcept | None) -> MemeBuild:
     """The classic caption meme over the house mascot: used when a format cannot be drawn."""
     words = [t.text.strip() for t in (concept.texts if concept else []) if t.text.strip()]
@@ -145,7 +188,7 @@ def fallback_build(concept: MemeConcept | None) -> MemeBuild:
         art=[MemeArt(region="scene", svg=MASCOT_SCENE)],
         data=[],
         alt="The Proseferno robot with the captions: " + " / ".join(w for w in (top, bottom) if w),
-        caption=concept.premise if concept else "",
+        caption=(concept.caption or concept.premise) if concept else "",
     )
 
 
@@ -164,12 +207,18 @@ class MemeMaker:
         redraw: bool = False,
         rethink: bool = False,
         meme_format: str | None = None,
+        concept_index: int | None = None,
         usage: UsageSink | None = None,
     ) -> MemeResult:
+        """Make the meme. ``concept_index`` draws that stored pitch (the author picked it from the ideas board)."""
         state = load_state(spec)
         index: int | None = None
-        if state is not None and state.get("brief") == post.brief and not meme_format and (redraw or rethink):
-            concepts = [MemeConcept.model_validate(c) for c in state["concepts"]]
+        if concept_index is not None:
+            if state is None or not 0 <= concept_index < len(state.get("concepts", [])):
+                raise ImageProviderError("That idea is no longer available. Click New idea for fresh pitches.")
+            index = concept_index
+        elif state is not None and state.get("brief") == post.brief and not meme_format and (redraw or rethink):
+            concepts = load_concepts(state)
             index = pick(concepts, None, set(state.get("tried", []))) if rethink else pick(concepts, state.get("chosen"), set())
             if index is None:
                 # Every pitch has been used: ask the room for fresh ones that avoid them.
@@ -177,22 +226,35 @@ class MemeMaker:
         else:
             state = await self._ideate(post, meme_format, [], usage)
 
-        concepts = [MemeConcept.model_validate(c) for c in state["concepts"]]
+        concepts = load_concepts(state)
         if index is None:
             index = pick(concepts, state.get("chosen"), set())
         concept = concepts[index] if index is not None else None
-        state["chosen"] = index
-        state["tried"] = sorted({*state.get("tried", []), *([index] if index is not None else [])})
+        tried = {*state.get("tried", []), *([index] if index is not None else [])}
+        state.pop("fallback_from", None)
 
         fmt = (get_format(concept.format) if concept else None) or FALLBACK
-        built = await self._build(fmt, concept, post.title, art, redraw=redraw, usage=usage) if concept else None
+        built = await self._produce(fmt, concept, post.title, art, redraw=redraw, usage=usage) if concept else None
+        if built is None and concept is not None:
+            # The format could not be drawn. Another pitch in a format with no art (it cannot fail) keeps a whole
+            # joke; squeezing this one into a caption meme is the last resort.
+            state["fallback_from"] = fmt.id
+            for other in sorted((i for i in range(len(concepts)) if i != index), key=lambda i: total(concepts[i]), reverse=True):
+                other_fmt = get_format(concepts[other].format)
+                direct = self._direct(other_fmt, concepts[other], art, strict=False) if other_fmt else None
+                if direct is not None and other_fmt is not None:
+                    index, concept, fmt, built = other, concepts[other], other_fmt, direct
+                    tried.add(other)
+                    break
+        state["chosen"] = index
+        state["tried"] = sorted(tried)
         return self._finish(state, fmt, concept, built, art)
 
     async def edit(self, spec: str, instruction: str, art: ArtDirection, *, usage: UsageSink | None = None) -> MemeResult:
         """Change the current meme as the author asks ("make the robot look more smug"), keeping the rest."""
         state = load_state(spec)
         if state is None or not state.get("build"):
-            raise ImageProviderError("This meme was made by an older version; click New idea to make one that can be edited.")
+            raise ImageProviderError(OLD_MEME)
         fmt = get_format(str(state.get("format", ""))) or FALLBACK
         current = MemeBuild.model_validate(state["build"])
         prompt = render(
@@ -207,12 +269,35 @@ class MemeMaker:
             raise ImageProviderError("Claude's edit could not be drawn. Try rewording the instruction.")
         return self._finish(state, fmt, None, built, art)
 
+    def reword(self, spec: str, words: dict[str, str], art: ArtDirection) -> MemeResult:
+        """Set the meme's words as the author typed them and draw it again. No model call: the art is kept as it is."""
+        state = load_state(spec)
+        if state is None or not state.get("build"):
+            raise ImageProviderError(OLD_MEME)
+        fmt = get_format(str(state.get("format", ""))) or FALLBACK
+        current = MemeBuild.model_validate(state["build"])
+        old = {t.slot: t for t in current.texts}
+        texts = [
+            MemeText(
+                slot=s.name,
+                text=words.get(s.name, old[s.name].text if s.name in old else "").strip(),
+                speaker=old[s.name].speaker if s.name in old else "",
+            )
+            for s in fmt.slots
+        ]
+        build = current.model_copy(update={"texts": texts, "alt": alt_text(fmt, texts, current.data)})
+        blocking, _ = validate(fmt, build)
+        if blocking:
+            raise ImageProviderError(" ".join(blocking))
+        png, width, height = render_build(fmt, build, art.palette)
+        return self._finish(state, fmt, None, (build, png, width, height), art)
+
     def _finish(
         self,
         state: dict[str, Any],
         fmt: MemeFormat,
         concept: MemeConcept | None,
-        built: tuple[MemeBuild, bytes, int, int] | None,
+        built: Built | None,
         art: ArtDirection,
     ) -> MemeResult:
         if built is None:
@@ -225,11 +310,16 @@ class MemeMaker:
         if fmt.family == "chart" and build.data and not re.search(r"made up|illustrative|fake", caption, re.IGNORECASE):
             caption = f"{caption} {MADE_UP}".strip()
         state.update(format=fmt.id, build=build.model_dump())
+        # The chosen pitch keeps the final words, so a redraw or the ideas board never brings back an older wording.
+        chosen, pitches = state.get("chosen"), state.get("concepts", [])
+        if isinstance(chosen, int) and 0 <= chosen < len(pitches) and pitches[chosen].get("format") == fmt.id:
+            pitches[chosen]["texts"] = [t.model_dump() for t in build.texts if t.text.strip()]
         provider = "vega-lite" if fmt.id == "spurious_correlation" else "claude-meme"
         return MemeResult(png, width, height, provider, json.dumps(state), build.alt, caption)
 
     async def _ideate(self, post: MemeContext, only: str | None, exclude: list[str], usage: UsageSink | None) -> dict[str, Any]:
         avoid = "\n".join(f"- {p}" for p in exclude)
+        recent = ", ".join(post.recent_formats)
         prompt = render(
             "meme_ideas",
             title=post.title,
@@ -238,11 +328,18 @@ class MemeMaker:
             brief=post.brief or "A funny, relevant joke that lands the ending.",
             humor=post.humor,
             humor_guide=humor_guide(post.humor),
+            formula=f"\n{post.formula}\n" if post.formula else "",
             humor_section=voice_section(post.voice_profile, "Humor") or "(not described: use dry, specific, good-natured humor)",
-            post=PLACEHOLDER_RE.sub("", post.markdown).strip()[:POST_LIMIT],
+            post=clip_post(post.markdown),
             menu=menu(only),
             constraint=f"\nOnly use the format `{only}`: all five concepts must use it, each with a different joke.\n" if only else "",
             exclude=f"\nThese premises were already used; pitch different jokes:\n{avoid}\n" if exclude else "",
+            recent=(
+                f"\nThis author's last memes used: {recent}. Readers notice a repeated format, so prefer other formats "
+                "unless one of these is clearly the funniest fit.\n"
+                if recent and not only
+                else ""
+            ),
         )
         ideas = await self.llm.structured(
             task="meme ideas",
@@ -265,11 +362,38 @@ class MemeMaker:
             "tried": [],
         }
 
+    def _direct(self, fmt: MemeFormat, concept: MemeConcept, art: ArtDirection, *, strict: bool = True) -> Built | None:
+        """Draw an art-free format straight from the pitch; None when it has art or the pitch is not ready to draw.
+
+        ``strict`` also turns down a pitch whose words run long (production would tighten them)."""
+        if fmt.regions:
+            return None
+        build = concept_build(fmt, concept)
+        blocking, style = validate(fmt, build)
+        if blocking or (strict and style):
+            return None
+        try:
+            return (build, *render_build(fmt, build, art.palette))
+        except ImageProviderError:
+            return None
+
+    async def _produce(
+        self, fmt: MemeFormat, concept: MemeConcept, title: str, art: ArtDirection, *, redraw: bool, usage: UsageSink | None
+    ) -> Built | None:
+        return self._direct(fmt, concept, art) or await self._build(fmt, concept, title, art, redraw=redraw, usage=usage)
+
     async def _build(
         self, fmt: MemeFormat, concept: MemeConcept, title: str, art: ArtDirection, *, redraw: bool, usage: UsageSink | None
-    ) -> tuple[MemeBuild, bytes, int, int] | None:
+    ) -> Built | None:
         concept_text = json.dumps(
-            {"premise": concept.premise, "callback": concept.callback, "texts": [t.model_dump() for t in concept.texts]}, indent=1
+            {
+                "premise": concept.premise,
+                "callback": concept.callback,
+                "texts": [t.model_dump() for t in concept.texts],
+                "data": [d.model_dump() for d in concept.data],
+                "caption": concept.caption,
+            },
+            indent=1,
         )
         prompt = render(
             "meme_build",
@@ -284,29 +408,30 @@ class MemeMaker:
         )
         return await self._attempts(fmt, prompt, art, task=f"meme build ({fmt.id})", usage=usage)
 
-    async def _attempts(
-        self, fmt: MemeFormat, prompt: str, art: ArtDirection, *, task: str, usage: UsageSink | None
-    ) -> tuple[MemeBuild, bytes, int, int] | None:
+    async def _attempts(self, fmt: MemeFormat, prompt: str, art: ArtDirection, *, task: str, usage: UsageSink | None) -> Built | None:
         """Ask for a build and draw it, retrying once with the problems quoted back; None means it could not be drawn."""
-        errors = ""
-        for attempt in range(2):
-            build = await self.llm.structured(
+
+        async def ask(note: str) -> MemeBuild:
+            return await self.llm.structured(
                 task=task,
                 system=self.system,
-                prompt=prompt + errors,
+                prompt=prompt + note,
                 schema=MemeBuild,
                 effort=self.settings.effort_images,
                 max_tokens=32000,
                 usage=usage,
             )
+
+        def draw(build: MemeBuild, last: bool) -> tuple[bytes, int, int]:
+            # Overlong text still renders (it is shrunk to fit), so it only costs a retry, never the meme.
             blocking, style = validate(fmt, build)
-            problems = blocking + style
-            if not blocking and (not style or attempt == 1):
-                try:
-                    png, width, height = render_build(fmt, build, art.palette)
-                    return build, png, width, height
-                except ImageProviderError as exc:
-                    problems = [str(exc)]
-            log.info("Meme %s needs another pass: %s", fmt.id, problems)
-            errors = "\n\nYour previous attempt had these problems; fix every one:\n" + "\n".join(f"- {p}" for p in problems) + "\n"
-        return None
+            if blocking or (style and not last):
+                raise ImageProviderError("\n".join(blocking + style))
+            return render_build(fmt, build, art.palette)
+
+        try:
+            build, (png, width, height) = await draw_with_retry(ask, draw)
+        except ImageProviderError as exc:
+            log.info("Meme %s could not be drawn: %s", fmt.id, exc)
+            return None
+        return build, png, width, height

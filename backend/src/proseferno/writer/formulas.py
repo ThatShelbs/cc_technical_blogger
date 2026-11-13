@@ -817,5 +817,39 @@ def formula_guide(formula: ResolvedFormula) -> str:
     return "\n".join(lines)
 
 
+def meme_note(formula: ResolvedFormula) -> str:
+    """What the closing meme's writers' room is told about the shape of the post ("" when no formula is in force).
+
+    The meme is not part of the formula, but it lands right after the closer, so the room has to know what the
+    closer did and whether the post opened on a joke worth bringing back.
+    """
+    if not formula.is_set:
+        return ""
+    lines = ["The shape of this post (its formula). The meme comes straight after the closer:"]
+    if formula.article_type != AUTO:
+        kind = _TYPES[formula.article_type]
+        lines.append(f"- Article type: {kind.label}. {kind.summary}")
+    for field in ("opener", "body", "closer"):
+        value, note = getattr(formula, field), getattr(formula, f"{field}_note")
+        if value != AUTO:
+            option = _PARTS[field][value]
+            lines.append(f"- {_PART_LABEL[field]}: {option.label}. {option.summary}" + (f" The author adds: {note}" if note else ""))
+        elif note:
+            lines.append(f"- {_PART_LABEL[field]} (the author's own instructions): {note}")
+    lines.append(
+        "The meme is a new beat after the closer: never restate the closer's last line, its takeaways or its verdict. "
+        "Aim the joke at what this kind of post promised the reader."
+    )
+    opener = _PARTS["opener"].get(formula.opener)
+    if formula.closer == "full_circle":
+        lines.append("The closer already returns to the opening, so the meme should not echo the opening a second time.")
+    elif opener and opener.group == "Joke":
+        lines.append(
+            "The post opens on a joke. Bringing it back, changed by what the post showed, makes a strong closing meme: "
+            "at least one pitch should do it."
+        )
+    return "\n".join(lines)
+
+
 def catalog() -> dict[str, Any]:
     return {"article_types": ARTICLE_TYPES, "openers": OPENERS, "bodies": BODIES, "closers": CLOSERS}
