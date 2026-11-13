@@ -47,7 +47,7 @@ flowchart TB
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, section regeneration (`section.py`: rewrite, compact, expand, add source or quote, custom brief), feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
-| `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the two-call meme generator and the composer that owns meme layout and type. |
+| `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the meme generator (pitch, then art where the format has any), the bundled fonts and the composer that owns meme layout and type. |
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
 | `prompts/` | All prompts as Markdown templates. |
 | `demo.py` | Fake Claude used by tests and `--demo`. |
@@ -126,7 +126,7 @@ The first real persona becomes the active one even when the example is on (`api/
 | Research one reference | `web_search` server tool | medium |
 | Weave references in | structured output (`ReferenceEdits`) | medium |
 | Pitch closing memes | structured output (`MemeIdeas`) | high |
-| Build a meme | structured output (`MemeBuild`) | medium |
+| Draw a meme's art (formats with art only) | structured output (`MemeBuild`) | medium |
 
 Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
 

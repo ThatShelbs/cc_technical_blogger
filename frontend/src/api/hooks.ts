@@ -343,8 +343,13 @@ export function useImageMutations(projectId: number) {
   const refresh = () => qc.invalidateQueries({ queryKey: keys.project(projectId) })
   return {
     redraw: useMutation({
-      mutationFn: ({ id, rethink, memeFormat }: { id: number; rethink: boolean; memeFormat?: string }) =>
-        api.post<JobOut>(`/api/images/${id}/redraw`, { rethink, meme_format: memeFormat ?? null }),
+      mutationFn: ({ id, rethink, memeFormat, memeConcept }: { id: number; rethink: boolean; memeFormat?: string; memeConcept?: number }) =>
+        api.post<JobOut>(`/api/images/${id}/redraw`, { rethink, meme_format: memeFormat ?? null, meme_concept: memeConcept ?? null }),
+    }),
+    /** Retype a meme's words; it is redrawn at once with the same art, without asking Claude. */
+    memeWords: useMutation({
+      mutationFn: ({ id, words }: { id: number; words: Record<string, string> }) => api.put<ImageOut>(`/api/images/${id}/meme-words`, { words }),
+      onSuccess: refresh,
     }),
     /** Redraw every image Claude drew, e.g. after changing the brand kit. */
     redrawAll: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/images/redraw`) }),

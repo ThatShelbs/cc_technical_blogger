@@ -9,7 +9,7 @@ ROOT = Path(SPECPATH).parent  # noqa: F821 (SPECPATH is defined by PyInstaller)
 
 datas = [
     (str(ROOT / "frontend" / "dist"), "frontend_dist"),
-    *collect_data_files("proseferno"),  # prompt templates
+    *collect_data_files("proseferno"),  # prompt templates, sample content, bundled image fonts
 ]
 binaries = []
 hiddenimports = [

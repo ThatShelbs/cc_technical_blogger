@@ -7,7 +7,7 @@ A **formula** is the shape of a post, chosen part by part:
 3. **Body**: how the middle is organized.
 4. **Closer**: the last lines of text.
 
-The closing meme is not part of the formula. Every post still ends with it, after the closer.
+The closing meme is not part of the formula. Every post still ends with it, after the closer. The meme does know the formula, though: see [The closing meme](#the-closing-meme).
 
 A formula decides structure only. The voice profile still decides how every sentence sounds, so a "Joke: the confession" opener is a confession in *your* kind of humor. Every part defaults to **automatic**: the post is shaped the way your voice profile says you write, exactly as before formulas existed. You only set the parts you care about.
 
@@ -130,6 +130,16 @@ A joke opener is used even when the humor dial is low; the dial still governs th
 - `prompts/critique.md`: the editor checks the draft against it and counts misses in the `structure` score, so the revision fixes them.
 
 With no formula the block is one line telling Claude to use the author's usual shape. Where a formula and the platform notes disagree about the opening or ending (LinkedIn's "end with a question", for example), the formula wins. Styles that involve facts (a surprising number, an experiment, a review) tell Claude to use only what the brief provides or the post demonstrates, never to invent figures.
+
+### The closing meme
+
+The meme's writers' room (`prompts/meme_ideas.md`, see [images](images.md#closing-memes)) is told the formula the writer followed: the article type, the opener, the body and the closer, with your own instructions (`meme_note` in `writer/formulas.py`, resolved the same way as for the text, including an article type read from the brief). Three rules come with it:
+
+- The meme is a new beat after the closer. It never restates the closer's last line, its takeaways or its verdict.
+- A post that opens on a joke should get at least one pitch that brings that joke back, changed by what the post showed.
+- With a **Full circle** closer the text already returns to the opening, so the meme lands somewhere else.
+
+With no formula in force the room is told nothing extra. The other images need no such note: their briefs are written by the planner, which plans to the formula (a *Show the result first* opener can put the result in the hero, an *Experiment report* body asks for charts of the results).
 
 Stored values are catalog ids. An id that is no longer in the catalog resolves to automatic, so removing a style never breaks an old post.
 

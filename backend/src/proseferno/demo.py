@@ -560,6 +560,8 @@ def meme_ideas_payload(prompt: str) -> dict[str, Any]:
             "premise": f"Pie charts, roasted as {fmt.replace('_', ' ')} #{i + 1}.",
             "callback": "The post's claim that people compare lengths better than angles.",
             "texts": [{"slot": slot, "text": text, "speaker": ""} for slot, text in DEMO_MEME_TEXTS.get(fmt, {}).items()],
+            "data": DEMO_MEME_DATA.get(fmt, []),
+            "caption": "Pie logic",
             "scores": {"relevance": 5, "recognizability": 4, "surprise": 4, "clarity": 5, "voice_fit": 4, "standalone": 4 - i % 2},
         }
         for i, fmt in enumerate(formats)

@@ -10,17 +10,28 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
 from proseferno.config import Settings
 from proseferno.db import Persona, Project, ProjectImage
-from proseferno.images.base import ImageProviderError
-from proseferno.images.memes import ArtDirection, MemeContext, MemeMaker, MemeResult, load_state, plan_callbacks
+from proseferno.images.base import PLACEHOLDER_RE, ImageProviderError, draw_with_retry
+from proseferno.images.memes import (
+    ArtDirection,
+    MemeContext,
+    MemeMaker,
+    MemeResult,
+    get_format,
+    load_state,
+    plan_callbacks,
+    voice_section,
+)
 from proseferno.images.render import add_meme_text, placeholder_png, svg_to_png, vega_to_png
 from proseferno.images.specs import ChartSpec, SvgMemeSpec, SvgSpec
 from proseferno.llm import LLM, LLMError, SystemBlock
@@ -32,7 +43,6 @@ log = logging.getLogger(__name__)
 
 # Pixel width each SVG kind is rasterized at (height follows the SVG's viewBox).
 RENDER_WIDTH = {"hero": 1600, "illustration": 1600, "diagram": 1600, "icon": 768, "meme": 1080}
-PLACEHOLDER_RE = re.compile(r"\{\{image:([A-Za-z0-9_\-]+)\}\}")
 STALE_PENDING = "Generation stopped before this image was made. Click Redraw to create it."
 
 
@@ -94,8 +104,24 @@ def brand_guidance(brand_kit: dict[str, Any] | None, persona: Persona) -> tuple[
 
 
 def image_guidance(voice_profile: str) -> str:
-    match = re.search(r"^##\s+Images.*?$(.*?)(?=^##\s|\Z)", voice_profile, flags=re.MULTILINE | re.DOTALL)
-    return match.group(1).strip() if match else "Use clear, relevant images with short captions and a credit."
+    return voice_section(voice_profile, "Images") or "Use clear, relevant images with short captions and a credit."
+
+
+def brand_palette(brand_kit: dict[str, Any] | None) -> tuple[str, ...]:
+    return tuple(str(c) for c in (brand_kit or {}).get("palette") or [])
+
+
+def _formula_note(dials: dict[str, Any], persona: Persona, brief: str) -> str:
+    """The post's formula as the meme's writers' room should read it: the same one the writer followed."""
+    # Imported here because the writer package imports this one.
+    from proseferno.writer.dials import Dials, resolve
+    from proseferno.writer.formulas import NOTE_FIELDS, PART_FIELDS, ResolvedFormula, meme_note
+
+    try:
+        resolved = resolve(Dials(**dials), persona, brief, default_revisions=0)
+    except ValueError:  # dials saved by an older version: the meme is pitched without the formula
+        return ""
+    return meme_note(ResolvedFormula(**{field: getattr(resolved, field) for field in (*PART_FIELDS, *NOTE_FIELDS)}))
 
 
 class ImageService:
@@ -119,12 +145,13 @@ class ImageService:
         brand_kit: dict[str, Any] | None = None,
         instruction: str = "",
         meme_format: str | None = None,
+        meme_concept: int | None = None,
         usage: UsageSink | None = None,
     ) -> ProjectImage:
         """Design and render one image, then persist the result.
 
         With an ``instruction`` the current image is edited ("make the arrows orange") instead of redrawn.
-        ``meme_format`` makes a meme in that catalog format.
+        ``meme_format`` makes a meme in that catalog format; ``meme_concept`` draws that stored pitch.
         """
         with Session(self.engine) as session:
             image = session.get(ProjectImage, image_id)
@@ -144,6 +171,7 @@ class ImageService:
                     rethink=rethink,
                     brand_kit=brand_kit,
                     meme_format=meme_format,
+                    meme_concept=meme_concept,
                     usage=usage,
                 )
             updates["status"] = "placeholder" if image.kind == "screenshot" else "ready"
@@ -190,6 +218,20 @@ class ImageService:
             },
         )
 
+    def set_meme_words(
+        self, image_id: int, words: dict[str, str], *, persona: Persona, brand_kit: dict[str, Any] | None = None
+    ) -> ProjectImage:
+        """Retype a meme's words and draw it again without asking Claude; raises ImageProviderError if it cannot be drawn."""
+        with Session(self.engine) as session:
+            image = session.get(ProjectImage, image_id)
+            if image is None:
+                raise KeyError(image_id)
+        if image.kind != "meme":
+            raise ImageProviderError("Only memes have words to edit.")
+        meme = self.memes.reword(image.spec, words, self._art_direction(brand_kit, persona, ""))
+        updates = self._result(image, meme.png, meme.width, meme.height, meme.provider, persona, spec=meme.spec, alt=meme.alt)
+        return self._save(image_id, {**updates, "status": "ready", "error": None})
+
     def revert(self, image_id: int, index: int) -> ProjectImage:
         with Session(self.engine) as session:
             image = session.get(ProjectImage, image_id)
@@ -219,6 +261,7 @@ class ImageService:
         rethink: bool,
         brand_kit: dict[str, Any] | None,
         meme_format: str | None,
+        meme_concept: int | None,
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         kind = image.kind
@@ -230,6 +273,7 @@ class ImageService:
                 project = session.get(Project, image.project_id)
                 plan = dict(project.plan or {}) if project else {}
                 dials = dict(project.dials or {}) if project else {}
+                brief = project.prompt if project else ""
             humor = dials.get("humor")
             post = MemeContext(
                 title=title,
@@ -239,6 +283,8 @@ class ImageService:
                 joke=str(plan.get("joke") or ""),
                 callbacks=plan_callbacks(plan),
                 humor=int(humor) if humor is not None else persona.default_humor,
+                recent_formats=self._recent_meme_formats(persona, image.project_id),
+                formula=_formula_note(dials, persona, brief),
             )
             meme = await self.memes.make(
                 image.spec,
@@ -247,6 +293,7 @@ class ImageService:
                 redraw=redraw,
                 rethink=rethink,
                 meme_format=meme_format,
+                concept_index=meme_concept,
                 usage=usage,
             )
             return self._meme_result(image, persona, meme)
@@ -274,9 +321,10 @@ class ImageService:
             brand=brand,
             variation=variation,
             image_guidance=image_guidance(voice_profile),
+            siblings=self._siblings(image),
             context=image_context(markdown, image.slot_id),
         )
-        return await self._render_design(image, persona, prompt, task=f"{kind} image design", usage=usage)
+        return await self._render_design(image, persona, prompt, task=f"{kind} image design", palette=brand_palette(brand_kit), usage=usage)
 
     async def _edit(
         self,
@@ -304,42 +352,47 @@ class ImageService:
             spec=image.spec,
             brand=brand,
         )
-        return await self._render_design(image, persona, prompt, task=f"{image.kind} image edit", usage=usage)
+        return await self._render_design(
+            image, persona, prompt, task=f"{image.kind} image edit", palette=brand_palette(brand_kit), usage=usage
+        )
 
     async def _render_design(
-        self, image: ProjectImage, persona: Persona, prompt: str, *, task: str, usage: UsageSink | None
+        self, image: ProjectImage, persona: Persona, prompt: str, *, task: str, palette: tuple[str, ...] = (), usage: UsageSink | None
     ) -> dict[str, Any]:
+        """Ask Claude for the design and draw it; a design that cannot be drawn gets one more try with the error quoted back."""
         kind = image.kind
         system = [SystemBlock(raw("image_system"), cache=True)]
 
-        async def design(schema: type[Any]) -> Any:
-            return await self.llm.structured(
-                task=task,
-                system=system,
-                prompt=prompt,
-                schema=schema,
-                effort=self.settings.effort_images,
-                max_tokens=24000,
-                usage=usage,
-            )
+        async def design[S: BaseModel](schema: type[S], draw: Callable[[S], tuple[bytes, int, int]]) -> tuple[S, tuple[bytes, int, int]]:
+            async def ask(note: str) -> S:
+                return await self.llm.structured(
+                    task=task,
+                    system=system,
+                    prompt=prompt + note,
+                    schema=schema,
+                    effort=self.settings.effort_images,
+                    max_tokens=24000,
+                    usage=usage,
+                )
+
+            return await draw_with_retry(ask, lambda made, _last: draw(made))
 
         if kind == "chart":
-            chart = await design(ChartSpec)
-            png, w, h = vega_to_png(chart.vega_lite_json)
+            chart, (png, w, h) = await design(
+                ChartSpec, lambda c: vega_to_png(c.vega_lite_json, palette=palette, illustrative=c.data_is_illustrative)
+            )
             caption = chart.caption
             if chart.data_is_illustrative and "illustrative" not in caption.lower():
                 caption = f"{caption} (illustrative data)"
             return self._result(image, png, w, h, "vega-lite", persona, spec=chart.vega_lite_json, alt=chart.alt, caption=caption)
 
         if kind == "meme":
-            meme = await design(SvgMemeSpec)
-            png, w, h = svg_to_png(meme.svg, width=RENDER_WIDTH["meme"])
+            meme, (png, w, h) = await design(SvgMemeSpec, lambda m: svg_to_png(m.svg, width=RENDER_WIDTH["meme"]))
             png = add_meme_text(png, meme.top_text, meme.bottom_text)
             spec = json.dumps({"svg": meme.svg, "top": meme.top_text, "bottom": meme.bottom_text})
             return self._result(image, png, w, h, "claude-svg", persona, spec=spec, alt=meme.alt, caption=meme.caption)
 
-        svg = await design(SvgSpec)
-        png, w, h = svg_to_png(svg.svg, width=RENDER_WIDTH.get(kind, 1600))
+        svg, (png, w, h) = await design(SvgSpec, lambda d: svg_to_png(d.svg, width=RENDER_WIDTH.get(kind, 1600)))
         return self._result(image, png, w, h, "claude-svg", persona, spec=svg.svg, alt=svg.alt, caption=svg.caption)
 
     def _meme_result(self, image: ProjectImage, persona: Persona, meme: MemeResult) -> dict[str, Any]:
@@ -350,8 +403,35 @@ class ImageService:
     @staticmethod
     def _art_direction(brand_kit: dict[str, Any] | None, persona: Persona, voice_profile: str) -> ArtDirection:
         visual_style, brand = brand_guidance(brand_kit, persona)
-        palette = tuple(str(c) for c in (brand_kit or {}).get("palette") or [])
-        return ArtDirection(visual_style=visual_style, brand=brand, image_guidance=image_guidance(voice_profile), palette=palette)
+        return ArtDirection(
+            visual_style=visual_style, brand=brand, image_guidance=image_guidance(voice_profile), palette=brand_palette(brand_kit)
+        )
+
+    def _siblings(self, image: ProjectImage) -> str:
+        """The post's other images, one per line, so each drawing knows what the rest of the set shows."""
+        with Session(self.engine) as session:
+            rows = session.exec(
+                select(ProjectImage).where(ProjectImage.project_id == image.project_id).order_by(col(ProjectImage.position))
+            ).all()
+        lines = [f"- {row.kind} `{row.slot_id}`: {row.purpose or row.prompt}" for row in rows if row.id != image.id]
+        return "\n".join(lines) or "(none)"
+
+    def _recent_meme_formats(self, persona: Persona, project_id: int, limit: int = 3) -> tuple[str, ...]:
+        """The formats of this author's latest memes in other posts, newest first."""
+        with Session(self.engine) as session:
+            specs = session.exec(
+                select(ProjectImage.spec)
+                .join(Project, col(Project.id) == col(ProjectImage.project_id))
+                .where(col(Project.persona_id) == persona.id, col(ProjectImage.kind) == "meme", col(Project.id) != project_id)
+                .order_by(col(Project.updated_at).desc())
+                .limit(limit * 2)
+            ).all()
+        names: list[str] = []
+        for spec in specs:
+            fmt = get_format(str((load_state(spec) or {}).get("format", "")))
+            if fmt and fmt.name not in names:
+                names.append(fmt.name)
+        return tuple(names[:limit])
 
     def _result(
         self,

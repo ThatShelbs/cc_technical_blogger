@@ -567,7 +567,8 @@ def menu(only: str | None = None) -> str:
         lines.append(f"### {label} (`{family}`)")
         for f in formats:
             slots = ", ".join(f"{s.name}{'?' if s.optional else ''} (<= {s.max_chars} chars)" for s in f.slots)
-            lines.append(f"- `{f.id}`: **{f.name}**. Use for: {f.when_to_use} Looks like: {f.recognizable} Text slots: {slots}.")
+            data = f" Chart data: {f.data}" if f.data else ""
+            lines.append(f"- `{f.id}`: **{f.name}**. Use for: {f.when_to_use} Looks like: {f.recognizable} Text slots: {slots}.{data}")
         lines.append("")
     return "\n".join(lines).strip()
 

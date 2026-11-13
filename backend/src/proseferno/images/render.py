@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import io
 import json
+import logging
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,14 @@ from PIL import Image, ImageDraw, ImageFont
 
 from proseferno.images.base import ImageProviderError, to_png
 
+log = logging.getLogger(__name__)
+
 # Inferno palette (dark → light) used for chart and diagram defaults.
 INFERNO = ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d", "#fcffa4"]
 CHART_CATEGORY = ["#781c6d", "#ed6925", "#4a0c6b", "#fb9b06", "#cf4446", "#1b0c41", "#f7d13d", "#a52c60"]
+
+# Bundled open-license fonts (Anton, Inter, Comic Neue, JetBrains Mono), so images look the same on every machine.
+FONT_DIR = Path(__file__).parent / "memes" / "fonts"
 
 SVG_NS = "http://www.w3.org/2000/svg"
 _BANNED_TAGS = {"script", "foreignObject", "iframe", "object", "embed", "audio", "video"}
@@ -28,13 +34,29 @@ _BANNED_TAGS = {"script", "foreignObject", "iframe", "object", "embed", "audio",
 # -- SVG ---------------------------------------------------------------------
 
 
+def parse_xml(data: bytes, what: str) -> etree._Element:
+    """Parse model-written XML. A slip a browser would shrug off (a bare ``&``, an unclosed tag) is repaired
+    instead of costing another model call; anything worse raises :class:`ImageProviderError`."""
+
+    def parser(recover: bool) -> etree.XMLParser:
+        return etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False, remove_comments=True, recover=recover)
+
+    try:
+        return etree.fromstring(data, parser(False))
+    except etree.XMLSyntaxError as exc:
+        try:
+            root = etree.fromstring(data, parser(True))
+        except etree.XMLSyntaxError:
+            root = None
+        if root is None:
+            raise ImageProviderError(f"The SVG for {what} is not valid XML: {exc}") from exc
+        log.info("Repaired invalid XML in %s: %s", what, exc)
+        return root
+
+
 def sanitize_svg(svg: str) -> str:
     """Strip scripts, event handlers and external references from model-authored SVG."""
-    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False, remove_comments=True)
-    try:
-        root = etree.fromstring(svg.strip().encode("utf-8"), parser)
-    except etree.XMLSyntaxError as exc:
-        raise ImageProviderError(f"The diagram SVG was not valid XML: {exc}") from exc
+    root = parse_xml(svg.strip().encode("utf-8"), "this image")
     if etree.QName(root).localname != "svg":
         raise ImageProviderError("The diagram must be an <svg> document.")
     for element in list(root.iter()):
@@ -62,7 +84,16 @@ def sanitize_svg(svg: str) -> str:
 def svg_to_png(svg: str, *, width: int = 1600, background: str | None = "#ffffff") -> tuple[bytes, int, int]:
     clean = sanitize_svg(svg)
     try:
-        data = resvg_py.svg_to_bytes(svg_string=clean, width=width, background=background)
+        # Bundled fonts are the fallback when the SVG names a font this machine lacks (resvg's own default is a serif).
+        data = resvg_py.svg_to_bytes(
+            svg_string=clean,
+            width=width,
+            background=background,
+            font_dirs=[str(FONT_DIR)],
+            font_family="Inter",
+            sans_serif_family="Inter",
+            monospace_family="JetBrains Mono",
+        )
     except Exception as exc:
         raise ImageProviderError(f"Could not render the SVG: {exc}") from exc
     return to_png(bytes(data))
@@ -70,8 +101,24 @@ def svg_to_png(svg: str, *, width: int = 1600, background: str | None = "#ffffff
 
 # -- Vega-Lite -----------------------------------------------------------------
 
+ILLUSTRATIVE = "Illustrative data"
 
-def prepare_vega_spec(spec: dict[str, Any] | str) -> dict[str, Any]:
+
+def mark_illustrative(spec: dict[str, Any]) -> dict[str, Any]:
+    """Say "Illustrative data" in the chart itself, so the label survives when the image is shared without its caption."""
+    spec = copy.deepcopy(spec)
+    title = spec.get("title")
+    title = dict(title) if isinstance(title, dict) else {"text": title or ""}
+    subtitle = title.get("subtitle")
+    lines = [str(s) for s in subtitle] if isinstance(subtitle, list) else [str(subtitle)] if subtitle else []
+    if not any("illustrative" in line.lower() for line in [*lines, str(title.get("text") or "")]):
+        title["subtitle"] = [*lines, ILLUSTRATIVE] if lines else ILLUSTRATIVE
+    spec["title"] = title
+    return spec
+
+
+def prepare_vega_spec(spec: dict[str, Any] | str, palette: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Validate a chart spec and give it the house theme. A brand ``palette`` (3+ colors) replaces the inferno colors."""
     if isinstance(spec, str):
         try:
             spec = json.loads(spec)
@@ -86,6 +133,9 @@ def prepare_vega_spec(spec: dict[str, Any] | str) -> dict[str, Any]:
     spec.setdefault("height", 405)
     spec.setdefault("background", "#ffffff")
     config = spec.setdefault("config", {})
+    if len(palette) >= 3:
+        config.setdefault("range", {})["category"] = list(palette)
+        config.setdefault("mark", {})["color"] = palette[0]
     config.setdefault("range", {}).setdefault("category", CHART_CATEGORY)
     config.setdefault("mark", {}).setdefault("color", "#781c6d")
     config.setdefault("font", "Inter, Segoe UI, Helvetica, Arial, sans-serif")
@@ -107,8 +157,12 @@ def _strip_remote_data(node: Any) -> None:
             _strip_remote_data(value)
 
 
-def vega_to_png(spec: dict[str, Any] | str, *, scale: float = 2.0) -> tuple[bytes, int, int]:
-    prepared = prepare_vega_spec(spec)
+def vega_to_png(
+    spec: dict[str, Any] | str, *, scale: float = 2.0, palette: tuple[str, ...] = (), illustrative: bool = False
+) -> tuple[bytes, int, int]:
+    prepared = prepare_vega_spec(spec, palette)
+    if illustrative:
+        prepared = mark_illustrative(prepared)
     try:
         data = vlc.vegalite_to_png(prepared, scale=scale)
     except Exception as exc:

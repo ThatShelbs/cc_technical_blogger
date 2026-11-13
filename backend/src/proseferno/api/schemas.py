@@ -406,11 +406,44 @@ class ImageOut(BaseModel):
     meme: MemeInfoOut | None = None
 
 
+class MemePitchOut(BaseModel):
+    """One joke the writers' room pitched for this meme."""
+
+    index: int
+    format: str
+    format_name: str
+    premise: str
+    words: list[str]
+    tried: bool
+    current: bool
+
+
+class MemeSlotOut(BaseModel):
+    """One piece of text in the meme, as the author can retype it."""
+
+    name: str
+    hint: str
+    text: str
+    max_chars: int
+    optional: bool
+
+
 class MemeInfoOut(BaseModel):
     format: str
     format_name: str
     premise: str
     ideas_left: int
+    # False for formats drawn entirely by the template (chat, terminal, charts): there is no art to redraw.
+    has_art: bool
+    # Name of the format Claude could not draw, when this meme is a stand-in for it ("" otherwise).
+    fallback_from: str
+    pitches: list[MemePitchOut]
+    slots: list[MemeSlotOut]
+
+
+class MemeWordsIn(BaseModel):
+    # Slot name -> new text; slots left out keep their words.
+    words: dict[str, str] = Field(min_length=1)
 
 
 class MemeFormatOut(BaseModel):
@@ -432,6 +465,8 @@ class RedrawIn(BaseModel):
     rethink: bool = False
     # Memes only: make the meme in this catalog format (see GET /api/meme-formats).
     meme_format: str | None = None
+    # Memes only: draw this stored pitch (an index from ``ImageOut.meme.pitches``).
+    meme_concept: int | None = Field(default=None, ge=0)
 
 
 class ImageEditIn(BaseModel):
