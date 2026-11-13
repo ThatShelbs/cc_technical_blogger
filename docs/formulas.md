@@ -11,6 +11,25 @@ The closing meme is not part of the formula. Every post still ends with it, afte
 
 A formula decides structure only. The voice profile still decides how every sentence sounds, so a "Joke: the confession" opener is a confession in *your* kind of humor. Every part defaults to **automatic**: the post is shaped the way your voice profile says you write, exactly as before formulas existed. You only set the parts you care about.
 
+## The smart default
+
+You do not have to choose anything. With the article type on **Automatic**, Proseferno reads it from your brief: "How to size an A/B test" is a how-to, "X vs. Y" a comparison, "Top 7 ..." a countdown, "What I learned ..." a lessons-learned post. The form shows the guess while you type (*Automatic: How-to*), and the finished post lists it under **Settings used** as read from your brief.
+
+- A signal in the first line of the brief (the working title) is enough. Words further down only count when three of them agree, so one stray bullet never decides the shape of a post.
+- When the brief does not say, nothing is assumed and the post takes the shape you usually give one.
+- The opener, body and closer stay with your voice profile until you choose or shuffle them.
+- A type you choose yourself, on the post or as the persona's default, is never second-guessed.
+
+The rule is `detect_article_type` in `writer/formulas.py` (each article type lists its `signals`), mirrored by `detectArticleType` in `frontend/src/lib/formula.ts` for the live hint.
+
+## Shuffle
+
+- **Shuffle the formula** draws a new opener, body and closer from the styles that suit the article type in force (chosen, or read from the brief). Click again for another draw; every click changes each part that has an alternative.
+- The **dice** next to a part redraws only that part.
+- With no article type, a shuffle draws the opener and closer from the whole catalog and leaves the body alone, because a body structure only makes sense for the kind of post it was made for.
+- At humor 0-2 a shuffle never lands on a joke opener (you can still pick one yourself). Your own instructions are kept.
+- On a written post, **Try another formula** (under *Settings used*) opens **Edit brief & settings**: shuffle or change the formula there, then *Regenerate with these settings*. You see the new formula before the current text is replaced.
+
 ## Using formulas
 
 - **Per post:** New post → **Formula** (or **Edit brief & settings** on a written post, which regenerates it). Pick an article type, then open *Build the formula* to choose the opener, body and closer. Each menu lists the styles that suit the article type first, best first, then every other style by family. *Use the classic ... formula* fills all three parts with the type's usual choices, which you can then swap one at a time.
@@ -129,7 +148,7 @@ Stored values are catalog ids. An id that is no longer in the catalog resolves t
 3. Run `uv run pytest tests/unit/test_formulas.py tests/api/test_formulas.py`. No frontend change is needed.
 4. Update the tables in this file.
 
-A new article type is one `ArticleType` entry with its suggested openers, bodies and closers.
+A new article type is one `ArticleType` entry with its suggested openers, bodies and closers, and the `signals` that give it away in a brief. Signals are case-insensitive regular expressions that must be valid in both Python and JavaScript; add the brief you had in mind to `BRIEFS` in `tests/unit/test_formulas.py`.
 
 Because voice quality is the product, check a new or changed guide on real writing: generate the same brief with and without the formula and compare the editor's voice score, or run `evals/voice_fidelity.py` (see [voice-pipeline.md](voice-pipeline.md)).
 

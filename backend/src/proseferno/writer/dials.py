@@ -8,7 +8,16 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from proseferno.db import Persona
-from proseferno.writer.formulas import NOTE_FIELDS, PART_FIELDS, FormulaParts, formula_guide, formula_label, resolve_formula
+from proseferno.writer.formulas import (
+    AUTO,
+    NOTE_FIELDS,
+    PART_FIELDS,
+    FormulaParts,
+    detect_article_type,
+    formula_guide,
+    formula_label,
+    resolve_formula,
+)
 
 Education = Literal["beginner", "intermediate", "expert"]
 Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
@@ -217,6 +226,8 @@ class ResolvedDials(BaseModel):
     opener_note: str
     body_note: str
     closer_note: str
+    # True when nobody chose the article type and it was read from the brief.
+    article_type_detected: bool
     formula_label: str
     formula_guide: str
     topic: str
@@ -273,8 +284,13 @@ def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: i
         styles[key] = max(0, min(10, value if value is not None else getattr(persona, f"default_{key}", 5)))
     chosen = {field: getattr(dials, field) for field in (*PART_FIELDS, *NOTE_FIELDS)}
     formula = resolve_formula(chosen, persona.default_formula)
+    # Smart default: with no article type chosen, read it from the brief (nothing found = the author's usual shape).
+    detected = formula.article_type == AUTO and detect_article_type(prompt) != AUTO
+    if detected:
+        formula = formula.model_copy(update={"article_type": detect_article_type(prompt)})
     return ResolvedDials(
         **formula.model_dump(),
+        article_type_detected=detected,
         formula_label=formula_label(formula),
         formula_guide=formula_guide(formula),
         target_words=target_words,

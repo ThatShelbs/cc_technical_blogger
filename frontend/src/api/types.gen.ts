@@ -12,6 +12,7 @@ export interface ArticleType {
   openers: string[];
   bodies: string[];
   closers: string[];
+  signals?: string[];
 }
 
 export interface AuthStatusOut {

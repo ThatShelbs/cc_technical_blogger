@@ -1,25 +1,48 @@
-import { ChevronDown, Save, Sparkles, Trash2 } from 'lucide-react'
+import { ChevronDown, Dices, Save, Sparkles, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { errorText } from '../api/client'
 import { useFormulaCatalog, useFormulaMutations, useFormulas } from '../api/hooks'
 import type { FormulaParts } from '../api/types.gen'
-import { AUTO, PARTS, applySaved, classicFormula, effective, groupOptions, isAutomatic, matchesSaved, pickChoice, pickNote, shownNote } from '../lib/formula'
+import {
+  AUTO,
+  PARTS,
+  applySaved,
+  classicFormula,
+  detectArticleType,
+  effective,
+  groupOptions,
+  isAutomatic,
+  matchesSaved,
+  pickChoice,
+  pickNote,
+  shownNote,
+  shuffleFormula,
+  shufflePart,
+  type Part,
+} from '../lib/formula'
 import { Button, Field, Input, Notice, Select } from './ui'
 
 /**
  * The post's formula: article type, opener, body and closer, each a style from the catalog, the author's own
  * instructions, or both. `value` holds only what was changed here; `defaults` is the persona's default formula.
+ * With the article type left automatic it is read from `brief`, as the backend will when it writes the post.
  */
 export function FormulaFields({
   value,
   onChange,
   defaults,
+  brief = '',
+  humor,
   idPrefix = '',
 }: {
   value: FormulaParts
   onChange: (patch: FormulaParts) => void
   defaults?: FormulaParts
+  /** The post's brief, for the automatic article type */
+  brief?: string
+  /** The humor level in force, so a shuffle skips joke openers on a serious post */
+  humor?: number
   idPrefix?: string
 }) {
   const { data: catalog } = useFormulaCatalog()
@@ -33,7 +56,16 @@ export function FormulaFields({
   const [naming, setNaming] = useState<string | null>(null)
 
   const id = (name: string) => `${idPrefix}formula-${name}`
-  const type = catalog.article_types.find((t) => t.id === formula.article_type)
+  const chosenType = catalog.article_types.find((t) => t.id === formula.article_type)
+  const detected = chosenType ? undefined : detectArticleType(brief, catalog)
+  // The article type in force: chosen here or by the persona, else read from the brief.
+  const type = chosenType ?? detected
+  const pick = (patch: FormulaParts) =>
+    onChange(Object.assign({}, ...(Object.entries(patch) as [Part, string][]).map(([part, next]) => pickChoice(defaults, part, next))))
+  const shuffle = () => {
+    pick(shuffleFormula(formula, catalog, { type, humor }))
+    setOpen(true)
+  }
   const current = saved.find((f) => matchesSaved(formula, f))
   const error = create.error ?? update.error ?? remove.error
 
@@ -83,9 +115,19 @@ export function FormulaFields({
         </Field>
       )}
 
-      <Field label="Article type" hint={type ? type.summary : 'The kind of post the brief calls for, in the shape you usually give it.'} htmlFor={id('type')}>
+      <Field
+        label="Article type"
+        hint={
+          detected
+            ? `Read from your brief. ${detected.summary}`
+            : chosenType
+              ? chosenType.summary
+              : 'Read from your brief when it says; otherwise the shape you usually give a post.'
+        }
+        htmlFor={id('type')}
+      >
         <Select id={id('type')} value={formula.article_type} onChange={(e) => onChange(pickChoice(defaults, 'article_type', e.target.value))}>
-          <option value={AUTO}>Automatic (from your brief)</option>
+          <option value={AUTO}>{detected ? `Automatic: ${detected.label}` : 'Automatic (from your brief)'}</option>
           {catalog.article_types.map((t) => (
             <option key={t.id} value={t.id}>
               {t.label}
@@ -93,6 +135,17 @@ export function FormulaFields({
           ))}
         </Select>
       </Field>
+
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        icon={<Dices className="size-4" />}
+        title={type ? `A new opener, body and closer that suit ${type.label}` : 'A new opener and closer'}
+        onClick={shuffle}
+      >
+        Shuffle the formula
+      </Button>
 
       <button type="button" className="flex w-full items-center justify-between text-sm font-semibold" aria-expanded={open} onClick={() => setOpen(!open)}>
         Build the formula: opener, body, closer
@@ -109,11 +162,7 @@ export function FormulaFields({
               icon={<Sparkles className="size-4" />}
               onClick={() => {
                 const classic = classicFormula(type)
-                onChange({
-                  ...pickChoice(defaults, 'opener', classic.opener ?? AUTO),
-                  ...pickChoice(defaults, 'body', classic.body ?? AUTO),
-                  ...pickChoice(defaults, 'closer', classic.closer ?? AUTO),
-                })
+                pick({ opener: classic.opener ?? AUTO, body: classic.body ?? AUTO, closer: classic.closer ?? AUTO })
               }}
             >
               Use the classic {type.label.split(' / ')[0].toLowerCase()} formula
@@ -133,18 +182,33 @@ export function FormulaFields({
                   }
                   htmlFor={id(part)}
                 >
-                  <Select id={id(part)} value={formula[part]} onChange={(e) => onChange(pickChoice(defaults, part, e.target.value))}>
-                    <option value={AUTO}>{auto}</option>
-                    {groupOptions(options, suggested, type?.label).map((group) => (
-                      <optgroup key={group.label} label={group.label}>
-                        {group.options.map((o) => (
-                          <option key={o.id} value={o.id} title={o.summary}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select id={id(part)} value={formula[part]} onChange={(e) => onChange(pickChoice(defaults, part, e.target.value))}>
+                      <option value={AUTO}>{auto}</option>
+                      {groupOptions(options, suggested, type?.label).map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.options.map((o) => (
+                            <option key={o.id} value={o.id} title={o.summary}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </Select>
+                    <button
+                      type="button"
+                      className="rounded-md p-2 text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+                      aria-label={`Shuffle the ${part}`}
+                      title={`Another ${part}`}
+                      disabled={!shufflePart(part, formula[part], catalog, { type, humor })}
+                      onClick={() => {
+                        const next = shufflePart(part, formula[part], catalog, { type, humor })
+                        if (next) pick({ [part]: next })
+                      }}
+                    >
+                      <Dices className="size-4" />
+                    </button>
+                  </div>
                 </Field>
                 <Input
                   aria-label={`Your own instructions for the ${part}`}

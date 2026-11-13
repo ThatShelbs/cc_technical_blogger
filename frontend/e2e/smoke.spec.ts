@@ -45,9 +45,16 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   // New post from a single sentence
   await page.getByRole('button', { name: 'Write my first post' }).click()
   await page.getByLabel(/What should this post be about/).fill('Why pie charts are lame and what to use instead')
-  // Formula: an article type, its classic parts, then a different opener
+  // Formula: the type is read from the brief, and a shuffle draws parts that suit it
+  await page.getByLabel(/What should this post be about/).fill('How to replace a pie chart')
+  await expect(page.getByRole('option', { name: 'Automatic: How-to' })).toBeAttached()
+  await page.getByRole('button', { name: 'Shuffle the formula' }).click()
+  await expect(page.getByLabel('Body', { exact: true })).not.toHaveValue('auto')
+  await page.getByRole('button', { name: 'Shuffle the closer' }).click()
+  await expect(page.getByLabel('Closer', { exact: true })).not.toHaveValue('auto')
+  await page.getByLabel(/What should this post be about/).fill('Why pie charts are lame and what to use instead')
+  // Then an article type chosen by hand, its classic parts, and a different opener
   await page.getByLabel('Article type').selectOption({ label: 'Opinion / thought leadership' })
-  await page.getByRole('button', { name: /Build the formula/ }).click()
   await page.getByRole('button', { name: /Use the classic opinion formula/ }).click()
   await expect(page.getByLabel('Opener', { exact: true })).toHaveValue('contrarian')
   await page.getByLabel('Opener', { exact: true }).selectOption({ label: 'Joke: the confession' })
@@ -122,6 +129,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(settings.getByLabel('Opener', { exact: true })).toHaveValue('joke_confession')
   await shot(page, 'post-settings')
   await settings.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Try another formula' })).toBeVisible()
   await expect(page.getByText('Opinion / thought leadership · Joke: the confession · Build the argument · One-line kicker')).toBeVisible()
 
   // Export dialog offers platform bundles

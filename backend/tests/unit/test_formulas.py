@@ -11,6 +11,7 @@ from proseferno.writer.formulas import (
     OPENERS,
     ResolvedFormula,
     clean,
+    detect_article_type,
     formula_guide,
     formula_label,
     resolve_formula,
@@ -41,6 +42,43 @@ def test_no_formula_keeps_the_authors_usual_shape() -> None:
     resolved = resolve(Dials(), Persona(name="Me"), "x", default_revisions=1)
     assert (resolved.article_type, resolved.opener, resolved.body, resolved.closer) == (AUTO, AUTO, AUTO, AUTO)
     assert resolved.formula_label == "" and resolved.formula_guide.startswith("Formula: none chosen")
+
+
+# Shared with frontend/src/lib/formula.test.ts: both sides must read a brief the same way.
+BRIEFS = {
+    "Snowflake Cortex vs AWS Bedrock for RAG": "comparison",
+    "Top 7 pandas tricks I use every week": "listicle",
+    "How to size an A/B test": "how_to",
+    "Build a RAG chatbot from scratch\n- step-by-step, with code": "tutorial",
+    "What is a causal forest?": "explainer",
+    "How we migrated 400 dashboards in a quarter": "case_study",
+    "I tried three coding agents for a month so you don't have to": "hands_on",
+    "5 lessons I learned leading a data science team": "lessons_learned",
+    "Unpopular opinion: the dashboard is dead": "opinion",
+    "What's new in polars 1.0: a review": "tool_review",
+    "The night we lost the feature store: a deep dive": "deep_narrative",
+    "Why pie charts are lame and what to use instead": "auto",
+    "Uplift modeling\n- explain it simply\n- how to pick a model": "auto",
+}
+
+
+def test_article_type_is_read_from_the_brief() -> None:
+    for brief, expected in BRIEFS.items():
+        assert detect_article_type(brief) == expected, brief
+    assert all(kind.signals for kind in ARTICLE_TYPES)
+
+    persona = Persona(name="Me")
+    detected = resolve(Dials(opener="cold_open"), persona, "How to size an A/B test", default_revisions=1)
+    assert (detected.article_type, detected.article_type_detected, detected.opener) == ("how_to", True, "cold_open")
+    assert detected.formula_label == "How-to · Cold open" and "Article type: How-to." in detected.formula_guide
+
+    # A chosen type (on the post or the persona) is never second-guessed.
+    chosen = resolve(Dials(article_type="opinion"), persona, "How to size an A/B test", default_revisions=1)
+    assert (chosen.article_type, chosen.article_type_detected) == ("opinion", False)
+    persona.default_formula = {"article_type": "tutorial"}
+    assert resolve(Dials(), persona, "How to size an A/B test", default_revisions=1).article_type == "tutorial"
+    # "Automatic" on the post means "from the brief" again.
+    assert resolve(Dials(article_type="auto"), persona, "How to size an A/B test", default_revisions=1).article_type == "how_to"
 
 
 def test_formula_guide_names_every_chosen_part() -> None:

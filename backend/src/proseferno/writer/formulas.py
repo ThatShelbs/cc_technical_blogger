@@ -13,6 +13,7 @@ removing one never breaks an old post.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -44,6 +45,9 @@ class ArticleType(BaseModel):
     openers: list[str]
     bodies: list[str]
     closers: list[str]
+    # Case-insensitive patterns in a brief that point to this type (see detect_article_type). Keep them valid as both
+    # Python and JavaScript regular expressions: the frontend runs the same ones to show its guess while you type.
+    signals: list[str] = Field(default_factory=list)
 
 
 class FormulaParts(BaseModel):
@@ -464,6 +468,13 @@ CLOSERS: list[FormulaOption] = [
 ARTICLE_TYPES: list[ArticleType] = [
     ArticleType(
         id="deep_narrative",
+        signals=[
+            r"\bthe story of\b",
+            r"\bdeep dive\b",
+            r"\bessay\b",
+            r"\blong[- ]form\b",
+            r"\bthe (day|night|time|week) (i|we)\b",
+        ],
         label="Deep narrative",
         summary="A long-form story that carries the technical ideas inside it.",
         guide="A long-form narrative essay: one story or line of thought runs from the first line to the last, and the technical "
@@ -475,6 +486,12 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="listicle",
+        signals=[
+            r"\b(top|best|worst)\s+\d+\b",
+            r"\b\d+\s+(\w+\s+)?(ways|tips|things|reasons|mistakes|tricks|tools|rules|habits|ideas|signs|myths|patterns)\b",
+            r"\bcountdown\b",
+            r"\blisticle\b",
+        ],
         label="Top N countdown",
         summary="A numbered list of the best, worst or most useful things.",
         guide="A numbered list post: N items, each worth reading on its own, with the number in the title. Every item must earn its "
@@ -486,6 +503,13 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="how_to",
+        signals=[
+            r"\bhow to\b",
+            r"\bhow do (i|you|we)\b",
+            r"\bguide to\b",
+            r"\bcheat ?sheet\b",
+            r"\brecipe for\b",
+        ],
         label="How-to",
         summary="Get one specific task done, for a reader who has the task now.",
         guide="A how-to guide: the reader has a specific task and wants it done. Goal-oriented and economical: the shortest reliable "
@@ -497,6 +521,15 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="tutorial",
+        signals=[
+            r"\btutorial\b",
+            r"\bstep[- ]by[- ]step\b",
+            r"\bfrom scratch\b",
+            r"\bbuild(ing)? (a|an|your|my)\b",
+            r"\bgetting started\b",
+            r"\bbeginner.?s guide\b",
+            r"\byour first\b",
+        ],
         label="Tutorial",
         summary="Teach a skill by having the reader build something end to end.",
         guide="A tutorial: the reader learns by doing, building one small complete thing alongside the author. Learning-oriented: "
@@ -508,6 +541,14 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="comparison",
+        signals=[
+            r"\bvs\b",
+            r"\bversus\b",
+            r"\bcompar(e|ed|ing|ison)\b",
+            r"\bwhich (one|is better|should)\b",
+            r"\balternatives? to\b",
+            r"\bhead[- ]to[- ]head\b",
+        ],
         label="X vs. Y comparison",
         summary="Two or more options weighed fairly, ending in a recommendation.",
         guide="A comparison: two or more options weighed on stated criteria for a reader who has to choose. Fair to every option "
@@ -519,6 +560,15 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="explainer",
+        signals=[
+            r"\bwhat (is|are)\b",
+            r"\bexplain(ed|er|ing|s)?\b",
+            r"\bhow \w+( \w+)? (really |actually )?works?\b",
+            r"\bintro(duction)? to\b",
+            r"\bdemystif",
+            r"\b101\b",
+            r"\bin plain english\b",
+        ],
         label="Explainer / What is X",
         summary="Make one concept clear: what it is, why it matters, how it works.",
         guide="An explainer: one concept made clear for a reader who has heard the term and wants to really understand it. "
@@ -530,6 +580,13 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="case_study",
+        signals=[
+            r"\bcase study\b",
+            r"\bhow (we|i) (built|shipped|migrated|scaled|reduced|cut|saved|rebuilt|replaced|automated)\b",
+            r"\bbehind the scenes\b",
+            r"\bwalkthrough\b",
+            r"\bin production\b",
+        ],
         label="Case study / build walkthrough",
         summary="How a real project was built or a real problem solved, with results.",
         guide="A case study or real build walkthrough: one real project from the situation to the outcome. Specific above all: the "
@@ -541,6 +598,15 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="hands_on",
+        signals=[
+            r"\bi (tried|tested|benchmarked)\b",
+            r"\bhands[- ]on\b",
+            r"\bbenchmark(s|ed|ing)?\b",
+            r"\bexperiment(ed|ing)? with\b",
+            r"\bso you don.?t have to\b",
+            r"\bfirst impressions\b",
+            r"\bput(ting)? \w+( \w+)? to the test\b",
+        ],
         label="Hands-on / I tried it",
         summary="You tested something yourself and report what really happened.",
         guide="A hands-on report: the author tried something for real and reports what happened, so the reader does not have to. "
@@ -552,6 +618,16 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="lessons_learned",
+        signals=[
+            r"\blessons?( (i|we))?( have| .ve)? learned\b",
+            r"\bwhat (i|we)( have| .ve)? learned\b",
+            r"\bretrospective\b",
+            r"\bpost-?mortem\b",
+            r"\bmistakes (i|we) made\b",
+            r"\bin hindsight\b",
+            r"\bwish (i|we) (knew|had known)\b",
+            r"\blessons from\b",
+        ],
         label="Lessons learned",
         summary="A retrospective: what went wrong or right, and what you took from it.",
         guide="A lessons-learned retrospective: the author looks back on a project, a role or a failure and draws out what they "
@@ -563,6 +639,18 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="opinion",
+        signals=[
+            r"\bhot take\b",
+            r"\bunpopular opinion\b",
+            r"\bis dead\b",
+            r"\b(over|under)rated\b",
+            r"\bstop (using|doing|calling|building|writing)\b",
+            r"\bthe case (for|against)\b",
+            r"\bthe future of\b",
+            r"\bwrong about\b",
+            r"\bwe need to talk about\b",
+            r"\bopinion\b",
+        ],
         label="Opinion / thought leadership",
         summary="Take a position on where the field is or should be going.",
         guide="An opinion piece: the author takes a clear position on a question practitioners disagree about and argues it. One "
@@ -574,6 +662,16 @@ ARTICLE_TYPES: list[ArticleType] = [
     ),
     ArticleType(
         id="tool_review",
+        signals=[
+            r"\breview(ed|ing)?\b",
+            r"\bwhat.?s new\b",
+            r"\bjust (launched|shipped|released)\b",
+            r"\bnew (release|version|features?)\b",
+            r"\bv?\d+\.\d+(\.\d+)?\b",
+            r"\bchangelog\b",
+            r"\bworth (it|the|switching|upgrading)\b",
+            r"\brelease notes\b",
+        ],
         label="Tool review / tool update",
         summary="An honest look at a tool or release: what is new, what works, who should care.",
         guide="A tool review or tool update: an honest assessment of a tool, platform or new release from someone who used it. Say "
@@ -632,6 +730,29 @@ def clean(parts: Mapping[str, Any] | None) -> dict[str, str]:
         if note:
             out[field] = note
     return out
+
+
+DETECT_MIN = 3
+
+
+def detect_article_type(brief: str) -> str:
+    """The article type a brief asks for, or ``auto`` when nothing in it says.
+
+    A signal in the first line (the working title) scores 3, one further down scores 1. The type with the highest
+    score wins if it reaches ``DETECT_MIN`` (one title signal, or three in the outline), so a stray word in a bullet
+    never decides the shape of a post; ties go to the earlier type in the catalog. ``lib/formula.ts`` mirrors this
+    for the live hint.
+    """
+    first, _, rest = brief.strip().partition("\n")
+    best, best_score = AUTO, DETECT_MIN - 1
+    for kind in ARTICLE_TYPES:
+        score = 0
+        for signal in kind.signals:
+            pattern = re.compile(signal, re.IGNORECASE)
+            score += 3 * bool(pattern.search(first)) + bool(pattern.search(rest))
+        if score > best_score:
+            best, best_score = kind.id, score
+    return best
 
 
 def resolve_formula(chosen: Mapping[str, Any], default: Mapping[str, Any] | None = None) -> ResolvedFormula:

@@ -73,6 +73,7 @@ const CATALOG = {
       label: 'Tutorial',
       summary: 'Teach by building.',
       guide: '',
+      signals: ['\\btutorial\\b'],
       openers: ['result_first'],
       bodies: ['progressive_build'],
       closers: ['challenge'],
@@ -97,6 +98,36 @@ function renderPage() {
 }
 
 describe('NewProjectPage', () => {
+  it('reads the article type from the brief and shuffles a formula that suits it', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/personas') return new Response(JSON.stringify([PERSONA]))
+      if (url === '/api/formulas/catalog') return new Response(JSON.stringify(CATALOG))
+      if (url === '/api/formulas') return new Response('[]')
+      if (url === '/api/projects' && init?.method === 'POST') return new Response(JSON.stringify({ project: { id: 42 }, job_id: 'job1' }), { status: 201 })
+      return new Response('{}')
+    })
+    renderPage()
+
+    await screen.findByRole('option', { name: 'Tutorial' })
+    await userEvent.type(screen.getByLabelText(/What should this post be about/), 'A tutorial on sizing an A/B test')
+    expect(screen.getByRole('option', { name: 'Automatic: Tutorial' })).toBeInTheDocument()
+    expect(screen.getByText(/Read from your brief. Teach by building./)).toBeInTheDocument()
+
+    // One click fills the parts from the styles that suit a tutorial; each part also has its own dice.
+    await userEvent.click(screen.getByRole('button', { name: 'Shuffle the formula' }))
+    expect(screen.getByLabelText('Opener')).toHaveValue('result_first')
+    expect(screen.getByLabelText('Body')).toHaveValue('progressive_build')
+    expect(screen.getByLabelText('Closer')).toHaveValue('challenge')
+    expect(screen.getByRole('button', { name: 'Shuffle the closer' })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /Write my post/ }))
+    await waitFor(() => expect(screen.getByText('Opened project')).toBeInTheDocument())
+    const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/projects' && init?.method === 'POST')
+    // The article type stays automatic: the backend reads it from the same brief.
+    expect(JSON.parse(String(post?.[1]?.body)).dials).toEqual({ opener: 'result_first', body: 'progressive_build', closer: 'challenge' })
+  })
+
   it('builds a formula from an article type, its classic parts, a swapped opener and a note', async () => {
     const saved: unknown[] = []
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

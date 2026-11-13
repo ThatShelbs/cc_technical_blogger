@@ -8,7 +8,7 @@ import { DialsFields } from '../../components/DialsFields'
 import { FormulaFields } from '../../components/FormulaFields'
 import { Button, Dialog, Field, Notice, Select, Textarea } from '../../components/ui'
 import { planOutline } from '../../lib/outline'
-import { PLATFORMS, buildDials, dialsToState, emptyDials, type DialsState, type Platform } from '../dials'
+import { PLATFORMS, buildDials, dialsToState, emptyDials, shownDials, type DialsState, type Platform } from '../dials'
 
 /** Edit the brief, persona and settings that wrote this post, then regenerate it. Nothing is saved until then. */
 export function PostSettingsDialog({
@@ -122,6 +122,8 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
               value={dials.formula}
               onChange={(patch) => set({ formula: { ...dials.formula, ...patch } })}
               defaults={persona?.default_formula}
+              brief={prompt}
+              humor={shownDials(dials, persona).humor}
               idPrefix="settings-"
             />
           </div>

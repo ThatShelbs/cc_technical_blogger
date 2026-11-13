@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
 import type { FormulaCatalogOut, FormulaOption, FormulaOut } from '../api/types.gen'
-import { applySaved, buildFormula, classicFormula, effective, formulaFrom, groupOptions, isAutomatic, matchesSaved, pickChoice, pickNote } from './formula'
+import {
+  applySaved,
+  buildFormula,
+  classicFormula,
+  detectArticleType,
+  effective,
+  formulaFrom,
+  groupOptions,
+  isAutomatic,
+  matchesSaved,
+  pickChoice,
+  pickNote,
+  shuffleFormula,
+  shufflePart,
+} from './formula'
 
 const option = (id: string, group: string): FormulaOption => ({ id, label: id.toUpperCase(), summary: '', group, guide: '' })
 const CATALOG: FormulaCatalogOut = {
@@ -58,5 +72,36 @@ describe('formula state', () => {
       ['Story', ['arc']],
     ])
     expect(groupOptions(CATALOG.openers, undefined).map((g) => g.label)).toEqual(['Joke', 'Story'])
+  })
+
+  it('reads the article type from the brief: a title signal is enough, stray outline words are not', () => {
+    const type = (id: string, signals: string[]) => ({ ...CATALOG.article_types[0], id, label: id, signals })
+    const catalog = { ...CATALOG, article_types: [type('how_to', ['\\bhow to\\b']), type('explainer', ['\\bwhat (is|are)\\b', '\\bexplain', '\\b101\\b'])] }
+    expect(detectArticleType('How to size an A/B test', catalog)?.id).toBe('how_to')
+    expect(detectArticleType('  WHAT IS a causal forest?\n- how to grow one', catalog)?.id).toBe('explainer')
+    expect(detectArticleType('Uplift modeling\n- how to pick a model', catalog)).toBeUndefined()
+    expect(detectArticleType('Uplift modeling\n- explain it\n- what is CATE\n- uplift 101', catalog)?.id).toBe('explainer')
+    // A tie goes to the earlier type in the catalog.
+    expect(detectArticleType('How to explain uplift', catalog)?.id).toBe('how_to')
+    expect(detectArticleType('', catalog)).toBeUndefined()
+    expect(detectArticleType('How to size an A/B test', CATALOG)).toBeUndefined()
+  })
+
+  it('shuffles within the styles that suit the article type and always changes the part', () => {
+    const type = CATALOG.article_types[0]
+    const first = { rng: () => 0 }
+    // Two bodies suit a tutorial: a shuffle flips between them.
+    expect(shufflePart('body', 'build', CATALOG, { type, ...first })).toBe('steps')
+    expect(shufflePart('body', 'steps', CATALOG, { type, ...first })).toBe('build')
+    // Only one opener suits it, so it stays rather than leaving the type's styles.
+    expect(shufflePart('opener', 'result', CATALOG, { type, ...first })).toBe('result')
+    expect(shuffleFormula(effective({}), CATALOG, { type, rng: () => 0.99 })).toEqual({ opener: 'result', body: 'steps', closer: 'dare' })
+  })
+
+  it('without an article type shuffles the opener and closer only, and keeps jokes off a serious post', () => {
+    expect(shuffleFormula(effective({}), CATALOG, { rng: () => 0 })).toEqual({ opener: 'confession', closer: 'dare' })
+    expect(shufflePart('body', 'auto', CATALOG)).toBeUndefined()
+    for (const roll of [0, 0.3, 0.6, 0.99]) expect(shufflePart('opener', 'auto', CATALOG, { humor: 1, rng: () => roll })).toBe('result')
+    expect(['swerve', 'result']).toContain(shufflePart('opener', 'confession', CATALOG, { humor: 8 }))
   })
 })

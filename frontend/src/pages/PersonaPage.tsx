@@ -299,6 +299,7 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
         <FormulaFields
           value={draft.default_formula}
           onChange={(patch) => set({ default_formula: buildFormula({ ...draft.default_formula, ...patch }) })}
+          humor={draft.default_humor}
           idPrefix="p-"
         />
       </Card>

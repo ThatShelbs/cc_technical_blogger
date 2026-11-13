@@ -1,6 +1,6 @@
 # Your Dashboard Has Too Many Donuts
 
-*A short, opinionated tour of the chart types that quietly waste your reader's time.*
+_A short, opinionated tour of the chart types that quietly waste your reader's time._
 
 ![A dashboard with six donut charts](donuts.png)
 

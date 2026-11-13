@@ -112,3 +112,62 @@ export function groupOptions(options: FormulaOption[], suggested: string[] | und
   }
   return groups
 }
+
+/** A title signal alone is enough; outline bullets need three (mirrors DETECT_MIN in writer/formulas.py). */
+const DETECT_MIN = 3
+
+/**
+ * The article type a brief asks for, if it says: the same rule the backend applies when the type is left automatic
+ * (`detect_article_type` in writer/formulas.py), run here so the form can show the guess while the author types.
+ */
+export function detectArticleType(brief: string, catalog: FormulaCatalogOut): ArticleType | undefined {
+  const [first = '', ...rest] = brief.trim().split('\n')
+  const body = rest.join('\n')
+  let best: ArticleType | undefined
+  let bestScore = DETECT_MIN - 1
+  for (const type of catalog.article_types) {
+    let score = 0
+    for (const signal of type.signals ?? []) {
+      const pattern = new RegExp(signal, 'i')
+      score += (pattern.test(first) ? 3 : 0) + (pattern.test(body) ? 1 : 0)
+    }
+    if (score > bestScore) {
+      best = type
+      bestScore = score
+    }
+  }
+  return best
+}
+
+export interface ShuffleOptions {
+  /** The article type in force (chosen or read from the brief); its suggested styles are the pool. */
+  type?: ArticleType
+  /** At humor 0-2 a shuffle never lands on a joke opener (the author can still pick one). */
+  humor?: number
+  rng?: () => number
+}
+
+/**
+ * Another style for one part, drawn from the styles that suit the article type and never the current one.
+ * With no article type, openers and closers come from the whole catalog and the body is left alone, because a
+ * body structure only makes sense for the kind of post it was made for. Returns undefined when there is nothing to draw.
+ */
+export function shufflePart(part: Part, current: string, catalog: FormulaCatalogOut, { type, humor = 5, rng = Math.random }: ShuffleOptions = {}) {
+  const { catalogKey } = PARTS.find((p) => p.part === part)!
+  const all = catalog[catalogKey]
+  let pool = type ? type[catalogKey].map((id) => all.find((o) => o.id === id)).filter((o): o is FormulaOption => !!o) : part === 'body' ? [] : all
+  if (part === 'opener' && humor <= 2) pool = pool.filter((o) => o.group !== 'Joke')
+  const fresh = pool.filter((o) => o.id !== current)
+  const from = fresh.length ? fresh : pool
+  return from.length ? from[Math.floor(rng() * from.length) % from.length].id : undefined
+}
+
+/** A new opener, body and closer in one go (the article type and the author's notes stay as they are). */
+export function shuffleFormula(formula: ReturnType<typeof effective>, catalog: FormulaCatalogOut, options: ShuffleOptions = {}): FormulaParts {
+  const out: FormulaParts = {}
+  for (const { part } of PARTS) {
+    const next = shufflePart(part, formula[part], catalog, options)
+    if (next) out[part] = next
+  }
+  return out
+}

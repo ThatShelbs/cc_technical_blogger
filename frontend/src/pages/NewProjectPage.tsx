@@ -108,7 +108,13 @@ export function NewProjectPage() {
               <h3 className="font-bold">Formula</h3>
               <p className="text-sm text-muted">The shape of the post. Your voice still writes every sentence.</p>
             </div>
-            <FormulaFields value={dials.formula} onChange={(patch) => set({ formula: { ...dials.formula, ...patch } })} defaults={persona?.default_formula} />
+            <FormulaFields
+              value={dials.formula}
+              onChange={(patch) => set({ formula: { ...dials.formula, ...patch } })}
+              defaults={persona?.default_formula}
+              brief={prompt}
+              humor={humor}
+            />
           </div>
           <button
             type="button"
@@ -122,8 +128,8 @@ export function NewProjectPage() {
           {!custom ? (
             <p className="text-sm text-muted">
               Using {persona ? `${persona.name}'s` : 'your'} defaults: about {targetWords.toLocaleString()} words,{' '}
-              {imageCount ? `${imageCount} images` : 'an image every ~350 words'} (hero first, meme last), humor {humor}/10, style dials as you write, topic
-              detected automatically.
+              {imageCount ? `${imageCount} images` : 'an image every ~350 words'} (hero first, meme last), humor {humor}/10, style dials as you write, topic and
+              article type detected automatically.
               {changed && ' Some settings are customized for this post.'}
             </p>
           ) : (
