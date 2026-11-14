@@ -171,7 +171,6 @@ class ABTest(SQLModel, table=True):
     # Tweak ids the author adopted into the persona; None = not answered yet.
     adopted: list[str] | None = Field(default=None, sa_column=Column(JSON))
     evolution_id: int | None = None
-    job_id: str | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
     decided_at: datetime | None = None

@@ -37,7 +37,7 @@ from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ImageSlot, PostEdits, TextEdit
 
 # Jobs that change a post's text; only one runs per project at a time.
-TEXT_JOBS = ("generate_post", "tweak_post", "enrich_post", "redraw_reference")
+TEXT_JOBS = ("generate_post", "tweak_post", "enrich_post", "redraw_reference", "ab_generate", "ab_decide")
 
 
 def locate(markdown: str, text: str) -> tuple[int, int] | None:
@@ -88,6 +88,15 @@ def _image_list(images: list[ProjectImage]) -> str:
     return "\n".join(lines) or "(none)"
 
 
+def _other_post(markdown: str) -> str:
+    if not markdown.strip():
+        return ""
+    return (
+        "The author compared this post with another version of it and may ask for parts of that version. Take from it "
+        "only what the feedback asks for, never its image placeholders:\n\n<other_version>\n" + markdown.strip() + "\n</other_version>\n"
+    )
+
+
 async def tweak_post(
     *,
     engine: Engine,
@@ -97,7 +106,11 @@ async def tweak_post(
     project_id: int,
     feedback: str,
     ctx: JobContext,
+    other_post: str = "",
+    learn: bool = True,
 ) -> dict[str, Any]:
+    """``other_post`` is the losing post of an A/B test, for feedback that borrows from it; such feedback is about
+    that one comparison, so it is not kept as a lesson (``learn=False``)."""
     with Session(engine, expire_on_commit=False) as session:
         project = session.get(Project, project_id)
         if project is None:
@@ -129,7 +142,12 @@ async def tweak_post(
         task="post tweak",
         system=system,
         prompt=render(
-            "tweak", feedback=feedback.strip(), markdown=project.markdown, images=_image_list(image_rows), **prompt_settings(dials)
+            "tweak",
+            feedback=feedback.strip(),
+            markdown=project.markdown,
+            images=_image_list(image_rows),
+            other_post=_other_post(other_post),
+            **prompt_settings(dials),
         ),
         schema=PostEdits,
         effort=settings.effort_critique,
@@ -170,7 +188,7 @@ async def tweak_post(
             session.add(row)
             # The author's feedback is a lesson for every later post, not just this one.
             persona_row = session.get(Persona, project.persona_id)
-            if persona_row is not None:
+            if persona_row is not None and learn:
                 record_feedback(persona_row, feedback)
                 session.add(persona_row)
             session.commit()
