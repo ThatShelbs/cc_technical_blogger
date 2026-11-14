@@ -1,10 +1,11 @@
 import { Check, Copy, FileText, Pencil, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { errorText } from '../api/client'
 import { usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
 import type { PersonaOut, PersonaUpdate } from '../api/types.gen'
+import { EvolutionPanel } from '../components/EvolutionPanel'
 import { FormulaFields } from '../components/FormulaFields'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
@@ -14,7 +15,8 @@ import { buildFormula, formulaFrom } from '../lib/formula'
 import { autoReferenceCount } from '../lib/references'
 import { PLATFORMS, STYLE_DIALS, autoImageCount, styleLabel, type Education, type IncludeCode, type Platform } from './dials'
 
-type Tab = 'samples' | 'voice' | 'settings'
+type Tab = 'samples' | 'voice' | 'evolution' | 'settings'
+const TABS: Tab[] = ['samples', 'voice', 'evolution', 'settings']
 
 function SamplesTab({ personaId }: { personaId: number }) {
   const { data: samples, isLoading } = useSamples(personaId)
@@ -501,7 +503,9 @@ export function PersonaPage() {
   const id = Number(useParams().id)
   const { data: persona, isLoading, error } = usePersona(id)
   const { activate } = usePersonaMutations()
-  const [tab, setTab] = useState<Tab>('samples')
+  const [params] = useSearchParams()
+  const linked = params.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(linked && TABS.includes(linked) ? linked : 'samples')
   const [duplicating, setDuplicating] = useState(false)
 
   if (isLoading) return <Spinner />
@@ -510,6 +514,7 @@ export function PersonaPage() {
   const tabs: [Tab, string][] = [
     ['samples', 'Writing samples'],
     ['voice', 'Voice profile'],
+    ['evolution', persona.pending_evolutions ? `Evolution (${persona.pending_evolutions})` : 'Evolution'],
     ['settings', 'Settings & defaults'],
   ]
   return (
@@ -550,6 +555,7 @@ export function PersonaPage() {
       </div>
       {tab === 'samples' && <SamplesTab personaId={persona.id} />}
       {tab === 'voice' && <VoiceProfilePanel personaId={persona.id} />}
+      {tab === 'evolution' && <EvolutionPanel personaId={persona.id} />}
       {tab === 'settings' && <SettingsTab key={`${persona.id}-${persona.name}`} persona={persona} />}
       {duplicating && <DuplicatePersonaDialog persona={persona} open onClose={() => setDuplicating(false)} />}
     </>

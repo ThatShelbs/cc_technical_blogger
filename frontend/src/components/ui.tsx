@@ -88,8 +88,9 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   )
 }
 
-export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'danger' }) {
+export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'danger' | 'flame' }) {
   const tones = {
+    flame: 'flame-button text-white',
     neutral: 'bg-surface-2 text-muted',
     accent: 'bg-accent-soft text-fg',
     success: 'bg-success-soft text-success',

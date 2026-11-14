@@ -43,6 +43,7 @@ It is specialized for technical writing about data science, Python, data visuali
 - **Reads-as-human score.** Every post gets an AI-generation detection report from 0 (would be flagged as AI) to 100 (authentic human prose): a scan calibrated to your own writing plus a Claude judge, with one-click *Humanize* for the passages a detector would catch.
 - **Images that earn their place, drawn by Claude.** A hero illustration that doubles as the thumbnail, concept icons, clarifying diagrams, data visualizations, screenshot placeholders, and a closing meme, all authored by Claude as SVG or Vega-Lite, rendered locally, placed inline and credited ("Author: You; Made with Claude Opus 5.5 (SVG)"). No other image service, nothing to set up. **Edit** any image by describing the change, **Redraw** it for a new take, **Replace** it with your own, or roll back through its versions. Give each post its own **brand kit** (style, palette, font, motif) and redraw every image in one click.
 - **Gets better as you edit.** Proseferno remembers what you cut, swap and ask for in its drafts and writes so you don't have to fix it again. Posts plan their own callbacks, so key ideas and running jokes come back and pay off.
+- **Evolves with every post you publish.** Mark posts Draft, Ready or Published and rate how they did (Too early, Small traction, Good traction, Viral). Publishing compares your final version with what Proseferno generated and proposes a few small changes to the persona; a hit is read for its secret sauce, which goes into the persona's playbook. Review and apply what you agree with (profile changes become a new voice profile version) and watch the share of text you need to edit fall.
 - **Export** for Medium, Substack, LinkedIn (article, feed post and a PDF/PowerPoint document carousel), X (an X Article with a 5:2 header and a teaser post), Gumroad (PDF), or Markdown/Word, as a zip or copy-and-paste HTML with images embedded.
 - **Day and night themes** in an inferno palette, a one-click Windows launcher, and a demo mode to try everything without API keys.
 
@@ -120,6 +121,7 @@ Everything stays on your computer in the `data/` folder: samples, voice profiles
 - [Images](docs/images.md)
 - [Formulas: article types, openers, bodies and closers](docs/formulas.md)
 - [References: sources, quotes, posts and resources](docs/references.md)
+- [Persona evolution: stages, outcomes and the playbook](docs/evolution.md)
 - [AI-generation detection](docs/ai-detection.md)
 - [Exporting](docs/exporting.md)
 - [Configuration](docs/configuration.md)

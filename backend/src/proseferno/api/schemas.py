@@ -131,6 +131,84 @@ class VoiceProfileVersion(BaseModel):
     created_at: datetime
 
 
+Stage = Literal["draft", "ready", "published"]
+Outcome = Literal["too_early", "small", "good", "viral"]
+EvolutionKind = Literal["edits", "secret_sauce"]
+
+
+class PlaybookEntry(BaseModel):
+    text: str
+    project_id: int | None = None
+    title: str = ""
+    outcome: str | None = None
+    added_at: str = ""
+
+
+class EvolutionItemOut(BaseModel):
+    id: str
+    area: str
+    change: str
+    evidence: str
+    # profile | playbook
+    target: str
+    applied: bool = False
+
+
+class EvolutionOut(BaseModel):
+    id: int
+    persona_id: int
+    project_id: int | None
+    # edits | secret_sauce
+    kind: str
+    outcome: str | None
+    project_title: str
+    # analyzing | pending | applied | dismissed | error | clean
+    state: str
+    summary: str
+    items: list[EvolutionItemOut]
+    edit_rate: float | None
+    voice_profile_version: int | None
+    applied_version: int | None
+    job_id: str | None
+    error: str | None
+    created_at: datetime
+    applied_at: datetime | None
+
+
+class EditRatePoint(BaseModel):
+    project_id: int | None
+    title: str
+    edit_rate: float
+    created_at: datetime
+
+
+class PersonaEvolutionOut(BaseModel):
+    evolutions: list[EvolutionOut]
+    # Share of generated text changed in each published post, oldest first: falls as the persona learns.
+    edit_rates: list[EditRatePoint]
+    playbook: list[PlaybookEntry]
+
+
+class EvolveIn(BaseModel):
+    kind: EvolutionKind
+
+
+class ApplyEvolutionIn(BaseModel):
+    item_ids: list[str] = Field(min_length=1)
+
+
+class DiffSegment(BaseModel):
+    # equal | insert | delete
+    op: str
+    text: str
+
+
+class BaselineDiffOut(BaseModel):
+    edit_rate: float
+    baseline_title: str
+    segments: list[DiffSegment]
+
+
 class EditLesson(BaseModel):
     # remove | replace | feedback
     kind: str
@@ -167,6 +245,9 @@ class PersonaOut(BaseModel):
     voice_sample_min_words: int
     voice_influence_weight: int
     edit_lessons: list[EditLesson]
+    playbook: list[PlaybookEntry]
+    # Proposals from published posts waiting for review.
+    pending_evolutions: int
     own_samples: int
     influence_samples: int
     # The version new posts use (pinned, else latest).
@@ -354,6 +435,10 @@ class ProjectUpdate(BaseModel):
     prompt: str | None = Field(None, min_length=3)
     dials: Dials | None = None
     persona_id: int | None = None
+    # Where the post is: draft -> ready -> published. Publishing compares it with the generated text.
+    stage: Stage | None = None
+    # How a published post did; Good traction or Viral reads it for its secret sauce.
+    outcome: Outcome | None = None
 
 
 class GenerateIn(BaseModel):
@@ -521,6 +606,8 @@ class ProjectSummary(BaseModel):
     title: str
     prompt: str
     status: str
+    stage: str
+    outcome: str | None
     thumbnail_url: str | None
     created_at: datetime
     updated_at: datetime
@@ -550,6 +637,14 @@ class ProjectOut(BaseModel):
     references: list[ReferenceOut]
     active_job_id: str | None
     active_job_kind: str | None
+    stage: str
+    outcome: str | None
+    published_at: datetime | None
+    # True when the generated text is on record, so edits can be compared with it.
+    has_baseline: bool
+    # Share of the generated text the author changed so far (None without a baseline).
+    edit_rate: float | None
+    evolutions: list[EvolutionOut]
     created_at: datetime
     updated_at: datetime
 

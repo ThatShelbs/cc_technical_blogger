@@ -30,6 +30,7 @@ from proseferno.llm import LLM, LLMError, ResearchResult, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
+from proseferno.voice.playbook import format_playbook
 from proseferno.writer.dials import REFERENCE_KINDS, Dials, ResolvedDials, auto_reference_count, resolve
 from proseferno.writer.links import LinkChecker
 from proseferno.writer.pipeline import Reporter, WriterError, measure, split_title, writer_system
@@ -642,7 +643,10 @@ def _load(engine: Engine, settings: Settings, project_id: int) -> _Context:
     if not project.markdown:
         raise WriterError("Generate the post before adding references.")
     system = writer_system(
-        voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), format_lessons(persona.edit_lessons)
+        voice_profile.markdown,
+        format_exemplars(select_exemplars(project.prompt, samples)),
+        format_lessons(persona.edit_lessons),
+        format_playbook(persona.playbook),
     )
     dials = resolve(Dials(**(project.dials or {})), persona, project.prompt, default_revisions=settings.revision_passes)
     return _Context(project, persona, system, dials, voice_profile.baseline_stylometrics)

@@ -6,8 +6,10 @@ import { api } from './client'
 import type {
   AuthStatusOut,
   AuthTestOut,
+  BaselineDiffOut,
   CopyHtmlOut,
   EnrichIn,
+  EvolutionOut,
   FormulaCatalogOut,
   FormulaIn,
   FormulaOut,
@@ -19,6 +21,7 @@ import type {
   LinkedInPostOut,
   PersonaCreate,
   PersonaDuplicateIn,
+  PersonaEvolutionOut,
   PersonaOut,
   PersonaUpdate,
   ProjectCreate,
@@ -53,6 +56,8 @@ export const keys = {
   memeFormats: ['meme-formats'] as const,
   formulaCatalog: ['formula-catalog'] as const,
   formulas: ['formulas'] as const,
+  evolution: (personaId: number) => ['personas', personaId, 'evolution'] as const,
+  baselineDiff: (projectId: number) => ['projects', projectId, 'baseline-diff'] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -260,7 +265,13 @@ export function useSaveVoiceProfile(personaId: number) {
 
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: () => api.get<ProjectSummary[]>('/api/projects') })
 
-export const useProject = (id: number) => useQuery({ queryKey: keys.project(id), queryFn: () => api.get<ProjectOut>(`/api/projects/${id}`) })
+export const useProject = (id: number) =>
+  useQuery({
+    queryKey: keys.project(id),
+    queryFn: () => api.get<ProjectOut>(`/api/projects/${id}`),
+    // Publishing or rating a post starts an analysis in the background; poll until it is ready to review.
+    refetchInterval: (query) => (query.state.data?.evolutions?.some((e) => e.state === 'analyzing') ? 2000 : false),
+  })
 
 export function useProjectMutations(projectId?: number) {
   const qc = useQueryClient()
@@ -306,6 +317,56 @@ export function useProjectMutations(projectId?: number) {
     remove: useMutation({
       mutationFn: (id: number) => api.del<void>(`/api/projects/${id}`),
       onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects }),
+    }),
+  }
+}
+
+// -- persona evolution -------------------------------------------------------------
+
+/** Proposals learned from this persona's published posts, its edit-rate trend and its playbook. Polls while one is analyzing. */
+export const usePersonaEvolution = (personaId: number) =>
+  useQuery({
+    queryKey: keys.evolution(personaId),
+    queryFn: () => api.get<PersonaEvolutionOut>(`/api/personas/${personaId}/evolution`),
+    refetchInterval: (query) => (query.state.data?.evolutions.some((e) => e.state === 'analyzing') ? 2000 : false),
+  })
+
+/** The generated text against the current text, word by word. */
+export const useBaselineDiff = (projectId: number, enabled: boolean) =>
+  useQuery({
+    queryKey: keys.baselineDiff(projectId),
+    queryFn: () => api.get<BaselineDiffOut>(`/api/projects/${projectId}/baseline-diff`),
+    enabled,
+    staleTime: 0,
+  })
+
+export function useEvolutionMutations(personaId: number, projectId?: number) {
+  const qc = useQueryClient()
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: keys.evolution(personaId) })
+    void qc.invalidateQueries({ queryKey: keys.persona(personaId) })
+    void qc.invalidateQueries({ queryKey: keys.personas })
+    if (projectId) void qc.invalidateQueries({ queryKey: keys.project(projectId) })
+  }
+  return {
+    refresh,
+    /** Analyze a post (again): its edits, or what made it land. */
+    analyze: useMutation({
+      mutationFn: (kind: 'edits' | 'secret_sauce') => api.post<EvolutionOut>(`/api/projects/${projectId}/evolutions`, { kind }),
+      onSuccess: refresh,
+    }),
+    /** Apply the chosen changes; returns the job (a profile change makes a new voice profile version). */
+    apply: useMutation({
+      mutationFn: ({ id, itemIds }: { id: number; itemIds: string[] }) => api.post<JobOut>(`/api/evolutions/${id}/apply`, { item_ids: itemIds }),
+    }),
+    dismiss: useMutation({
+      mutationFn: (id: number) => api.post<EvolutionOut>(`/api/evolutions/${id}/dismiss`),
+      onSuccess: refresh,
+    }),
+    /** Forget one playbook entry (by index) or, without an index, all of them. */
+    forgetPlaybook: useMutation({
+      mutationFn: (index?: number) => api.del<PersonaOut>(`/api/personas/${personaId}/playbook${index === undefined ? '' : `?index=${index}`}`),
+      onSuccess: refresh,
     }),
   }
 }

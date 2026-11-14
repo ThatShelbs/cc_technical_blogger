@@ -40,12 +40,13 @@ flowchart TB
 | --- | --- |
 | `config.py` | Settings with smart defaults; `PROSEFERNO_*` env vars or `.env` override them. |
 | `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs). Tests and demo mode inject fakes here. |
-| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
+| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `ProjectReference`, `PersonaEvolution`, `Formula`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
 | `jobs.py` | Runs long work as asyncio tasks, persists status, and keeps an in-memory event log per job that `/api/jobs/{id}/events` streams as Server-Sent Events (with sequence ids, so reconnects resume cleanly). |
 | `llm/` | The `LLM` protocol; `RoutingLLM`, which sends each call to the connection chosen in Settings; `ClaudeLLM` for the Anthropic API (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching, retries); `ClaudeCodeLLM` for a Claude subscription, which runs the user's own `claude -p` with JSON output; and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, section regeneration (`section.py`: rewrite, compact, expand, add source or quote, custom brief), feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
+| `evolution/` | Persona evolution: compares a published post with its generated baseline, reads hits for their secret sauce, and applies approved changes as a new voice profile version and playbook entries (see [evolution](evolution.md)). |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
 | `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the meme generator (pitch, then art where the format has any), the bundled fonts and the composer that owns meme layout and type. |
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
@@ -67,6 +68,7 @@ backend/                           FastAPI + uv (Python 3.13)
     voice/      Sample analysis, research, voice profile synthesis, exemplar selection, learning from edits
     writer/     Dials, plan, draft, critique/revise, feedback tweaks, text history, LinkedIn feed post
     authenticity/  AI-generation detection: calibrated scan + Claude judge
+    evolution/  Learn from published posts: edits vs. the generated baseline, secret sauce, playbook
     images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
     export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles
     llm/        Claude client, sign-in resolution
@@ -94,6 +96,7 @@ What happens when someone clicks **Write my post**, in the order the code runs:
 6. Still inside `write_post`, the `enrich` hook from `_generate` runs the references pass (`writer/references.py`): plan, web research per reference, one weave call, and code checks that every link and quote came from the search (see [references](references.md)). The AI-detection report (`authenticity/`) then scores the final text.
 7. `_generate` then creates the image rows and `images/service.py` designs and renders each image (Claude writes SVG or Vega-Lite, resvg or vl-convert renders it), crediting the persona and the Claude model. A failed image gets its own `error` status and never fails the post.
 8. The project becomes `ready`, the job finishes, and `ProjectPage.tsx` refetches the post and shows the editor.
+9. Later, the author marks the post Published (`PATCH /api/projects/{id}` with `stage`). `evolution.change_stage` says the edit analysis is due, and `start_analysis` runs it as a job. A Good traction or Viral rating starts the secret-sauce analysis the same way (see [evolution](evolution.md)).
 
 Everything the pipeline needs from Claude goes through `llm/base.py`, which is why the tests and the demo can swap in `demo.FakeLLM`.
 
@@ -127,6 +130,9 @@ The first real persona becomes the active one even when the example is on (`api/
 | Weave references in | structured output (`ReferenceEdits`) | medium |
 | Pitch closing memes | structured output (`MemeIdeas`) | high |
 | Draw a meme's art (formats with art only) | structured output (`MemeBuild`) | medium |
+| Learn from a published post's edits | structured output (`EvolutionPlan`) | medium |
+| Find a hit's secret sauce | structured output (`SecretSauce`) | medium |
+| Apply approved voice profile changes | structured output (`ProfileEdits`) | medium |
 
 Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
 

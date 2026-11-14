@@ -24,6 +24,7 @@ from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
+from proseferno.voice.playbook import format_playbook
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.links import LinkChecker, NoLinkChecker
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
@@ -35,7 +36,7 @@ class WriterError(ValueError):
     pass
 
 
-def writer_system(voice_profile: str, exemplars: str, lessons: str = "") -> list[SystemBlock]:
+def writer_system(voice_profile: str, exemplars: str, lessons: str = "", playbook: str = "") -> list[SystemBlock]:
     """Stable prefix shared by every call in a project, cached after the exemplars."""
     blocks = [SystemBlock(raw("writer_system")), SystemBlock(f"# Voice profile\n\n{voice_profile}")]
     if lessons:
@@ -43,6 +44,14 @@ def writer_system(voice_profile: str, exemplars: str, lessons: str = "") -> list
             SystemBlock(
                 "# Edits the author keeps making to generated posts\n\n"
                 "The author made these changes to earlier drafts. Write so they would not need to make them again.\n\n" + lessons
+            )
+        )
+    if playbook:
+        blocks.append(
+            SystemBlock(
+                "# What has landed with this author's readers\n\n"
+                "These moves made the author's best-received posts work. Use them where they fit this post; never force them.\n\n"
+                + playbook
             )
         )
     return [*blocks, SystemBlock(exemplars, cache=True)]
@@ -269,13 +278,14 @@ async def write_post(
     dials: ResolvedDials,
     reporter: Reporter,
     lessons: str = "",
+    playbook: str = "",
     on_plan: Callable[[ArticlePlan], None] | None = None,
     on_draft: Callable[[str, dict[str, Any]], None] | None = None,
     enrich: Callable[[str, ArticlePlan, list[SystemBlock]], Awaitable[str]] | None = None,
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise -> optional ``enrich`` pass (references). Images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
-    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons)
+    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons, playbook)
     settings_text = prompt_settings(dials)
 
     # 1. Plan
@@ -438,6 +448,7 @@ async def _generate(
         dials=dials,
         reporter=ctx,
         lessons=format_lessons(persona.edit_lessons),
+        playbook=format_playbook(persona.playbook),
         on_plan=lambda plan: _save(
             engine,
             project_id,
@@ -463,6 +474,9 @@ async def _generate(
         critique=post.critique.model_dump() if post.critique else None,
         fidelity=post.fidelity,
         authenticity=post.authenticity,
+        # The pure generated text, to compare with what the author publishes (see evolution).
+        baseline_markdown=draft,
+        baseline_title=title or plan.chosen_title,
     )
 
     # 6. Images
@@ -519,12 +533,13 @@ async def regenerate_titles(*, llm: LLM, settings: Settings, engine: Engine, pro
     if voice_profile is None:
         raise WriterError("This persona has no voice profile yet.")
     lessons = format_lessons(persona.edit_lessons if persona else None)
+    playbook = format_playbook(persona.playbook if persona else None)
     plan = dict(project.plan or {})
     keep = merge_titles([project.title], project.pinned_titles or [])
     rejected = [t for t in plan.get("title_options", []) if t.casefold() not in {k.casefold() for k in keep}]
     count = max(1, TITLE_OPTION_COUNT - len(keep))
 
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons, playbook)
     result = await llm.structured(
         task="title options",
         system=system,

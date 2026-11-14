@@ -4,6 +4,10 @@ export interface ApiKeyIn {
   api_key: string;
 }
 
+export interface ApplyEvolutionIn {
+  item_ids: string[];
+}
+
 export interface ArticleType {
   id: string;
   label: string;
@@ -36,6 +40,12 @@ export interface AuthStatusOut {
 export interface AuthTestOut {
   ok: boolean;
   message: string;
+}
+
+export interface BaselineDiffOut {
+  edit_rate: number;
+  baseline_title: string;
+  segments: DiffSegment[];
 }
 
 export interface Body_upload_image_api_images__image_id__upload_post {
@@ -84,6 +94,11 @@ export interface Dials {
   revision_passes?: number | null;
 }
 
+export interface DiffSegment {
+  op: string;
+  text: string;
+}
+
 export interface EditLesson {
   kind: string;
   old: string;
@@ -92,9 +107,48 @@ export interface EditLesson {
   last_seen?: string;
 }
 
+export interface EditRatePoint {
+  project_id: number | null;
+  title: string;
+  edit_rate: number;
+  created_at: string;
+}
+
 export interface EnrichIn {
   count?: number | null;
   kinds?: ("source" | "quote" | "social_post" | "resource" | "related_article")[] | null;
+}
+
+export interface EvolutionItemOut {
+  id: string;
+  area: string;
+  change: string;
+  evidence: string;
+  target: string;
+  applied?: boolean;
+}
+
+export interface EvolutionOut {
+  id: number;
+  persona_id: number;
+  project_id: number | null;
+  kind: string;
+  outcome: string | null;
+  project_title: string;
+  state: string;
+  summary: string;
+  items: EvolutionItemOut[];
+  edit_rate: number | null;
+  voice_profile_version: number | null;
+  applied_version: number | null;
+  job_id: string | null;
+  error: string | null;
+  created_at: string;
+  applied_at: string | null;
+}
+
+export interface EvolveIn {
+  kind: "edits" | "secret_sauce";
 }
 
 export interface FormulaCatalogOut {
@@ -277,6 +331,12 @@ export interface PersonaDuplicateIn {
   copy_samples?: boolean;
 }
 
+export interface PersonaEvolutionOut {
+  evolutions: EvolutionOut[];
+  edit_rates: EditRatePoint[];
+  playbook: PlaybookEntry[];
+}
+
 export interface PersonaOut {
   id: number;
   name: string;
@@ -304,6 +364,8 @@ export interface PersonaOut {
   voice_sample_min_words: number;
   voice_influence_weight: number;
   edit_lessons: EditLesson[];
+  playbook: PlaybookEntry[];
+  pending_evolutions: number;
   own_samples: number;
   influence_samples: number;
   voice_profile_version: number | null;
@@ -339,6 +401,14 @@ export interface PersonaUpdate {
   voice_sample_min_words?: number | null;
   voice_influence_weight?: number | null;
   pinned_voice_profile_version?: number | null;
+}
+
+export interface PlaybookEntry {
+  text: string;
+  project_id?: number | null;
+  title?: string;
+  outcome?: string | null;
+  added_at?: string;
 }
 
 export interface ProjectCreate {
@@ -378,6 +448,12 @@ export interface ProjectOut {
   references: ReferenceOut[];
   active_job_id: string | null;
   active_job_kind: string | null;
+  stage: string;
+  outcome: string | null;
+  published_at: string | null;
+  has_baseline: boolean;
+  edit_rate: number | null;
+  evolutions: EvolutionOut[];
   created_at: string;
   updated_at: string;
 }
@@ -389,6 +465,8 @@ export interface ProjectSummary {
   title: string;
   prompt: string;
   status: string;
+  stage: string;
+  outcome: string | null;
   thumbnail_url: string | null;
   created_at: string;
   updated_at: string;
@@ -403,6 +481,8 @@ export interface ProjectUpdate {
   prompt?: string | null;
   dials?: Dials | null;
   persona_id?: number | null;
+  stage?: "draft" | "ready" | "published" | null;
+  outcome?: "too_early" | "small" | "good" | "viral" | null;
 }
 
 export interface RedrawIn {

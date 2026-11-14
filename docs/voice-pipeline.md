@@ -57,6 +57,10 @@ Every version is kept. Editing it in the app saves a new version. The synthesis 
 
 Repeats are counted. The top 15 go into the writer's system prompt for every later post ("Edits the author keeps making"), so you stop making the same fix twice. You can review and forget them in Personas → Settings & defaults → *Learned from your edits*.
 
+### Learning from published posts
+
+Lessons are word-level habits. [Persona evolution](evolution.md) looks at whole posts. When you publish a post, your final text is compared with the generated baseline, and Claude proposes a few taste-level changes. When a post does well, its secret sauce goes into the persona's playbook. Approved profile changes become a new voice profile version. The playbook feeds every writer call ("What has landed with this author's readers"). Both feed the next synthesis (`$approved_changes`, `$playbook`), so regenerating the profile keeps what the persona learned.
+
 ## 6. Writing a post
 
 1. **Exemplars**: the two or three of the author's own posts most similar to the brief (TF-IDF) are included in full, within a word budget, never truncated.

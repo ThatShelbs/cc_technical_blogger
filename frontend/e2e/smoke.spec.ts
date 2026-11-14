@@ -148,6 +148,34 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText('Scan signals (calibrated to your own posts)')).toBeVisible()
   await page.getByRole('button', { name: 'Close' }).click()
 
+  // Publish: the post is compared with what was generated; a hit's secret sauce goes into the playbook
+  const teach = page
+    .locator('div')
+    .filter({ has: page.getByRole('heading', { name: 'Teach the persona' }) })
+    .last()
+  await expect(teach.getByText(/You changed \d+% of the generated text/)).toBeVisible()
+  await teach.getByRole('button', { name: 'Compare' }).click()
+  await expect(page.getByRole('dialog', { name: 'Generated vs. your version' }).locator('del').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Published', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Too early' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(teach.getByText('From your edits')).toBeVisible()
+  await expect(teach.getByText(/Nothing to change|To review/)).toBeVisible({ timeout: 30_000 })
+  await page.getByRole('button', { name: 'Good traction' }).click()
+  const sauce = teach.getByRole('listitem').filter({ hasText: 'Secret sauce' })
+  await sauce.getByRole('button', { name: 'Review 2 suggestions' }).click({ timeout: 30_000 })
+  const review = page.getByRole('dialog', { name: /^Secret sauce: / })
+  await expect(review.getByText('Pick a side in the title and defend it in the first paragraph.')).toBeVisible()
+  await review.getByRole('button', { name: 'Apply 2' }).click()
+  await expect(sauce.getByText('Applied')).toBeVisible({ timeout: 30_000 })
+  await sauce.getByRole('link', { name: /persona.s evolution/ }).click()
+  await expect(page.getByRole('tab', { name: /Evolution/ })).toHaveAttribute('aria-selected', 'true')
+  const playbook = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Forget this playbook entry' }) })
+  await expect(playbook.filter({ hasText: 'Pick a side in the title and defend it in the first paragraph.' })).toBeVisible()
+  await expect(playbook).toHaveCount(2)
+  await page.goBack()
+  await expect(page.getByRole('button', { name: 'Good traction' })).toHaveAttribute('aria-pressed', 'true')
+
   // Persona switcher in the sidebar
   await page.getByRole('button', { name: /Writing as/ }).click()
   await expect(page.getByRole('dialog', { name: 'Switch persona' })).toBeVisible()
@@ -160,5 +188,10 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
 
   // Posts list shows the thumbnail
   await page.getByRole('link', { name: 'Posts' }).click()
+  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
+  await expect(page.getByText('Good traction')).toBeVisible()
+  await page.getByRole('button', { name: /^Draft/ }).click()
+  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toHaveCount(0)
+  await page.getByRole('button', { name: /^Published/ }).click()
   await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
 })
