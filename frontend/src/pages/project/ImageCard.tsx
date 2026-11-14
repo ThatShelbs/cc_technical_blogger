@@ -9,6 +9,7 @@ import { useJob } from '../../api/useJob'
 import { fullCaption } from '../../lib/article'
 import { Badge, Button, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { textSyncNote, type TextSyncNote } from '../../lib/textSync'
 import { MemeIdeasDialog, MemeWordsDialog } from './MemeDialogs'
 import { OpeningIdeasDialog } from './OpeningDialogs'
 
@@ -42,8 +43,10 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
   const [credit, setCredit] = useState(image.credit)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const job = useJob(jobId, () => {
+  const [textNote, setTextNote] = useState<TextSyncNote | null>(null)
+  const job = useJob(jobId, (state) => {
     setJobId(null)
+    setTextNote(textSyncNote(state))
     void qc.invalidateQueries({ queryKey: keys.project(projectId) })
   })
   const [instructOpen, setInstructOpen] = useState(false)
@@ -128,6 +131,13 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
       {mutations.upload.error && (
         <div className="mt-2">
           <Notice tone="error">{errorText(mutations.upload.error)}</Notice>
+        </div>
+      )}
+      {textNote && !busy && (
+        <div className="mt-2">
+          <Notice tone={textNote.tone} title="Text updated to match">
+            {textNote.text}
+          </Notice>
         </div>
       )}
       {isMeme && image.meme?.premise && (

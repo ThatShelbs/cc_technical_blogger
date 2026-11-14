@@ -7,6 +7,7 @@ import type {
   ABAdoptOut,
   ABDecideIn,
   ABTestOut,
+  AddImageIn,
   AuthStatusOut,
   AuthTestOut,
   BaselineDiffOut,
@@ -303,6 +304,8 @@ export function useProjectMutations(projectId?: number) {
     }),
     /** Apply the author's feedback with surgical edits; text and images that are not mentioned stay. */
     tweak: useMutation({ mutationFn: (feedback: string) => api.post<JobOut>(`/api/projects/${projectId}/tweak`, { feedback }) }),
+    /** Draw an image near a highlighted passage; Claude picks the spot and reworks adjacent text. Follow the job with `useJob`. */
+    addImage: useMutation({ mutationFn: (body: AddImageIn) => api.post<JobOut>(`/api/projects/${projectId}/images`, body) }),
     /** Bring back an earlier text version (index 0 = undo the last change). */
     restoreRevision: useMutation({
       mutationFn: (index: number) => api.post<ProjectOut>(`/api/projects/${projectId}/revisions/${index}/restore`),

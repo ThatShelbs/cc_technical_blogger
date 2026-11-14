@@ -613,9 +613,12 @@ def test_meme_ideas_board_and_word_editing_need_no_claude(client: TestClient, sa
     fake_llm.calls.clear()
     assert client.post(f"{url}/redraw", json={"meme_concept": 2}).json()["status"] == "succeeded"
     assert current()["meme"]["pitches"][2]["current"] is True
+    # A different joke is a changed image, so the text around it is checked; the ideas board itself pitches nothing.
+    assert "meme ideas" not in fake_llm.tasks() and fake_llm.tasks().count("image text sync") <= 1
     assert client.post(f"{url}/redraw", json={"meme_concept": 7}).status_code == 422
     assert client.post(f"/api/images/{hero['id']}/redraw", json={"meme_concept": 0}).status_code == 422
 
+    fake_llm.calls.clear()
     versions = len(current()["history"])
     edited = client.put(f"{url}/meme-words", json={"words": {"out3": "fatal: nobody owns this chart"}})
     assert edited.status_code == 200, edited.text

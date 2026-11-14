@@ -104,21 +104,23 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
 
   // Highlight a sentence in the preview, compact it in place, then undo
   const sentence = 'Bar charts. Seriously, bar charts.'
-  await page.evaluate((needle) => {
-    const walker = document.createTreeWalker(document.querySelector('.article')!, NodeFilter.SHOW_TEXT)
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const at = node.textContent?.indexOf(needle) ?? -1
-      if (at < 0) continue
-      const range = document.createRange()
-      range.setStart(node, at)
-      range.setEnd(node, at + needle.length)
-      const selection = window.getSelection()!
-      selection.removeAllRanges()
-      selection.addRange(range)
-      return
-    }
-    throw new Error('sentence not found')
-  }, sentence)
+  const highlight = () =>
+    page.evaluate((needle) => {
+      const walker = document.createTreeWalker(document.querySelector('.article')!, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const at = node.textContent?.indexOf(needle) ?? -1
+        if (at < 0) continue
+        const range = document.createRange()
+        range.setStart(node, at)
+        range.setEnd(node, at + needle.length)
+        const selection = window.getSelection()!
+        selection.removeAllRanges()
+        selection.addRange(range)
+        return
+      }
+      throw new Error('sentence not found')
+    }, sentence)
+  await highlight()
   await expect(page.getByRole('toolbar', { name: 'Section actions' })).toBeVisible()
   await page.getByRole('button', { name: 'Compact' }).click()
   await expect(page.getByText(/Bar charts win\./)).toBeVisible({ timeout: 60_000 })
@@ -126,6 +128,28 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.locator('figure img')).toHaveCount(4)
   await page.getByRole('button', { name: 'Undo last change' }).click()
   await expect(page.getByText(sentence)).toBeVisible()
+
+  // Highlight the same sentence and add an image there: it lands after the paragraph, then one undo takes it out
+  await highlight()
+  await page.getByRole('button', { name: 'Add image' }).click()
+  await expect(page.getByText('Image added')).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('figure img')).toHaveCount(5)
+  await expect(page.getByText(/The diagram below shows it\./)).toBeVisible()
+  await page.getByRole('button', { name: 'Undo last change' }).click()
+  await expect(page.locator('figure img')).toHaveCount(4)
+  await expect(page.getByText(/The diagram below shows it\./)).toHaveCount(0)
+
+  // Remaking the closing meme in another format fixes the text that described the old one; undo puts it back
+  const closing = page.locator('figure').filter({ hasText: 'Closing meme' })
+  await closing.getByRole('button', { name: 'Ideas' }).click()
+  const memeIdeas = page.getByRole('dialog', { name: 'Meme ideas' })
+  const formatPicker = memeIdeas.getByLabel('Meme format')
+  await formatPicker.selectOption((await formatPicker.inputValue()) === 'venn' ? 'nutrition_label' : 'venn')
+  await expect(page.getByText('Text updated to match')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/The picture changed, so this line did too\./)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Undo last change' }).click()
+  await expect(page.getByText(/The picture changed, so this line did too\./)).toHaveCount(0)
 
   // Brief & settings: the original brief, the planned outline, every dial
   await page.getByRole('button', { name: 'Edit brief & settings' }).click()

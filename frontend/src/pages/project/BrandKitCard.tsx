@@ -6,6 +6,7 @@ import { errorText } from '../../api/client'
 import { keys, useImageMutations, usePersonas, useProjectMutations } from '../../api/hooks'
 import type { ProjectOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
+import { textSyncNote, type TextSyncNote } from '../../lib/textSync'
 import { BrandKitFields } from '../../components/BrandKitFields'
 import { brandKitOf, isEmptyBrandKit } from '../../lib/brandKit'
 import { Button, Card, Dialog, Notice, ProgressBar } from '../../components/ui'
@@ -20,8 +21,10 @@ export function BrandKitCard({ project, disabled }: { project: ProjectOut; disab
   const [open, setOpen] = useState(false)
   const [kit, setKit] = useState(() => brandKitOf(project.brand_kit))
   const [jobId, setJobId] = useState<string | null>(null)
-  const job = useJob(jobId, () => {
+  const [textNote, setTextNote] = useState<TextSyncNote | null>(null)
+  const job = useJob(jobId, (state) => {
     setJobId(null)
+    setTextNote(textSyncNote(state))
     void qc.invalidateQueries({ queryKey: keys.project(project.id) })
   })
   const saved = brandKitOf(project.brand_kit)
@@ -83,6 +86,7 @@ export function BrandKitCard({ project, disabled }: { project: ProjectOut; disab
         </Button>
       )}
       {job.status === 'failed' && <Notice tone="error">{job.error}</Notice>}
+      {textNote && !jobId && <Notice tone={textNote.tone}>{textNote.text}</Notice>}
       {redrawAll.error && <Notice tone="error">{errorText(redrawAll.error)}</Notice>}
 
       <Dialog open={open} onClose={() => setOpen(false)} title="Image brand kit">

@@ -122,3 +122,19 @@ class ReferenceEdit(BaseModel):
 class ReferenceEdits(BaseModel):
     go_deeper_heading: str = Field(description="A short heading, in the author's voice, for the list of things to explore next.")
     edits: list[ReferenceEdit]
+
+
+class ImageTextEdits(BaseModel):
+    summary: str = Field(description="One plain sentence on what changed in the text; empty when nothing needed to.")
+    edits: list[TextEdit] = Field(description="Surgical edits to text that described the old image; empty when nothing refers to it.")
+
+
+class ImagePlacement(BaseModel):
+    kind: Literal["illustration", "diagram", "chart", "icon"] = Field(description="The image that adds the most value here.")
+    purpose: str = Field(description="The value this image adds for the reader, in one sentence.")
+    brief: str = Field(description="What the image should show, concretely enough to draw, mirroring the passage's own terms.")
+    anchor_text: str = Field(
+        description="The exact paragraph or sentence (copied from the post) the image goes right after: the nearest sensible break."
+    )
+    edits: list[TextEdit] = Field(description="Edits to adjacent text so it works with the image; usually empty or one small edit.")
+    summary: str = Field(description="One or two plain sentences telling the author where the image went and what else changed.")

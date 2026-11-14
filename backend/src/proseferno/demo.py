@@ -309,6 +309,10 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
         }
     if name == "PostEdits":
         return _post_edits(prompt)
+    if name == "ImageTextEdits":
+        return _image_text_edits(prompt)
+    if name == "ImagePlacement":
+        return _image_placement(prompt)
     if name == "ReferencePlan":
         return _reference_plan(prompt)
     if name == "ReferenceEdits":
@@ -454,6 +458,49 @@ def _post_edits(prompt: str) -> dict[str, Any]:
         "summary": "Added a wry aside to the opening." + (" Redrew the diagram with a new idea." if image_changes else ""),
         "edits": [{"find": paragraph, "replace": paragraph + DEMO_TWEAK}] if paragraph else [],
         "image_changes": image_changes,
+    }
+
+
+DEMO_IMAGE_SYNC = " The picture changed, so this line did too."
+DEMO_PLACEMENT_EDIT = " The diagram below shows it."
+
+
+def _paragraphs(post: str) -> list[str]:
+    return [p.strip() for p in post.split("\n\n") if p.strip()]
+
+
+def _image_text_edits(prompt: str) -> dict[str, Any]:
+    """Like a careful editor: touch the text only when a changed image's format or style really changed."""
+    changes = prompt.split("<post>", 1)[0].split("### `")[1:]
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    paragraphs = _paragraphs(post)
+    edits = []
+    for block in changes:
+        slot = block.split("`", 1)[0]
+        was, _, now = block.partition("Now:")
+        key = lambda text: [line for line in text.splitlines() if line.startswith(("Format:", "Style:"))]  # noqa: E731
+        if key(was) == key(now):
+            continue
+        tag = "{{image:" + slot + "}}"
+        at = next((i for i, p in enumerate(paragraphs) if p == tag), None)
+        before = next((p for p in reversed(paragraphs[: at or 0]) if not p.startswith(("#", "{", "```", "|", ">", "-"))), "")
+        if before:
+            edits.append({"find": before, "replace": before + DEMO_IMAGE_SYNC})
+    return {"summary": "Matched the text to the new image." if edits else "", "edits": edits}
+
+
+def _image_placement(prompt: str) -> dict[str, Any]:
+    """A diagram right after the paragraph that holds the highlight, with one sentence pointing at it."""
+    selection = prompt.split("<highlight>", 1)[-1].split("</highlight>", 1)[0].strip()
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    paragraph = next((p for p in _paragraphs(post) if selection and selection in p), selection)
+    return {
+        "kind": "diagram",
+        "purpose": "Show the idea the highlighted passage describes",
+        "brief": "A flow diagram of: " + selection[:200],
+        "anchor_text": paragraph,
+        "edits": [{"find": paragraph, "replace": paragraph + DEMO_PLACEMENT_EDIT}] if paragraph else [],
+        "summary": "Added a diagram after that paragraph and pointed to it.",
     }
 
 
