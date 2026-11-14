@@ -78,6 +78,8 @@ class Sample(SQLModel, table=True):
     captions: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     stylometrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     analysis: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    # How strongly this post is favored when choosing the examples the writer sees (1 = neutral; raised by A/B wins).
+    weight: float = 1.0
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -132,8 +134,47 @@ class Project(SQLModel, table=True):
     # The text exactly as the app last generated it (reset by each full generation), to compare with what was published.
     baseline_markdown: str = Field(default="", sa_column=Column(Text, default=""))
     baseline_title: str = ""
+    # Set only on the two hidden posts of an A/B test (see abtest.service): which test, and control | challenger.
+    ab_test_id: int | None = Field(default=None, index=True)
+    variant: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class ABTest(SQLModel, table=True):
+    """Two full generations of one post, compared blind (see abtest.service).
+
+    ``control`` is written with the persona and settings as they are; ``challenger`` with every setting nudged
+    at random. Both are hidden ``Project`` rows until the author picks a winner, which is then moved into the
+    host project (``project_id``) and both variants are deleted.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: int = Field(index=True)
+    persona_id: int = Field(index=True)
+    # generating | voting | deciding | decided | discarded | error
+    status: str = "generating"
+    seed: int = 0
+    # Which variant is shown as "Post 1" (left): control | challenger.
+    left_role: str = "control"
+    control_project_id: int | None = None
+    challenger_project_id: int | None = None
+    # What the challenger changed: [{id, group, label, before, after, target, field, value}].
+    tweaks: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # The challenger's extra writer-system block and the example posts it was shown.
+    emphasis: str = Field(default="", sa_column=Column(Text, default=""))
+    exemplar_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # control | challenger, once decided.
+    winner: str | None = None
+    # Parts taken from the other post: title | opener | closer | hero | meme | image_style.
+    taken: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # Tweak ids the author adopted into the persona; None = not answered yet.
+    adopted: list[str] | None = Field(default=None, sa_column=Column(JSON))
+    evolution_id: int | None = None
+    job_id: str | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+    decided_at: datetime | None = None
 
 
 class PersonaEvolution(SQLModel, table=True):
@@ -147,7 +188,7 @@ class PersonaEvolution(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     persona_id: int = Field(foreign_key="persona.id", index=True)
     project_id: int | None = Field(default=None, index=True)
-    # edits | secret_sauce
+    # edits | secret_sauce | ab_test
     kind: str
     # The post's outcome when this was made.
     outcome: str | None = None
