@@ -41,6 +41,8 @@ class Persona(SQLModel, table=True):
     default_platform: str = "medium"
     # The formula new posts start from (see writer.formulas): article_type, opener, body, closer and notes; {} = all automatic.
     default_formula: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
+    # How new posts open (see images.opening.styles): a style id, or "auto" = the panel picks from the styles that suit the post.
+    default_opening_style: str = "auto"
     # Voice profile version used for new posts; None = always the latest.
     pinned_voice_profile_version: int | None = None
     # One line that keeps a post's generated images looking like a set.
@@ -56,6 +58,8 @@ class Persona(SQLModel, table=True):
     voice_influence_weight: int = 5
     # What the author keeps changing in generated posts (see voice.lessons), most frequent first.
     edit_lessons: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # What made the author's well-received posts work (see voice.playbook): {text, project_id, title, outcome, added_at}.
+    playbook: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -76,6 +80,8 @@ class Sample(SQLModel, table=True):
     captions: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     stylometrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     analysis: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    # How strongly this post is favored when choosing the examples the writer sees (1 = neutral; raised by A/B wins).
+    weight: float = 1.0
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -89,6 +95,8 @@ class VoiceProfile(SQLModel, table=True):
     best_practices: str | None = Field(default=None, sa_column=Column(Text))
     sample_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))
     baseline_stylometrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # The Insights page digest (see voice.insights); None for edited, evolved and older versions.
+    insights: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     model: str = ""
     edited_by_user: bool = False
     created_at: datetime = Field(default_factory=utcnow)
@@ -120,8 +128,87 @@ class Project(SQLModel, table=True):
     brand_kit: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
     voice_profile_version: int | None = None
     error: str | None = None
+    # Where the author is with the post: draft -> ready -> published (separate from the generation ``status``).
+    stage: str = "draft"
+    # How a published post did: too_early | small | good | viral; None until published.
+    outcome: str | None = None
+    published_at: datetime | None = None
+    # The text exactly as the app last generated it (reset by each full generation), to compare with what was published.
+    baseline_markdown: str = Field(default="", sa_column=Column(Text, default=""))
+    baseline_title: str = ""
+    # Set only on the two hidden posts of an A/B test (see abtest.service): which test, and control | challenger.
+    ab_test_id: int | None = Field(default=None, index=True)
+    variant: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class ABTest(SQLModel, table=True):
+    """Two full generations of one post, compared blind (see abtest.service).
+
+    ``control`` is written with the persona and settings as they are; ``challenger`` with every setting nudged
+    at random. Both are hidden ``Project`` rows until the author picks a winner, which is then moved into the
+    host project (``project_id``) and both variants are deleted.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: int = Field(index=True)
+    persona_id: int = Field(index=True)
+    # generating | voting | deciding | decided | discarded | error
+    status: str = "generating"
+    seed: int = 0
+    # Which variant is shown as "Post 1" (left): control | challenger.
+    left_role: str = "control"
+    control_project_id: int | None = None
+    challenger_project_id: int | None = None
+    # What the challenger changed: [{id, group, label, before, after, target, field, value}].
+    tweaks: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # The challenger's extra writer-system block and the example posts it was shown.
+    emphasis: str = Field(default="", sa_column=Column(Text, default=""))
+    exemplar_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # control | challenger, once decided.
+    winner: str | None = None
+    # Parts taken from the other post: title | opener | closer | hero | meme | image_style.
+    taken: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # Tweak ids the author adopted into the persona; None = not answered yet.
+    adopted: list[str] | None = Field(default=None, sa_column=Column(JSON))
+    evolution_id: int | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+    decided_at: datetime | None = None
+
+
+class PersonaEvolution(SQLModel, table=True):
+    """A proposed change to a persona, learned from one post (see evolution.service).
+
+    ``edits`` compares the generated baseline with the published text; ``secret_sauce`` reads a post that did
+    well. Items are reviewed and applied by the author: profile items become a new voice profile version,
+    playbook items join ``Persona.playbook``.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    persona_id: int = Field(foreign_key="persona.id", index=True)
+    project_id: int | None = Field(default=None, index=True)
+    # edits | secret_sauce | ab_test
+    kind: str
+    # The post's outcome when this was made.
+    outcome: str | None = None
+    project_title: str = ""
+    # analyzing | pending | applied | dismissed | error
+    state: str = "analyzing"
+    summary: str = Field(default="", sa_column=Column(Text, default=""))
+    # [{id, area, change, evidence, target: profile|playbook, applied}]
+    items: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # Share of the generated text the author changed (edits only), 0-1.
+    edit_rate: float | None = None
+    # The baseline this was computed from, so a re-publish of the same text does not analyze twice.
+    baseline_hash: str = ""
+    voice_profile_version: int | None = None
+    applied_version: int | None = None
+    job_id: str | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+    applied_at: datetime | None = None
 
 
 class ProjectImage(SQLModel, table=True):

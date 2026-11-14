@@ -24,6 +24,7 @@ from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
+from proseferno.voice.playbook import format_playbook
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.examples import add_example_slots, format_missing_examples
 from proseferno.writer.links import LinkChecker, NoLinkChecker
@@ -36,8 +37,19 @@ class WriterError(ValueError):
     pass
 
 
-def writer_system(voice_profile: str, exemplars: str, lessons: str = "") -> list[SystemBlock]:
-    """Stable prefix shared by every call in a project, cached after the exemplars."""
+@dataclass
+class Variation:
+    """What an A/B test's challenger changes beyond its dials (see abtest.perturb): the examples and the emphasis."""
+
+    exemplar_ids: list[int]
+    emphasis: str = ""
+
+
+def writer_system(voice_profile: str, exemplars: str, lessons: str = "", playbook: str = "", emphasis: str = "") -> list[SystemBlock]:
+    """Stable prefix shared by every call in a project, cached after the exemplars.
+
+    ``emphasis`` is an A/B challenger's "lean on this, ease off that" block; empty for every normal post.
+    """
     blocks = [SystemBlock(raw("writer_system")), SystemBlock(f"# Voice profile\n\n{voice_profile}")]
     if lessons:
         blocks.append(
@@ -46,6 +58,16 @@ def writer_system(voice_profile: str, exemplars: str, lessons: str = "") -> list
                 "The author made these changes to earlier drafts. Write so they would not need to make them again.\n\n" + lessons
             )
         )
+    if playbook:
+        blocks.append(
+            SystemBlock(
+                "# What has landed with this author's readers\n\n"
+                "These moves made the author's best-received posts work. Use them where they fit this post; never force them.\n\n"
+                + playbook
+            )
+        )
+    if emphasis:
+        blocks.append(SystemBlock(emphasis))
     return [*blocks, SystemBlock(exemplars, cache=True)]
 
 
@@ -210,9 +232,11 @@ async def generate_article(
     settings: Settings,
     images: ImageService,
     project_id: int,
-    ctx: JobContext,
+    ctx: JobContext | Reporter,
     links: LinkChecker | None = None,
+    variation: Variation | None = None,
 ) -> dict[str, Any]:
+    """Write the project's post and draw its images. ``variation`` is set only for an A/B test's challenger."""
     # expire_on_commit=False: these rows are read for the rest of the (long) job after the session closes.
     with Session(engine, expire_on_commit=False) as session:
         project = session.get(Project, project_id)
@@ -232,7 +256,9 @@ async def generate_article(
         raise WriterError("Generate a voice profile for this persona before writing a post.")
 
     try:
-        return await _generate(engine, llm, settings, images, project, persona, voice_profile, samples, ctx, links or NoLinkChecker())
+        return await _generate(
+            engine, llm, settings, images, project, persona, voice_profile, samples, ctx, links or NoLinkChecker(), variation
+        )
     except Exception as exc:
         with Session(engine) as session:
             row = session.get(Project, project_id)
@@ -272,13 +298,18 @@ async def write_post(
     dials: ResolvedDials,
     reporter: Reporter,
     lessons: str = "",
+    playbook: str = "",
     on_plan: Callable[[ArticlePlan], None] | None = None,
     on_draft: Callable[[str, dict[str, Any]], None] | None = None,
     enrich: Callable[[str, ArticlePlan, list[SystemBlock]], Awaitable[str]] | None = None,
+    variation: Variation | None = None,
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise -> optional ``enrich`` pass (references). Images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
-    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons)
+    if variation is not None and variation.exemplar_ids:
+        by_id = {s.id: s for s in samples}
+        exemplars = [by_id[i] for i in variation.exemplar_ids if i in by_id] or exemplars
+    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons, playbook, variation.emphasis if variation else "")
     settings_text = prompt_settings(dials)
 
     # 1. Plan
@@ -418,8 +449,9 @@ async def _generate(
     persona: Persona,
     voice_profile: VoiceProfile,
     samples: list[Sample],
-    ctx: JobContext,
+    ctx: JobContext | Reporter,
     links: LinkChecker,
+    variation: Variation | None = None,
 ) -> dict[str, Any]:
     from proseferno.writer import references  # imports this module
 
@@ -461,6 +493,7 @@ async def _generate(
         dials=dials,
         reporter=ctx,
         lessons=format_lessons(persona.edit_lessons),
+        playbook=format_playbook(persona.playbook),
         on_plan=lambda plan: _save(
             engine,
             project_id,
@@ -473,6 +506,7 @@ async def _generate(
         # The old text versions belong to the old images, so a regeneration starts a fresh history.
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured, revisions=[]),
         enrich=add_references,
+        variation=variation,
     )
     draft, plan, slots = post.markdown, post.plan, post.plan.image_slots
 
@@ -488,6 +522,9 @@ async def _generate(
         critique=post.critique.model_dump() if post.critique else None,
         fidelity=post.fidelity,
         authenticity=post.authenticity,
+        # The pure generated text, to compare with what the author publishes (see evolution).
+        baseline_markdown=draft,
+        baseline_title=title or plan.chosen_title,
     )
 
     # 6. Images
@@ -495,24 +532,34 @@ async def _generate(
     image_ids = _create_image_rows(engine, project.id, slots)
     finished = 0
     semaphore = asyncio.Semaphore(3)
+    # The closing meme waits for the opening image: when the post opens with a meme too, the closer must know it.
+    opened = asyncio.Event()
+    if not any(s.kind == "hero" for s in slots):
+        opened.set()
 
-    async def make(image_id: int) -> None:
+    async def make(image_id: int, kind: str) -> None:
         nonlocal finished
-        async with semaphore:
-            await images.create(
-                image_id,
-                persona=persona,
-                title=title or plan.chosen_title,
-                markdown=draft,
-                voice_profile=voice_profile.markdown,
-                brand_kit=project.brand_kit,
-                usage=ctx.add_usage,
-            )
+        if kind == "meme":
+            await opened.wait()
+        try:
+            async with semaphore:
+                await images.create(
+                    image_id,
+                    persona=persona,
+                    title=title or plan.chosen_title,
+                    markdown=draft,
+                    voice_profile=voice_profile.markdown,
+                    brand_kit=project.brand_kit,
+                    usage=ctx.add_usage,
+                )
+        finally:
+            if kind == "hero":
+                opened.set()
         finished += 1
         await ctx.emit("image_ready", {"image_id": image_id})
         await ctx.progress(0.7 + 0.28 * finished / len(image_ids), f"Created {finished} of {len(image_ids)} images")
 
-    await asyncio.gather(*(make(i) for i in image_ids))
+    await asyncio.gather(*(make(i, s.kind) for i, s in zip(image_ids, slots, strict=True)))
     _save(engine, project.id, status="ready")
     await ctx.progress(1.0, "Your post is ready")
     return {"project_id": project.id}
@@ -544,12 +591,13 @@ async def regenerate_titles(*, llm: LLM, settings: Settings, engine: Engine, pro
     if voice_profile is None:
         raise WriterError("This persona has no voice profile yet.")
     lessons = format_lessons(persona.edit_lessons if persona else None)
+    playbook = format_playbook(persona.playbook if persona else None)
     plan = dict(project.plan or {})
     keep = merge_titles([project.title], project.pinned_titles or [])
     rejected = [t for t in plan.get("title_options", []) if t.casefold() not in {k.casefold() for k in keep}]
     count = max(1, TITLE_OPTION_COUNT - len(keep))
 
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons, playbook)
     result = await llm.structured(
         task="title options",
         system=system,

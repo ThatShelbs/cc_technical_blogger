@@ -1,4 +1,4 @@
-import { History, MessageSquareText, RefreshCw, SlidersHorizontal, Undo2 } from 'lucide-react'
+import { FlaskConical, History, MessageSquareText, RefreshCw, SlidersHorizontal, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { errorText } from '../../api/client'
@@ -34,6 +34,7 @@ export function ReviseCard({
   onTweakStarted,
   onOpenSettings,
   onRegenerate,
+  onABTest,
 }: {
   project: ProjectOut
   dirty: boolean
@@ -41,6 +42,7 @@ export function ReviseCard({
   onTweakStarted: (job: JobOut) => void
   onOpenSettings: () => void
   onRegenerate: () => void
+  onABTest: () => void
 }) {
   const { tweak } = useProjectMutations(project.id)
   const [feedback, setFeedback] = useState('')
@@ -101,6 +103,18 @@ export function ReviseCard({
           >
             Regenerate post
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<FlaskConical className="size-4" />}
+            disabled={busy}
+            title="Write it twice, once as your persona is and once with its settings nudged, and pick the better one blind"
+            onClick={() => {
+              if (confirm('Write two new versions and compare them blind? Your current post stays until you pick a winner.')) onABTest()
+            }}
+          >
+            A/B test
+          </Button>
         </div>
       </div>
     </Card>
@@ -113,6 +127,7 @@ const KIND_LABEL: Record<string, string> = {
   section: 'Before section change',
   edit: 'Before edit',
   restore: 'Before restore',
+  image: 'Before image change',
 }
 
 function when(iso: string): string {

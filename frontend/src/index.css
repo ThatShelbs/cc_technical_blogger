@@ -22,6 +22,12 @@
   --app-danger-soft: #fde2e4;
   --app-success: #276b43;
   --app-success-soft: #dcf3e4;
+  /* Chart series, in fixed order (checked for color-blind separation and contrast on the surface). */
+  --app-chart-1: #8a3fb0;
+  --app-chart-2: #ed6925;
+  --app-chart-3: #b8336a;
+  --app-chart-4: #b58100;
+  --app-chart-5: #5b4fd0;
 }
 
 [data-theme='dark'] {
@@ -43,6 +49,11 @@
   --app-danger-soft: #3d1028;
   --app-success: #6fd39a;
   --app-success-soft: #0f2e22;
+  --app-chart-1: #b070dc;
+  --app-chart-2: #e0701c;
+  --app-chart-3: #cf4a8c;
+  --app-chart-4: #bd8a00;
+  --app-chart-5: #7f6ee8;
 }
 
 @theme inline {
@@ -63,6 +74,11 @@
   --color-danger-soft: var(--app-danger-soft);
   --color-success: var(--app-success);
   --color-success-soft: var(--app-success-soft);
+  --color-chart-1: var(--app-chart-1);
+  --color-chart-2: var(--app-chart-2);
+  --color-chart-3: var(--app-chart-3);
+  --color-chart-4: var(--app-chart-4);
+  --color-chart-5: var(--app-chart-5);
   --font-sans: 'Segoe UI', Inter, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --font-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   --font-mono: 'Cascadia Code', Consolas, Menlo, monospace;

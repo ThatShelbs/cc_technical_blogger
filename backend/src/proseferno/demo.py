@@ -98,8 +98,11 @@ class FakeLLM:
         effort: str,
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
+        images: list[bytes] | None = None,
     ) -> Any:
-        self.calls.append({"kind": "structured", "task": task, "schema": schema.__name__, "prompt": prompt, "system": system})
+        self.calls.append(
+            {"kind": "structured", "task": task, "schema": schema.__name__, "prompt": prompt, "system": system, "images": len(images or [])}
+        )
         if self.delay:
             await asyncio.sleep(self.delay * 20)
         if usage:
@@ -155,6 +158,11 @@ class FakeLLM:
             words, who = REFERENCE_WORDS.get(name, ("", ""))
             text = f"Found [{title}]({url})." + (f' {who} said "{words}"' if words else "")
             return ResearchResult(text=text, citations=[Citation(url=url, title=title, cited_text=words)])
+        if prompt.startswith("Find the real numbers for the opening chart"):
+            return ResearchResult(
+                text=DEMO_OPENING_RESEARCH,
+                citations=[Citation(url=DEMO_SOURCE_URL, title="Example chart study", cited_text=DEMO_OPENING_RESEARCH)],
+            )
         return ResearchResult(
             text="# Best practices for technical blogging\n\n## Titles\n- Be specific.\n\n"
             'As the saying goes, "Simplicity is the ultimate sophistication."',
@@ -206,6 +214,39 @@ DEMO_TITLES = [
     "The Case Against Slices",
     "Stop Making Me Compare Angles",
 ]
+
+
+# A believable voice mix for the waffle chart: categories repeat in this order over the sampled sentences.
+_DEMO_MIX = ["Chatty", "Data", "Chatty", "Jokes", "Chatty", "How-to", "Data", "Chatty", "Jokes", "Data"]
+
+
+def _voice_insights_payload(prompt: str) -> dict[str, Any]:
+    section = prompt.split("Numbered sentences", 1)[-1].split("## Output", 1)[0]
+    count = len(re.findall(r"^\d+\. ", section, flags=re.MULTILINE))
+    return {
+        "headline": "Mostly chatty, backed up by data.",
+        "tone": [
+            "Casual, self-deprecating, a little nerdy",
+            "Short punchy sentences, then a quip",
+            "Talks straight to you, the reader",
+            "Owns mistakes out loud, then moves on",
+        ],
+        "signature_phrases": ["Here is a confession", "Everyone peeks", "the smallest", "quietly", "Not a real phrase"],
+        "steer_clear": ["Hype words: leverage, unlock, game-changer", "Long throat-clearing intros"],
+        "mix_categories": [
+            {"name": "Chatty", "description": "Talks to the reader like a peer"},
+            {"name": "Data", "description": "Numbers, results and evidence"},
+            {"name": "Jokes", "description": "Asides and punchlines"},
+            {"name": "How-to", "description": "Steps the reader can follow"},
+        ],
+        "sentence_categories": [{"index": i, "category": _DEMO_MIX[(i - 1) % len(_DEMO_MIX)]} for i in range(1, count + 1)],
+        "image_habits": [
+            "About one image every few hundred words",
+            "Charts right after a colon lead-in",
+            "Close with one joke image",
+        ],
+        "caption_example": "Source: X; Author: Name; Made with Tool",
+    }
 
 
 def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
@@ -268,6 +309,10 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
         }
     if name == "PostEdits":
         return _post_edits(prompt)
+    if name == "ImageTextEdits":
+        return _image_text_edits(prompt)
+    if name == "ImagePlacement":
+        return _image_placement(prompt)
     if name == "ReferencePlan":
         return _reference_plan(prompt)
     if name == "ReferenceEdits":
@@ -290,8 +335,17 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             "issues": ["Opening is generic"],
             "revision_instructions": ["Open with a personal confession"],
         }
+    if name == "OpeningIdeas":
+        return opening_ideas_payload(prompt)
+    if name == "OpeningVerdict":
+        return opening_verdict_payload(prompt)
+    if name == "OpeningBuild":
+        match = re.search(r"Template `([a-z0-9_]+)`", prompt)
+        return opening_build_payload(match.group(1) if match else "cheat_grid")
+    if name == "RenderReview":
+        return {"passes": True, "clickability": 8, "craft": 8, "problems": [], "fix": ""}
     if name == "SvgSpec":
-        if "**hero**" in prompt or "**illustration**" in prompt:
+        if "**hero**" in prompt or "**illustration**" in prompt or "Draw the opening image" in prompt:
             return {"svg": HERO_SVG, "alt": "A robot made of a pie chart under a setting sun", "caption": "The saddest pie"}
         return {"svg": DIAGRAM_SVG, "alt": "A diagram", "caption": "How pies mislead"}
     if name == "SvgMemeSpec":
@@ -327,8 +381,58 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             "What chart do you wish would disappear from slide decks?\n\nFull article in the comments.",
             "hashtags": ["DataVisualization", "Analytics", "data viz"],
         }
+    if name == "VoiceInsights":
+        return _voice_insights_payload(prompt)
     if name == "Judgement":
         return {"reasoning": "Passage A has the author's wry asides.", "authentic": "A", "confidence": 3, "similarity": 7}
+    if name == "EvolutionPlan":
+        return {
+            "summary": "You trimmed the throat-clearing and swapped abstract lines for a concrete example.",
+            "items": [
+                {
+                    "area": "Voice & Tone",
+                    "change": "Open each section with the concrete example, then name the rule.",
+                    "evidence": "You moved the bar-chart example above the explanation.",
+                    "target": "profile",
+                },
+                {
+                    "area": "Lexicon",
+                    "change": "Cut hedges like 'it is worth noting'; say the thing.",
+                    "evidence": "Removed: 'It is worth noting that'.",
+                    "target": "profile",
+                },
+                {
+                    "area": "Humor",
+                    "change": "End a section on a one-line aside when the point is already made.",
+                    "evidence": "Added: 'Honestly, they are mostly round because nobody stopped them.'",
+                    "target": "playbook",
+                },
+            ],
+        }
+    if name == "SecretSauce":
+        return {
+            "summary": "The title promised a fight and the post delivered one, with a fix readers could use the same day.",
+            "items": [
+                {
+                    "area": "Titles",
+                    "change": "Pick a side in the title and defend it in the first paragraph.",
+                    "evidence": "'Pie Charts Are Lame' then 'I am not in it.'",
+                    "target": "playbook",
+                },
+                {
+                    "area": "Structure Blueprint",
+                    "change": "Pair every complaint with a replacement the reader can use today.",
+                    "evidence": "'What To Use Instead' follows the roast.",
+                    "target": "playbook",
+                },
+            ],
+        }
+    if name == "ProfileEdits":
+        # The Lexicon heading is in every demo and sample profile; the second change is left for the fallback rule.
+        return {
+            "summary": "Added a rule to the Lexicon.",
+            "edits": [{"item": "c1", "find": "## Lexicon", "replace": "## Lexicon\n\n- Lead with the concrete example, then the rule."}],
+        }
     raise AssertionError(f"FakeLLM has no payload for {name}")
 
 
@@ -354,6 +458,49 @@ def _post_edits(prompt: str) -> dict[str, Any]:
         "summary": "Added a wry aside to the opening." + (" Redrew the diagram with a new idea." if image_changes else ""),
         "edits": [{"find": paragraph, "replace": paragraph + DEMO_TWEAK}] if paragraph else [],
         "image_changes": image_changes,
+    }
+
+
+DEMO_IMAGE_SYNC = " The picture changed, so this line did too."
+DEMO_PLACEMENT_EDIT = " The diagram below shows it."
+
+
+def _paragraphs(post: str) -> list[str]:
+    return [p.strip() for p in post.split("\n\n") if p.strip()]
+
+
+def _image_text_edits(prompt: str) -> dict[str, Any]:
+    """Like a careful editor: touch the text only when a changed image's format or style really changed."""
+    changes = prompt.split("<post>", 1)[0].split("### `")[1:]
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    paragraphs = _paragraphs(post)
+    edits = []
+    for block in changes:
+        slot = block.split("`", 1)[0]
+        was, _, now = block.partition("Now:")
+        key = lambda text: [line for line in text.splitlines() if line.startswith(("Format:", "Style:"))]  # noqa: E731
+        if key(was) == key(now):
+            continue
+        tag = "{{image:" + slot + "}}"
+        at = next((i for i, p in enumerate(paragraphs) if p == tag), None)
+        before = next((p for p in reversed(paragraphs[: at or 0]) if not p.startswith(("#", "{", "```", "|", ">", "-"))), "")
+        if before:
+            edits.append({"find": before, "replace": before + DEMO_IMAGE_SYNC})
+    return {"summary": "Matched the text to the new image." if edits else "", "edits": edits}
+
+
+def _image_placement(prompt: str) -> dict[str, Any]:
+    """A diagram right after the paragraph that holds the highlight, with one sentence pointing at it."""
+    selection = prompt.split("<highlight>", 1)[-1].split("</highlight>", 1)[0].strip()
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    paragraph = next((p for p in _paragraphs(post) if selection and selection in p), selection)
+    return {
+        "kind": "diagram",
+        "purpose": "Show the idea the highlighted passage describes",
+        "brief": "A flow diagram of: " + selection[:200],
+        "anchor_text": paragraph,
+        "edits": [{"find": paragraph, "replace": paragraph + DEMO_PLACEMENT_EDIT}] if paragraph else [],
+        "summary": "Added a diagram after that paragraph and pointed to it.",
     }
 
 
@@ -593,4 +740,301 @@ def meme_build_payload(format_id: str) -> dict[str, Any]:
         "data": DEMO_MEME_DATA.get(fmt.id, []),
         "alt": f"A {fmt.name} meme about pie charts. Text: " + " / ".join(t["text"] for t in texts if t["text"]),
         "caption": "Pie logic",
+    }
+
+
+# -- Opening images ------------------------------------------------------------------
+# One canned build per template: tests render every one, demo mode draws the chosen one, and
+# scripts/opening_gallery.py lays them out for a visual review. Every number is in DEMO_OPENING_RESEARCH,
+# so the fact check passes the way it would with real research.
+
+DEMO_SOURCE_URL = "https://example.com/chart-reading-study"
+DEMO_OPENING_RESEARCH = (
+    "A 2024 chart-reading study ([Example chart study](https://example.com/chart-reading-study)) asked 1,200 analysts to "
+    "compare values. Accuracy was 62% with pie charts and 91% with sorted bar charts; donuts scored 58%, stacked bars 74% "
+    "and tables 88%. Median time to answer fell from 14 seconds to 6 seconds. Pie chart use in dashboards fell from 38% in "
+    "2019 to 31% in 2021, 24% in 2023 and 17% in 2025, while sorted bar charts rose from 41% to 63% and tables from 22% to "
+    "25%. Readers who saw 3 slices or fewer scored 84%; with 8 or more slices, 41%. On a 10-point reader rating, pie charts "
+    "scored 4 for clarity, 3 for precision, 9 for familiarity and 6 for looks; sorted bars scored 9, 8, 8 and 6."
+)
+_SOURCE = [{"title": "Example chart study, 2024", "url": DEMO_SOURCE_URL}]
+
+
+def _items(*rows: tuple[str, str]) -> list[dict[str, str]]:
+    return [{"label": label, "detail": detail} for label, detail in rows]
+
+
+def _rows(*rows: tuple[str, float, str]) -> list[dict[str, Any]]:
+    return [{"label": label, "value": value, "series": series} for label, value, series in rows]
+
+
+DEMO_OPENING_BUILDS: dict[str, dict[str, Any]] = {
+    "cheat_grid": {
+        "headline": "Pick the right chart in 10 seconds",
+        "subhead": "Six rules that retire the pie chart for good",
+        "items": _items(
+            ("Compare values", "Sorted bars, largest first"),
+            ("Show a trend", "One line per series, labelled at the end"),
+            ("Parts of a whole", "Stacked bar, three parts at most"),
+            ("Before and after", "Dumbbell: two dots and a bar"),
+            ("Many categories", "Small multiples, shared axis"),
+            ("Exact numbers", "A table. Honestly."),
+        ),
+    },
+    "versus": {
+        "headline": "Stop slicing. Start sorting.",
+        "subhead": "The same data, two ways to show it",
+        "left_label": "Pie chart",
+        "right_label": "Sorted bar chart",
+        "items": _items(
+            ("Compare angles by eye", "Compare lengths on one baseline"),
+            ("Legend lookups for every slice", "Labels sit right on the bars"),
+            ("Breaks past five categories", "Handles twenty without trouble"),
+        ),
+    },
+    "big_number": {
+        "headline": "Your readers are guessing",
+        "subhead": "of analysts compared two pie slices correctly",
+        "number": "62%",
+        "items": _items(("With sorted bars: 91%", "")),
+        "data": _rows(("Pie chart accuracy", 62, ""), ("Sorted bar accuracy", 91, "")),
+        "sources": _SOURCE,
+    },
+    "flow": {
+        "headline": "From pie to bar in four moves",
+        "subhead": "",
+        "items": _items(
+            ("List the slices", "Every category and its value"),
+            ("Sort them", "Largest first, always"),
+            ("Draw bars", "One baseline, no 3D"),
+            ("Label directly", "Values on the bars, no legend"),
+        ),
+    },
+    "matrix_2x2": {
+        "headline": "Where your chart belongs",
+        "subhead": "Accuracy against effort for the usual suspects",
+        "left_label": "Effort to read",
+        "right_label": "Accuracy",
+        "items": _items(
+            ("Tables", "Precise but slow to scan"),
+            ("Sorted bars", "Fast and accurate"),
+            ("3D pies", "Slow and wrong"),
+            ("Pie charts", "Fast to make, easy to misread"),
+        ),
+    },
+    "stack": {
+        "headline": "Anatomy of a readable chart",
+        "subhead": "",
+        "items": _items(
+            ("Message", "A title that states the finding"),
+            ("Encoding", "Length on a shared baseline beats angle"),
+            ("Labels", "Direct labels instead of a legend"),
+            ("Data", "Sorted, deduplicated, honest"),
+        ),
+    },
+    "cycle": {
+        "headline": "The dashboard review loop",
+        "subhead": "",
+        "items": _items(
+            ("Ask", "What decision does it serve?"),
+            ("Draw", "Pick the plainest chart"),
+            ("Test", "Can a stranger read it?"),
+            ("Trim", "Cut what nobody used"),
+        ),
+    },
+    "funnel": {
+        "headline": "Where chart readers drop off",
+        "subhead": "",
+        "items": _items(
+            ("Glance", "Every reader looks at the chart"),
+            ("Decode", "Fewer work out the encoding"),
+            ("Compare", "Fewer still compare values"),
+            ("Act", "Only a clear chart gets a decision"),
+        ),
+    },
+    "timeline": {
+        "headline": "The slow decline of the pie chart",
+        "subhead": "",
+        "items": _items(
+            ("1801", "Playfair draws the first pie"),
+            ("1984", "Spreadsheets make pies one click away"),
+            ("2010s", "Dashboards fill with 3D slices"),
+            ("Today", "Sorted bars win the argument"),
+        ),
+    },
+    "line_annotated": {
+        "headline": "Pie charts are quietly disappearing",
+        "subhead": "Share of dashboards with at least one pie chart",
+        "unit": "%",
+        "annotation": "Down by more than half in six years",
+        "data": _rows(("2019", 38, ""), ("2021", 31, ""), ("2023", 24, ""), ("2025", 17, "")),
+        "sources": _SOURCE,
+    },
+    "slope": {
+        "headline": "Dashboards are trading pies for bars",
+        "subhead": "Share of dashboards using each chart, 2019 and 2025",
+        "unit": "%",
+        "data": _rows(
+            ("Pie charts", 38, "2019"),
+            ("Pie charts", 17, "2025"),
+            ("Sorted bars", 41, "2019"),
+            ("Sorted bars", 63, "2025"),
+            ("Tables", 22, "2019"),
+            ("Tables", 25, "2025"),
+        ),
+        "sources": _SOURCE,
+    },
+    "dumbbell": {
+        "headline": "Same data, very different accuracy",
+        "subhead": "Share of readers who compared values correctly",
+        "unit": "%",
+        "data": _rows(
+            ("All readers", 62, "Pie chart"),
+            ("All readers", 91, "Sorted bars"),
+            ("8+ slices", 41, "Pie chart"),
+            ("8+ slices", 88, "Sorted bars"),
+        ),
+        "sources": _SOURCE,
+    },
+    "waterfall": {
+        "headline": "Where the pie chart lost its readers",
+        "subhead": "Accuracy, from sorted bars down to the pie",
+        "unit": "%",
+        "data": _rows(
+            ("Sorted bars", 91, "total"),
+            ("Tables", -3, ""),
+            ("Stacked bars", -14, ""),
+            ("Pie charts", -12, ""),
+            ("Pie result", 62, "total"),
+        ),
+        "sources": _SOURCE,
+    },
+    "tornado": {
+        "headline": "Slice count makes or breaks a pie",
+        "subhead": "Accuracy with few slices and with many",
+        "unit": "%",
+        "data": _rows(
+            ("Pie charts", 84, "3 slices or fewer"),
+            ("Pie charts", 41, "8 slices or more"),
+            ("Donuts", 58, "3 slices or fewer"),
+            ("Donuts", 41, "8 slices or more"),
+        ),
+        "sources": _SOURCE,
+    },
+    "ranked_bar": {
+        "headline": "Pie charts finish second to last",
+        "subhead": "Share of readers who compared values correctly",
+        "unit": "%",
+        "data": _rows(("Sorted bars", 91, ""), ("Tables", 88, ""), ("Stacked bars", 74, ""), ("Pie charts", 62, ""), ("Donuts", 58, "")),
+        "sources": _SOURCE,
+    },
+    "heatmap": {
+        "headline": "Accuracy falls as slices pile up",
+        "subhead": "Share of correct comparisons",
+        "unit": "%",
+        "data": _rows(
+            ("3 or fewer", 84, "Pie charts"),
+            ("8 or more", 41, "Pie charts"),
+            ("3 or fewer", 91, "Sorted bars"),
+            ("8 or more", 88, "Sorted bars"),
+        ),
+        "sources": _SOURCE,
+    },
+    "spider": {
+        "headline": "Familiar is not the same as clear",
+        "subhead": "Reader ratings out of 10",
+        "data": _rows(
+            *((axis, value, "Pie charts") for axis, value in (("Clarity", 4), ("Precision", 3), ("Familiarity", 9), ("Looks", 6))),
+            *((axis, value, "Sorted bars") for axis, value in (("Clarity", 9), ("Precision", 8), ("Familiarity", 8), ("Looks", 6))),
+        ),
+        "sources": _SOURCE,
+    },
+}
+
+
+_DEMO_OPENING_CONCEPTS: dict[str, dict[str, str]] = {
+    "editorial": {
+        "hook": "Everyone has squinted at a pie chart; here is why.",
+        "concept": "A baker's scale weighing pie slices against neat bar-shaped loaves; the scale tips toward the bars.",
+    },
+    "data_art": {
+        "hook": "Messy slices sorting themselves into clean bars is oddly satisfying.",
+        "concept": "Streams of coloured particles pour out of a pie and settle into sorted, glowing bars.",
+    },
+    "meme": {"hook": "Every analyst has been asked for this chart.", "concept": "A stakeholder asking for a 14-slice pie chart."},
+    "cheat_sheet": {"hook": "Save this before your next dashboard review.", "concept": "Six rules for picking the right chart."},
+    "data_chart": {"hook": "The numbers settle the argument.", "concept": "Pie chart use in dashboards falling year after year."},
+    "big_number": {"hook": "One number every chart maker should know.", "concept": "How often readers compare pie slices correctly."},
+    "versus": {"hook": "The same data, two very different reads.", "concept": "Pie chart against sorted bar chart, point by point."},
+    "framework": {"hook": "The four moves from pie to bar.", "concept": "A four-step flow from a pie chart to a sorted bar chart."},
+    "receipt": {"hook": "The one line of code that fixes it.", "concept": "A code editor changing kind='pie' to kind='barh' after a sort."},
+}
+
+
+def opening_ideas_payload(prompt: str) -> dict[str, Any]:
+    """Concepts in the styles the prompt allows: the post's best-fit style first, then the open styles."""
+    from proseferno.images.opening.styles import BY_ID
+
+    count = int(m.group(1)) if (m := re.search(r"Pitch exactly (\d+)", prompt)) else 6
+    section = prompt.split("<styles>", 1)[-1].split("</styles>", 1)[0]
+    allowed = re.findall(r"^- `([a-z_]+)`", section, flags=re.MULTILINE)
+    fits = re.findall(r"`([a-z_]+)`", m.group(1)) if (m := re.search(r"best fits for this post first: (.+)", prompt)) else []
+    if len(allowed) == 1:
+        styles = allowed * count
+    else:
+        lead = [s for s in fits if s in allowed and s not in ("editorial", "data_art")][:1]
+        styles = [*lead, "editorial", "editorial", "data_art"]
+        styles += [s for s in allowed if s not in styles]
+        styles = (styles * count)[:count]
+    concepts = []
+    for i, style in enumerate(styles):
+        words = _DEMO_OPENING_CONCEPTS.get(style, _DEMO_OPENING_CONCEPTS["editorial"])
+        templates = BY_ID[style].templates if style in BY_ID else []
+        concepts.append(
+            {
+                "style": style,
+                "template": templates[i % len(templates)] if templates else "",
+                "hook": words["hook"],
+                "concept": f"{words['concept']} (idea {i + 1})",
+                "content": "Sorted bars; direct labels; no 3D",
+                "data_claim": "Pie chart accuracy against sorted bars, from a chart-reading study"
+                if BY_ID.get(style) and BY_ID[style].needs_data
+                else "",
+            }
+        )
+    return {"concepts": concepts}
+
+
+def opening_verdict_payload(prompt: str) -> dict[str, Any]:
+    """The panel likes the first concept best, then each later one a little less."""
+    count = len(re.findall(r"^Concept \d+:", prompt, flags=re.MULTILINE))
+    scores = [
+        {
+            "concept": i,
+            "scroller": max(3, 9 - i),
+            "art_director": max(3, 9 - i),
+            "fact_checker": 8,
+            "author": max(5, 9 - i),
+            "note": "Clear at a glance; it needs crisp labels." if i == 0 else "Solid, but less of a hook.",
+        }
+        for i in range(count)
+    ]
+    return {"scores": scores, "summary": "The first idea says the post's point fastest."}
+
+
+def opening_build_payload(template_id: str) -> dict[str, Any]:
+    build = DEMO_OPENING_BUILDS.get(template_id) or DEMO_OPENING_BUILDS["cheat_grid"]
+    return {
+        "subhead": "",
+        "items": [],
+        "data": [],
+        "number": "",
+        "unit": "",
+        "left_label": "",
+        "right_label": "",
+        "annotation": "",
+        "sources": [],
+        "alt": f"Opening image: {build['headline']}.",
+        "caption": "Pie charts, measured.",
+        **build,
     }

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
-from sqlmodel import Session, col, delete, select
+from sqlmodel import Session, col, select
 
+from proseferno.abtest.service import ABTestError, current_test, delete_project_data, start_ab_test
 from proseferno.api.deps import ServicesDep, SessionDep, image_or_404, persona_or_404, project_or_404
+from proseferno.api.evolution import evolution_out
 from proseferno.api.schemas import (
+    ABTestSummary,
+    AddImageIn,
     CopyHtmlOut,
     GenerateIn,
     ImageEditIn,
@@ -25,6 +28,13 @@ from proseferno.api.schemas import (
     MemePitchOut,
     MemeSlotOut,
     MemeWordsIn,
+    OpeningCatalogOut,
+    OpeningInfoOut,
+    OpeningPitchOut,
+    OpeningReviewOut,
+    OpeningSourceOut,
+    OpeningStyleOut,
+    OpeningWordsIn,
     ProjectCreate,
     ProjectCreated,
     ProjectOut,
@@ -39,10 +49,19 @@ from proseferno.api.schemas import (
     TweakIn,
 )
 from proseferno.authenticity import analyze, author_profile
-from proseferno.db import Persona, Project, ProjectImage, ProjectReference, Sample, utcnow
+from proseferno.db import Persona, PersonaEvolution, Project, ProjectImage, ProjectReference, Sample, utcnow
+from proseferno.evolution import change_stage, edit_rate, start_analysis
 from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
 from proseferno.images.memes import FAMILIES, FORMATS, get_format, load_state
+from proseferno.images.opening.room import JUDGES, fit_of, sources_of
+from proseferno.images.opening.room import load_state as load_opening_state
+from proseferno.images.opening.room import ruled_out as opening_ruled_out
+from proseferno.images.opening.room import total as opening_total
+from proseferno.images.opening.specs import OpeningBuild
+from proseferno.images.opening.styles import STYLES, get_style, suggested_by_type
+from proseferno.images.opening.templates import get_template, slot_texts
+from proseferno.images.service import is_meme, meme_spec
 from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_profile
@@ -63,9 +82,12 @@ from proseferno.writer import (
     tweak_post,
     word_count,
 )
+from proseferno.writer.add_image import add_image_at
+from proseferno.writer.image_text import describe_image, failed_sync_result, sync_text_to_images
 from proseferno.writer.pipeline import measure
-from proseferno.writer.references import delete_references, in_post, project_references
+from proseferno.writer.references import in_post, project_references
 from proseferno.writer.social import write_linkedin_post
+from proseferno.writer.tweak import locate
 
 router = APIRouter(prefix="/api")
 
@@ -97,11 +119,73 @@ def image_out(image: ProjectImage) -> ImageOut:
         url=image_url(image),
         history=history,
         meme=meme_info(image),
+        opening=opening_info(image),
+    )
+
+
+def opening_info(image: ProjectImage) -> OpeningInfoOut | None:
+    state = load_opening_state(image.spec) if image.kind == "hero" else None
+    if state is None:
+        return None
+    entries = state.get("concepts") or []
+    chosen, tried = state.get("chosen"), set(state.get("tried") or [])
+    pitches = []
+    for i, entry in enumerate(entries):
+        style = get_style(str(entry.get("style", "")))
+        if style is None:
+            continue
+        panel = entry.get("panel") or {}
+        pitches.append(
+            OpeningPitchOut(
+                index=i,
+                style=style.id,
+                style_label=style.label,
+                template=str(entry.get("template") or ""),
+                hook=str(entry.get("hook") or ""),
+                concept=str(entry.get("concept") or ""),
+                scores={j: int(panel.get(j, 0)) for j in JUDGES},
+                note=str(panel.get("note") or ""),
+                total=opening_total(entry)[0],
+                ruled_out=opening_ruled_out(entry),
+                tried=i in tried,
+                current=i == chosen,
+            )
+        )
+    style = get_style(str(state.get("style") or ""))
+    template = get_template(str(state.get("template") or ""))
+    slots: list[MemeSlotOut] = []
+    if template is not None and state.get("build"):
+        build = OpeningBuild.model_validate(state["build"])
+        slots = [
+            MemeSlotOut(name=name, hint=hint, text=text, max_chars=limit, optional=name != "headline")
+            for name, hint, text, limit in slot_texts(template, build)
+        ]
+    review = state.get("review") or None
+    failed = get_style(str(state.get("fallback_from") or ""))
+    return OpeningInfoOut(
+        style=style.id if style else "",
+        style_label=style.label if style else "",
+        template=template.id if template else "",
+        mode=str(state.get("mode") or "auto"),
+        summary=str(state.get("summary") or ""),
+        ideas_left=sum(1 for p in pitches if not p.tried and not p.ruled_out),
+        fallback_from=failed.label if failed else "",
+        pitches=pitches,
+        sources=[OpeningSourceOut(**s) for s in sources_of(state)],
+        review=(
+            OpeningReviewOut(verdict="skipped", note=str(review.get("note", "")))
+            if review and review.get("skipped")
+            else OpeningReviewOut(**{k: review[k] for k in ("verdict", "clickability", "craft", "problems") if k in review})
+            if review
+            else None
+        ),
+        slots=slots,
+        thumbnail_fit=fit_of(state),
     )
 
 
 def meme_info(image: ProjectImage) -> MemeInfoOut | None:
-    state = load_state(image.spec) if image.kind == "meme" else None
+    state = load_state(meme_spec(image)) if is_meme(image) else None
     if state is None:
         return None
     concepts = state.get("concepts") or []
@@ -190,8 +274,16 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
         )
         for i, entry in enumerate(project.revisions or [])
     ]
+    test = current_test(session, project.id)
+    evolutions = session.exec(
+        select(PersonaEvolution).where(PersonaEvolution.project_id == project.id).order_by(col(PersonaEvolution.created_at))
+    ).all()
     return ProjectOut(
-        **project.model_dump(exclude={"revisions"}),
+        **project.model_dump(exclude={"revisions", "baseline_markdown", "baseline_title", "ab_test_id", "variant"}),
+        ab_test=ABTestSummary(id=test.id, status=test.status, error=test.error) if test is not None and test.id is not None else None,
+        has_baseline=bool(project.baseline_markdown),
+        edit_rate=edit_rate(project.baseline_markdown, project.markdown) if project.baseline_markdown else None,
+        evolutions=[evolution_out(e) for e in evolutions],
         revisions=revisions,
         resolved_dials=resolved,
         images=[image_out(i) for i in project_images(session, project.id)],
@@ -204,6 +296,13 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
 def _check_idle(services: Services, project_id: int) -> None:
     if services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS):
         raise HTTPException(409, "Claude is still working on this post. Wait for it to finish.")
+
+
+def _check_no_open_test(session: Session, project_id: int) -> None:
+    """While an A/B test is open the post is not refined: the author picks a winner (or discards the test) first."""
+    test = current_test(session, project_id)
+    if test is not None and test.status != "decided":
+        raise HTTPException(409, "This post has an A/B test in progress. Pick a winner or discard the test first.")
 
 
 def _writable_persona(session: Session, persona_id: int) -> Persona:
@@ -240,7 +339,8 @@ async def start_generation(services: Services, project_id: int) -> str:
 
 @router.get("/projects", response_model=list[ProjectSummary])
 def list_projects(session: SessionDep) -> list[ProjectSummary]:
-    projects = session.exec(select(Project).order_by(col(Project.updated_at).desc())).all()
+    # The two hidden posts of an A/B test are not posts of their own.
+    projects = session.exec(select(Project).where(col(Project.variant).is_(None)).order_by(col(Project.updated_at).desc())).all()
     names = {p.id: p.name for p in session.exec(select(Persona))}
     out = []
     for project in projects:
@@ -248,9 +348,12 @@ def list_projects(session: SessionDep) -> list[ProjectSummary]:
         hero = session.exec(select(ProjectImage).where(ProjectImage.project_id == project.id, ProjectImage.slot_id == "hero")).first()
         out.append(
             ProjectSummary(
-                **project.model_dump(include={"id", "persona_id", "title", "prompt", "status", "created_at", "updated_at"}),
+                **project.model_dump(
+                    include={"id", "persona_id", "title", "prompt", "status", "stage", "outcome", "created_at", "updated_at"}
+                ),
                 persona_name=names.get(project.persona_id, ""),
                 thumbnail_url=image_url(hero) if hero else None,
+                ab_status=test.status if (test := current_test(session, project.id)) else None,
             )
         )
     return out
@@ -279,7 +382,14 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
     session.commit()
     session.refresh(project)
     assert project.id is not None
-    job_id = await start_generation(services, project.id) if body.generate else None
+    job_id: str | None = None
+    if body.generate and body.mode == "ab":
+        try:
+            job_id = (await start_ab_test(services, project.id)).id
+        except ABTestError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    elif body.generate:
+        job_id = await start_generation(services, project.id)
     session.refresh(project)
     return ProjectCreated(project=project_out(session, project, services), job_id=job_id)
 
@@ -290,7 +400,7 @@ def get_project(project_id: int, session: SessionDep, services: ServicesDep) -> 
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectOut)
-def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, services: ServicesDep) -> ProjectOut:
+async def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, services: ServicesDep) -> ProjectOut:
     project = project_or_404(session, project_id)
     if body.markdown is not None and body.markdown != project.markdown:
         push_revision(project, "Before your edit", "edit")
@@ -313,27 +423,29 @@ def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, se
     if body.persona_id is not None and body.persona_id != project.persona_id:
         _writable_persona(session, body.persona_id)
         project.persona_id = body.persona_id
+    due = change_stage(session, project, stage=body.stage, outcome=body.outcome) if body.stage or body.outcome else []
     project.updated_at = utcnow()
     session.add(project)
     session.commit()
+    # Publishing compares the post with what was generated; a hit is read for its secret sauce.
+    for kind in due:
+        await start_analysis(services, project_id, kind)
     session.refresh(project)
     return project_out(session, project, services)
 
 
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, session: SessionDep, services: ServicesDep) -> None:
-    project = project_or_404(session, project_id)
-    session.exec(delete(ProjectImage).where(col(ProjectImage.project_id) == project_id))  # type: ignore[call-overload]
-    delete_references(session, [project_id])
-    session.delete(project)
+    project_or_404(session, project_id)
+    delete_project_data(session, services.storage, project_id)
     session.commit()
-    shutil.rmtree(services.storage.project_dir(project_id), ignore_errors=True)
 
 
 @router.post("/projects/{project_id}/generate", response_model=JobOut, status_code=202)
 async def generate(project_id: int, session: SessionDep, services: ServicesDep, body: GenerateIn | None = None) -> JobOut:
     """Write the whole post again; with a body, first apply a new brief, dials or persona."""
     project = project_or_404(session, project_id)
+    _check_no_open_test(session, project_id)
     body = body or GenerateIn()
     persona_id = body.persona_id if body.persona_id is not None else project.persona_id
     _writable_persona(session, persona_id)
@@ -357,6 +469,7 @@ async def tweak(project_id: int, body: TweakIn, session: SessionDep, services: S
     project = project_or_404(session, project_id)
     if not project.markdown:
         raise HTTPException(409, "Generate the post before tweaking it.")
+    _check_no_open_test(session, project_id)
     _writable_persona(session, project.persona_id)
     _check_idle(services, project_id)
     job = await services.jobs.start(
@@ -375,6 +488,19 @@ async def tweak(project_id: int, body: TweakIn, session: SessionDep, services: S
     return JobOut(**job.model_dump())
 
 
+def _drop_added_image(session: Session, services: Services, project: Project, slot_id: str) -> None:
+    """Remove an image the author added from a highlight: its row, files and plan slot. The caller commits."""
+    folder = services.storage.image_dir(project.id)  # type: ignore[arg-type]
+    for image in session.exec(select(ProjectImage).where(ProjectImage.project_id == project.id, ProjectImage.slot_id == slot_id)):
+        names = {image.file_name, *(entry.get("file_name") for entry in image.history)} - {None}
+        for name in names:
+            (folder / str(name)).unlink(missing_ok=True)
+        session.delete(image)
+    plan = dict(project.plan or {})
+    plan["image_slots"] = [slot for slot in plan.get("image_slots", []) if slot.get("slot_id") != slot_id]
+    project.plan = plan
+
+
 @router.post("/projects/{project_id}/revisions/{index}/restore", response_model=ProjectOut)
 def restore_revision(project_id: int, index: int, session: SessionDep, services: ServicesDep) -> ProjectOut:
     """Bring back an earlier text version; the current text becomes a version too, so this can be undone."""
@@ -385,6 +511,9 @@ def restore_revision(project_id: int, index: int, session: SessionDep, services:
     _check_idle(services, project_id)
     entry = revisions.pop(index)
     project.revisions = revisions
+    if entry.get("added_slot"):
+        # The text from before an image was added: the image goes too, or its placeholder would come straight back.
+        _drop_added_image(session, services, project, str(entry["added_slot"]))
     push_revision(project, f"Before restoring: {entry.get('label', '')}", "restore")
     project.markdown = finish_text(str(entry.get("markdown", "")), project.plan)
     title, subtitle = split_title(project.markdown)
@@ -403,6 +532,7 @@ def restore_revision(project_id: int, index: int, session: SessionDep, services:
 @router.post("/projects/{project_id}/rewrite", response_model=ProjectOut)
 async def rewrite(project_id: int, body: RewriteIn, session: SessionDep, services: ServicesDep) -> ProjectOut:
     project_or_404(session, project_id)
+    _check_no_open_test(session, project_id)
     try:
         await rewrite_passage(
             llm=services.llm,
@@ -490,6 +620,24 @@ def update_image(image_id: int, body: ImageUpdate, session: SessionDep) -> Image
     return image_out(image)
 
 
+async def _sync_text(services: Services, project_id: int, changes: list[tuple[str, str, str]], ctx) -> dict:  # type: ignore[no-untyped-def]
+    """After images are redrawn, fix the sentences that described the old ones. Never fails the redraw."""
+    if services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS):
+        return {"text_edits": 0, "text_summary": ""}
+    try:
+        await ctx.progress(0.85, "Updating the text around the image")
+        return await sync_text_to_images(
+            engine=services.engine,
+            llm=services.llm,
+            settings=services.settings,
+            project_id=project_id,
+            changes=changes,
+            usage=ctx.add_usage,
+        )
+    except Exception as exc:  # noqa: BLE001 - the redraw already succeeded; a failed text check must not fail it
+        return failed_sync_result(exc)
+
+
 async def _image_job(
     services: Services,
     session: Session,
@@ -499,6 +647,8 @@ async def _image_job(
     instruction: str = "",
     meme_format: str | None = None,
     meme_concept: int | None = None,
+    opening_style: str | None = None,
+    opening_concept: int | None = None,
 ) -> JobOut:
     image = image_or_404(session, image_id)
     project = project_or_404(session, image.project_id)
@@ -507,6 +657,7 @@ async def _image_job(
     brand_kit = dict(project.brand_kit or {})
     voice_profile = current_voice_profile(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
+    before = describe_image(image)
 
     async def run(ctx):  # type: ignore[no-untyped-def]
         await ctx.progress(0.1, "Editing image" if instruction else "Redrawing image")
@@ -522,11 +673,16 @@ async def _image_job(
             instruction=instruction,
             meme_format=meme_format,
             meme_concept=meme_concept,
+            opening_style=opening_style,
+            opening_concept=opening_concept,
             usage=ctx.add_usage,
         )
         if result.status == "error":
             raise ImageProviderError(result.error or "Image generation failed.")
-        return {"image_id": image_id}
+        return {
+            "image_id": image_id,
+            **await _sync_text(services, image.project_id, [(result.slot_id, before, describe_image(result))], ctx),
+        }
 
     job = await services.jobs.start("edit_image" if instruction else "redraw_image", run, project_id=project.id)
     return JobOut(**job.model_dump())
@@ -536,16 +692,63 @@ async def _image_job(
 async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, services: ServicesDep) -> JobOut:
     """Make a new version of one image (redesign it with ``rethink``).
 
-    Memes can switch format with ``meme_format`` or to one of their stored pitches with ``meme_concept``."""
+    Memes (closing or opening) can switch format with ``meme_format`` or to one of their stored pitches with
+    ``meme_concept``. The opening image can pitch again in one style with ``opening_style`` or build one of the
+    panel's stored pitches with ``opening_concept``."""
+    image = image_or_404(session, image_id)
     if body.meme_format is not None or body.meme_concept is not None:
-        image = image_or_404(session, image_id)
-        if image.kind != "meme":
+        if not is_meme(image):
             raise HTTPException(422, "Only memes have formats and pitches.")
         if body.meme_format is not None and not get_format(body.meme_format):
             raise HTTPException(422, f"Unknown meme format {body.meme_format!r}.")
-        if body.meme_concept is not None and body.meme_concept >= len((load_state(image.spec) or {}).get("concepts") or []):
+        if body.meme_concept is not None and body.meme_concept >= len((load_state(meme_spec(image)) or {}).get("concepts") or []):
             raise HTTPException(422, "This meme has no such pitch.")
-    return await _image_job(services, session, image_id, rethink=body.rethink, meme_format=body.meme_format, meme_concept=body.meme_concept)
+    if body.opening_style is not None or body.opening_concept is not None:
+        if image.kind != "hero":
+            raise HTTPException(422, "Only the opening image has opening styles and pitches.")
+        if body.opening_style is not None and not get_style(body.opening_style):
+            raise HTTPException(422, f"Unknown opening style {body.opening_style!r}.")
+        if body.opening_concept is not None and body.opening_concept >= len((load_opening_state(image.spec) or {}).get("concepts") or []):
+            raise HTTPException(422, "This opening image has no such pitch.")
+    return await _image_job(
+        services,
+        session,
+        image_id,
+        rethink=body.rethink,
+        meme_format=body.meme_format,
+        meme_concept=body.meme_concept,
+        opening_style=body.opening_style,
+        opening_concept=body.opening_concept,
+    )
+
+
+@router.put("/images/{image_id}/opening-words", response_model=ImageOut)
+def set_opening_words(image_id: int, body: OpeningWordsIn, session: SessionDep, services: ServicesDep) -> ImageOut:
+    """Retype the words of a code-drawn opening image (cheat sheet, versus, big number, framework, chart).
+    It is laid out again at once with no call to Claude; numbers and sources cannot be changed this way."""
+    image = image_or_404(session, image_id)
+    project = project_or_404(session, image.project_id)
+    persona = persona_or_404(session, project.persona_id)
+    try:
+        return image_out(services.images.set_opening_words(image_id, body.words, persona=persona, brand_kit=dict(project.brand_kit or {})))
+    except ImageProviderError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/opening-styles", response_model=OpeningCatalogOut)
+def opening_styles() -> OpeningCatalogOut:
+    """Every way a post can open, and which styles suit each article type."""
+    from proseferno.writer.formulas import ARTICLE_TYPES
+
+    return OpeningCatalogOut(
+        styles=[
+            OpeningStyleOut(
+                id=s.id, label=s.label, summary=s.summary, when_to_use=s.when_to_use, needs_data=s.needs_data, min_humor=s.min_humor
+            )
+            for s in STYLES
+        ],
+        suggested_by_type=suggested_by_type([t.id for t in ARTICLE_TYPES]),
+    )
 
 
 @router.put("/images/{image_id}/meme-words", response_model=ImageOut)
@@ -576,36 +779,80 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
     brand_kit = dict(project.brand_kit or {})
     voice_profile = current_voice_profile(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
-    image_ids = [i.id for i in project_images(session, project_id) if i.id is not None and i.provider not in ("upload", "placeholder")]
+    drawn = [
+        (i.id, i.kind) for i in project_images(session, project_id) if i.id is not None and i.provider not in ("upload", "placeholder")
+    ]
+    before = {i.id: (i.slot_id, describe_image(i)) for i in project_images(session, project_id) if i.id is not None}
+    image_ids = [image_id for image_id, _ in drawn]
     if not image_ids:
         raise HTTPException(409, "This post has no drawn images to redraw.")
 
     async def run(ctx):  # type: ignore[no-untyped-def]
         done = 0
         semaphore = asyncio.Semaphore(3)
+        redrawn: dict[int, ProjectImage] = {}
+        # The closing meme waits for the opening image, so a meme sandwich's closer knows the new opener.
+        opened = asyncio.Event()
+        if not any(kind == "hero" for _, kind in drawn):
+            opened.set()
 
-        async def one(image_id: int) -> None:
+        async def one(image_id: int, kind: str) -> None:
             nonlocal done
-            async with semaphore:
-                await services.images.create(
-                    image_id,
-                    persona=persona,
-                    title=title,
-                    markdown=markdown,
-                    voice_profile=voice,
-                    redraw=True,
-                    brand_kit=brand_kit,
-                    usage=ctx.add_usage,
-                )
+            if kind == "meme":
+                await opened.wait()
+            try:
+                async with semaphore:
+                    redrawn[image_id] = await services.images.create(
+                        image_id,
+                        persona=persona,
+                        title=title,
+                        markdown=markdown,
+                        voice_profile=voice,
+                        redraw=True,
+                        brand_kit=brand_kit,
+                        usage=ctx.add_usage,
+                    )
+            finally:
+                if kind == "hero":
+                    opened.set()
             done += 1
             await ctx.emit("image_ready", {"image_id": image_id})
             await ctx.progress(done / len(image_ids), f"Redrew {done} of {len(image_ids)} images")
 
         await ctx.progress(0.05, f"Redrawing {len(image_ids)} images")
-        await asyncio.gather(*(one(i) for i in image_ids))
-        return {"image_ids": image_ids}
+        await asyncio.gather(*(one(i, kind) for i, kind in drawn))
+        changes = [(before[i][0], before[i][1], describe_image(img)) for i, img in redrawn.items() if i in before]
+        return {"image_ids": image_ids, **await _sync_text(services, project_id, changes, ctx)}
 
     job = await services.jobs.start("redraw_images", run, project_id=project_id)
+    return JobOut(**job.model_dump())
+
+
+@router.post("/projects/{project_id}/images", response_model=JobOut, status_code=202)
+async def add_image(project_id: int, body: AddImageIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Add an image near a highlighted passage: Claude picks the spot and the kind, draws it, and reworks adjacent text."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post before adding images.")
+    _check_no_open_test(session, project_id)
+    _writable_persona(session, project.persona_id)
+    _check_idle(services, project_id)
+    if locate(project.markdown, body.selection) is None:
+        raise HTTPException(422, "Could not find the highlighted text in the post. Select it again.")
+    job = await services.jobs.start(
+        "add_image",
+        lambda ctx: add_image_at(
+            engine=services.engine,
+            llm=services.llm,
+            settings=services.settings,
+            images=services.images,
+            project_id=project_id,
+            selection=body.selection,
+            instruction=body.instruction,
+            ctx=ctx,
+        ),
+        project_id=project_id,
+    )
     return JobOut(**job.model_dump())
 
 

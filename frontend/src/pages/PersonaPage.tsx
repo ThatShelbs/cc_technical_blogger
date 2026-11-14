@@ -1,10 +1,11 @@
 import { Check, Copy, FileText, Pencil, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { errorText } from '../api/client'
-import { usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
+import { useOpeningStyles, usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
 import type { PersonaOut, PersonaUpdate } from '../api/types.gen'
+import { EvolutionPanel } from '../components/EvolutionPanel'
 import { FormulaFields } from '../components/FormulaFields'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
@@ -12,9 +13,11 @@ import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, 
 import { cx } from '../lib/cx'
 import { buildFormula, formulaFrom } from '../lib/formula'
 import { autoReferenceCount } from '../lib/references'
+import { InsightsTab } from './persona/InsightsTab'
 import { PLATFORMS, STYLE_DIALS, autoImageCount, styleLabel, type Education, type IncludeCode, type Platform } from './dials'
 
-type Tab = 'samples' | 'voice' | 'settings'
+type Tab = 'samples' | 'voice' | 'insights' | 'evolution' | 'settings'
+const TABS: Tab[] = ['samples', 'voice', 'insights', 'evolution', 'settings']
 
 function SamplesTab({ personaId }: { personaId: number }) {
   const { data: samples, isLoading } = useSamples(personaId)
@@ -102,6 +105,7 @@ function defaultsFrom(persona: PersonaOut) {
     default_include_code: persona.default_include_code as IncludeCode,
     default_platform: persona.default_platform as Platform,
     default_formula: buildFormula(formulaFrom(persona.default_formula)),
+    default_opening_style: persona.default_opening_style,
     voice_profile_words: persona.voice_profile_words,
     voice_sample_max_words: persona.voice_sample_max_words,
     voice_sample_min_words: persona.voice_sample_min_words,
@@ -177,6 +181,7 @@ function LessonsCard({ persona }: { persona: PersonaOut }) {
 
 function SettingsTab({ persona }: { persona: PersonaOut }) {
   const { update, remove } = usePersonaMutations()
+  const { data: openingCatalog } = useOpeningStyles()
   const navigate = useNavigate()
   const [draft, setDraft] = useState(() => defaultsFrom(persona))
   const set = (patch: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...patch }))
@@ -302,6 +307,22 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
           humor={draft.default_humor}
           idPrefix="p-"
         />
+        <div className="space-y-3 border-t border-line pt-4">
+          <div>
+            <h3 className="font-bold">Opening image</h3>
+            <p className="text-sm text-muted">How new posts open. Auto lets the panel pick the most clickable idea for each post.</p>
+          </div>
+          <Field label="Style" htmlFor="p-opening">
+            <Select id="p-opening" value={draft.default_opening_style} onChange={(e) => set({ default_opening_style: e.target.value })}>
+              <option value="auto">Auto: the panel picks</option>
+              {openingCatalog.styles.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
       </Card>
 
       <Card className="h-fit space-y-5">
@@ -501,7 +522,11 @@ export function PersonaPage() {
   const id = Number(useParams().id)
   const { data: persona, isLoading, error } = usePersona(id)
   const { activate } = usePersonaMutations()
-  const [tab, setTab] = useState<Tab>('samples')
+  // The tab lives in the URL (?tab=insights), so a reload keeps it and it can be linked.
+  const [params, setParams] = useSearchParams()
+  const linked = params.get('tab') as Tab | null
+  const tab: Tab = linked && TABS.includes(linked) ? linked : 'samples'
+  const setTab = (next: Tab) => setParams(next === 'samples' ? {} : { tab: next }, { replace: true })
   const [duplicating, setDuplicating] = useState(false)
 
   if (isLoading) return <Spinner />
@@ -510,6 +535,8 @@ export function PersonaPage() {
   const tabs: [Tab, string][] = [
     ['samples', 'Writing samples'],
     ['voice', 'Voice profile'],
+    ['insights', 'Insights'],
+    ['evolution', persona.pending_evolutions ? `Evolution (${persona.pending_evolutions})` : 'Evolution'],
     ['settings', 'Settings & defaults'],
   ]
   return (
@@ -550,6 +577,8 @@ export function PersonaPage() {
       </div>
       {tab === 'samples' && <SamplesTab personaId={persona.id} />}
       {tab === 'voice' && <VoiceProfilePanel personaId={persona.id} />}
+      {tab === 'insights' && <InsightsTab personaId={persona.id} onOpenTab={setTab} />}
+      {tab === 'evolution' && <EvolutionPanel personaId={persona.id} />}
       {tab === 'settings' && <SettingsTab key={`${persona.id}-${persona.name}`} persona={persona} />}
       {duplicating && <DuplicatePersonaDialog persona={persona} open onClose={() => setDuplicating(false)} />}
     </>

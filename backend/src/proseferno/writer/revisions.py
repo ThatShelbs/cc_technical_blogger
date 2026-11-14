@@ -7,7 +7,7 @@ from typing import Any, Literal
 from proseferno.db import Project, utcnow
 from proseferno.images import PLACEHOLDER_RE
 
-RevisionKind = Literal["tweak", "rewrite", "section", "edit", "restore", "reference"]
+RevisionKind = Literal["tweak", "rewrite", "section", "edit", "restore", "reference", "image"]
 MAX_REVISIONS = 10
 
 

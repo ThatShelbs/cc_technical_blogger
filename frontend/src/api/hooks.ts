@@ -4,10 +4,16 @@ import { EMPTY_CATALOG } from '../lib/formula'
 import type { ReferenceKind } from '../lib/references'
 import { api } from './client'
 import type {
+  ABAdoptOut,
+  ABDecideIn,
+  ABTestOut,
+  AddImageIn,
   AuthStatusOut,
   AuthTestOut,
+  BaselineDiffOut,
   CopyHtmlOut,
   EnrichIn,
+  EvolutionOut,
   FormulaCatalogOut,
   FormulaIn,
   FormulaOut,
@@ -15,10 +21,13 @@ import type {
   Health,
   ImageOut,
   MemeFormatOut,
+  OpeningCatalogOut,
   JobOut,
   LinkedInPostOut,
   PersonaCreate,
   PersonaDuplicateIn,
+  PersonaEvolutionOut,
+  PersonaInsightsOut,
   PersonaOut,
   PersonaUpdate,
   ProjectCreate,
@@ -51,8 +60,13 @@ export const keys = {
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
   memeFormats: ['meme-formats'] as const,
+  openingStyles: ['opening-styles'] as const,
   formulaCatalog: ['formula-catalog'] as const,
   formulas: ['formulas'] as const,
+  evolution: (personaId: number) => ['personas', personaId, 'evolution'] as const,
+  insights: (personaId: number) => ['personas', personaId, 'insights'] as const,
+  baselineDiff: (projectId: number) => ['projects', projectId, 'baseline-diff'] as const,
+  abTest: (id: number) => ['ab-tests', id] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -260,7 +274,13 @@ export function useSaveVoiceProfile(personaId: number) {
 
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: () => api.get<ProjectSummary[]>('/api/projects') })
 
-export const useProject = (id: number) => useQuery({ queryKey: keys.project(id), queryFn: () => api.get<ProjectOut>(`/api/projects/${id}`) })
+export const useProject = (id: number) =>
+  useQuery({
+    queryKey: keys.project(id),
+    queryFn: () => api.get<ProjectOut>(`/api/projects/${id}`),
+    // Publishing or rating a post starts an analysis in the background; poll until it is ready to review.
+    refetchInterval: (query) => (query.state.data?.evolutions?.some((e) => e.state === 'analyzing') ? 2000 : false),
+  })
 
 export function useProjectMutations(projectId?: number) {
   const qc = useQueryClient()
@@ -284,6 +304,8 @@ export function useProjectMutations(projectId?: number) {
     }),
     /** Apply the author's feedback with surgical edits; text and images that are not mentioned stay. */
     tweak: useMutation({ mutationFn: (feedback: string) => api.post<JobOut>(`/api/projects/${projectId}/tweak`, { feedback }) }),
+    /** Draw an image near a highlighted passage; Claude picks the spot and reworks adjacent text. Follow the job with `useJob`. */
+    addImage: useMutation({ mutationFn: (body: AddImageIn) => api.post<JobOut>(`/api/projects/${projectId}/images`, body) }),
     /** Bring back an earlier text version (index 0 = undo the last change). */
     restoreRevision: useMutation({
       mutationFn: (index: number) => api.post<ProjectOut>(`/api/projects/${projectId}/revisions/${index}/restore`),
@@ -310,9 +332,110 @@ export function useProjectMutations(projectId?: number) {
   }
 }
 
+// -- A/B tests -------------------------------------------------------------------
+
+/** One A/B test: the two posts by position while it is open; the winner, roles and tweaks once decided. */
+export const useABTest = (id: number | null | undefined) =>
+  useQuery({ queryKey: keys.abTest(id ?? 0), queryFn: () => api.get<ABTestOut>(`/api/ab-tests/${id}`), enabled: !!id })
+
+export function useABTestMutations(projectId: number, testId?: number) {
+  const qc = useQueryClient()
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: keys.project(projectId) })
+    void qc.invalidateQueries({ queryKey: keys.projects })
+    if (testId) void qc.invalidateQueries({ queryKey: keys.abTest(testId) })
+  }
+  return {
+    refresh,
+    /** Write the post twice: as the persona is, and with every setting nudged. A body first applies a new brief, dials or persona. */
+    start: useMutation({ mutationFn: (body?: GenerateIn) => api.post<JobOut>(`/api/projects/${projectId}/ab-tests`, body), onSuccess: refresh }),
+    decide: useMutation({ mutationFn: (body: ABDecideIn) => api.post<JobOut>(`/api/ab-tests/${testId}/decide`, body) }),
+    /** Adopt the chosen tweaks into the persona (an empty list keeps it as it is). */
+    adopt: useMutation({
+      mutationFn: (tweakIds: string[]) => api.post<ABAdoptOut>(`/api/ab-tests/${testId}/adopt`, { tweak_ids: tweakIds }),
+      onSuccess: (data) => {
+        qc.setQueryData(keys.abTest(data.ab_test.id), data.ab_test)
+        refresh()
+        void qc.invalidateQueries({ queryKey: ['personas'] })
+      },
+    }),
+    retry: useMutation({ mutationFn: () => api.post<JobOut>(`/api/ab-tests/${testId}/retry`) }),
+    discard: useMutation({ mutationFn: () => api.del<void>(`/api/ab-tests/${testId}`), onSuccess: refresh }),
+  }
+}
+
+// -- persona evolution -------------------------------------------------------------
+
+/** Proposals learned from this persona's published posts, its edit-rate trend and its playbook. Polls while one is analyzing. */
+export const usePersonaEvolution = (personaId: number) =>
+  useQuery({
+    queryKey: keys.evolution(personaId),
+    queryFn: () => api.get<PersonaEvolutionOut>(`/api/personas/${personaId}/evolution`),
+    refetchInterval: (query) => (query.state.data?.evolutions.some((e) => e.state === 'analyzing') ? 2000 : false),
+  })
+
+/** The persona's Insights page: the voice digest plus charts measured from samples and posts. */
+export const usePersonaInsights = (personaId: number) =>
+  useQuery({
+    queryKey: keys.insights(personaId),
+    queryFn: () => api.get<PersonaInsightsOut>(`/api/personas/${personaId}/insights`),
+    staleTime: 0,
+  })
+
+/** Rebuild the digest for the voice profile in use; follow the returned job with `useJob`. */
+export const useRefreshInsights = (personaId: number) => useMutation({ mutationFn: () => api.post<JobOut>(`/api/personas/${personaId}/insights/refresh`) })
+
+/** The generated text against the current text, word by word. */
+export const useBaselineDiff = (projectId: number, enabled: boolean) =>
+  useQuery({
+    queryKey: keys.baselineDiff(projectId),
+    queryFn: () => api.get<BaselineDiffOut>(`/api/projects/${projectId}/baseline-diff`),
+    enabled,
+    staleTime: 0,
+  })
+
+export function useEvolutionMutations(personaId: number, projectId?: number) {
+  const qc = useQueryClient()
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: keys.evolution(personaId) })
+    void qc.invalidateQueries({ queryKey: keys.persona(personaId) })
+    void qc.invalidateQueries({ queryKey: keys.personas })
+    if (projectId) void qc.invalidateQueries({ queryKey: keys.project(projectId) })
+  }
+  return {
+    refresh,
+    /** Analyze a post (again): its edits, or what made it land. */
+    analyze: useMutation({
+      mutationFn: (kind: 'edits' | 'secret_sauce') => api.post<EvolutionOut>(`/api/projects/${projectId}/evolutions`, { kind }),
+      onSuccess: refresh,
+    }),
+    /** Apply the chosen changes; returns the job (a profile change makes a new voice profile version). */
+    apply: useMutation({
+      mutationFn: ({ id, itemIds }: { id: number; itemIds: string[] }) => api.post<JobOut>(`/api/evolutions/${id}/apply`, { item_ids: itemIds }),
+    }),
+    dismiss: useMutation({
+      mutationFn: (id: number) => api.post<EvolutionOut>(`/api/evolutions/${id}/dismiss`),
+      onSuccess: refresh,
+    }),
+    /** Forget one playbook entry (by index) or, without an index, all of them. */
+    forgetPlaybook: useMutation({
+      mutationFn: (index?: number) => api.del<PersonaOut>(`/api/personas/${personaId}/playbook${index === undefined ? '' : `?index=${index}`}`),
+      onSuccess: refresh,
+    }),
+  }
+}
+
 /** Every format a closing meme can take; it never changes while the app runs. */
 export const useMemeFormats = (enabled = true) =>
   useQuery({ queryKey: keys.memeFormats, queryFn: () => api.get<MemeFormatOut[]>('/api/meme-formats'), staleTime: Infinity, enabled })
+
+const EMPTY_OPENING_CATALOG: OpeningCatalogOut = { styles: [], suggested_by_type: {} }
+
+/** Every way a post can open, and which styles suit each article type; it never changes while the app runs. */
+export function useOpeningStyles() {
+  const query = useQuery({ queryKey: keys.openingStyles, queryFn: () => api.get<OpeningCatalogOut>('/api/opening-styles'), staleTime: Infinity })
+  return { ...query, data: query.data?.styles ? query.data : EMPTY_OPENING_CATALOG }
+}
 
 // -- formulas ------------------------------------------------------------------
 
@@ -338,13 +461,32 @@ export function useFormulaMutations() {
   }
 }
 
+/** What a redraw should make: a meme format or stored pitch, or an opening style or stored opening pitch. */
+export interface RedrawPicks {
+  memeFormat?: string
+  memeConcept?: number
+  openingStyle?: string
+  openingConcept?: number
+}
+
 export function useImageMutations(projectId: number) {
   const qc = useQueryClient()
   const refresh = () => qc.invalidateQueries({ queryKey: keys.project(projectId) })
   return {
     redraw: useMutation({
-      mutationFn: ({ id, rethink, memeFormat, memeConcept }: { id: number; rethink: boolean; memeFormat?: string; memeConcept?: number }) =>
-        api.post<JobOut>(`/api/images/${id}/redraw`, { rethink, meme_format: memeFormat ?? null, meme_concept: memeConcept ?? null }),
+      mutationFn: ({ id, rethink, ...picks }: { id: number; rethink: boolean } & RedrawPicks) =>
+        api.post<JobOut>(`/api/images/${id}/redraw`, {
+          rethink,
+          meme_format: picks.memeFormat ?? null,
+          meme_concept: picks.memeConcept ?? null,
+          opening_style: picks.openingStyle ?? null,
+          opening_concept: picks.openingConcept ?? null,
+        }),
+    }),
+    /** Retype a code-drawn opening image's words; it is laid out again at once, without asking Claude. */
+    openingWords: useMutation({
+      mutationFn: ({ id, words }: { id: number; words: Record<string, string> }) => api.put<ImageOut>(`/api/images/${id}/opening-words`, { words }),
+      onSuccess: refresh,
     }),
     /** Retype a meme's words; it is redrawn at once with the same art, without asking Claude. */
     memeWords: useMutation({

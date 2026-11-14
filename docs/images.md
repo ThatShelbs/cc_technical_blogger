@@ -6,7 +6,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 
 | Kind | Purpose | Made by |
 | --- | --- | --- |
-| **hero** | Opening image and thumbnail: an editorial "stock-style" illustration made for this post | Claude SVG (16:9) |
+| **hero** | Opening image and thumbnail, in one of nine styles a judging panel picks from: visual metaphor, data art, opening meme, cheat sheet, sourced data chart, big number, versus split, framework diagram or screen mock ([Opening images](opening-images.md)) | Claude SVG, a code template with Claude's words and verified data, or the meme room (16:9) |
 | **illustration** | A conceptual image or visual metaphor for a section | Claude SVG (16:9) |
 | **icon** | One concept icon, or a row of 2-4, anchoring a list of steps or principles | Claude SVG |
 | **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
@@ -14,7 +14,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **screenshot** | The post shows what a screen looks like (an app page, settings, a chat, an editor, a terminal) | Claude SVG: a faithful mock of that screen with the post's real content; **Replace** it with a real capture if you have one |
 | **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Proseferno owns layout and type ([below](#closing-memes)) |
 
-Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the hero (as wide as 5:2), so the hero keeps its subject in the middle band.
+Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the opening image (as wide as 5:2), so it keeps everything that matters in the middle band. The opening image has its own pitch, panel and review; see [Opening images](opening-images.md).
 
 ## Examples the post introduces
 
@@ -41,7 +41,7 @@ Fonts are bundled in `images/memes/fonts/` (Anton, Inter, Comic Neue and JetBrai
 
 ## Closing memes
 
-The meme is the last thing a reader sees and the thing they share, so it gets its own pipeline (`images/memes/`):
+The meme is the last thing a reader sees and the thing they share, so it gets its own pipeline (`images/memes/`). The same room makes an opening meme when a post opens with one (a [meme sandwich](opening-images.md#meme-sandwich)); the closing meme is then made after it and told about it.
 
 1. **Writers' room** (`prompts/meme_ideas.md`, effort `effort_meme_ideas`, default high). Claude reads the whole post (a very long post keeps its opening and its ending, where callbacks pay off), the plan's closing joke and its running jokes and key concepts, the humor dial and the voice profile's *Humor* section, then pitches five concepts across at least three format families. Each pitch has the final words for every slot, chart data where the format needs it and a caption, and is scored on relevance, instant recognizability, surprise, clarity, voice fit and whether it works shared on its own. The best one wins. The room is told which formats the author's last three memes used, so posts do not all end the same way. It is also told the post's [formula](formulas.md#the-closing-meme) (article type, opener, body, closer), because the meme lands straight after the closer: it must add a beat, not repeat the closer, and a post that opened on a joke can have that joke brought back.
 2. **Production** (`prompts/meme_build.md`), only for formats with art. Claude draws SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel) and may tighten the words. Missing pieces or overlong text get one retry with the problems quoted back. The seven formats with no art (chat, terminal, Nutrition Facts, alignment chart, pie, spurious correlation, Venn) skip this call: they are composed straight from the pitch.
@@ -80,7 +80,7 @@ Each image gets a credit from the persona's template (default `Author: {name}; M
 
 > The saddest pie; Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)
 
-Charts read "Made with Claude Opus 5.5 + Vega-Lite", memes "Made with Claude Opus 5.5 (meme)", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
+Charts read "Made with Claude Opus 5.5 + Vega-Lite", memes "Made with Claude Opus 5.5 (meme)", code-laid-out opening images "Made with Claude Opus 5.5 (layout)", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
 
 ## When an image fails
 
@@ -93,3 +93,11 @@ One failed image never fails the post: it shows its error and a **Redraw** butto
 - **New idea**: Claude throws out the concept and designs a different image for the same purpose.
 - **Replace**: upload your own image (PNG, JPEG, WebP, ...; converted to PNG).
 - **Versions**: every version is kept; click one to restore it.
+
+## Text that follows the image
+
+An image and the sentences around it should agree. Two things keep them in step (`writer/image_text.py`, `writer/add_image.py`).
+
+**After a redraw, the text is checked.** When Redraw, New idea, a meme format or pitch, an opening style or pitch, **Edit** or *Redraw all* changes what an image is, the same job asks Claude for small find/replace edits to any sentence that described the old picture (a "Drake" line after the meme became a different format, "the left column" after the labels changed) (`prompts/image_text_sync.md`, task `image text sync`). Claude is told what each image was and what it is now (`describe_image`: kind, purpose, meme format and joke, opening style and idea, alt text, caption) and returns no edits when the text never mentioned the picture, so most redraws change nothing and cost one cheap call. Redraw all makes one combined call after every image is drawn. When text changes, the image card shows a note and the change is one **Undo last change** away (`Project.revisions`, kind `image`). The check never fails a redraw (a failure is reported as `text_error`), is skipped while another text job runs, and does not run for uploads, version restores, a meme's **Words** (you typed them) or the redraws a feedback tweak makes (the text was just written for them).
+
+**Add an image at a highlight.** Highlight text in the Preview (or the Markdown editor) and click **Add image** (`POST /api/projects/{id}/images`, job `add_image`, one of the text jobs). Claude (`prompts/image_add.md`, task `image placement`) picks the kind that adds the most (diagram, chart, illustration or icon), what it shows, the paragraph or sentence it follows, and any adjacent sentence that should change ("as the diagram below shows"). Code then picks the break: the end of the paragraph, or a split after the sentence when the paragraph is long; never inside a code block, list, table or quote, never between a lead-in ("Here is the file:") and its example, never after the closing meme (`place_placeholder`). The image gets the next free `imgN` slot in the plan (so later edits and regenerations keep it) and its row is put in reading order. At most 15 images per post. **Undo last change** takes the image and its text edits out together.

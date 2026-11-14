@@ -22,3 +22,26 @@ class SampleAnalysis(BaseModel):
     signature_phrases: list[str] = Field(description="Verbatim recurring or characteristic phrases.")
     notable_quotes: list[str] = Field(description="2-4 verbatim passages that sound most like the author.")
     techniques_to_borrow: list[str] = Field(description="Transferable craft worth reusing.")
+
+
+class MixCategory(BaseModel):
+    name: str = Field(description="One or two words, e.g. 'Chatty', 'Data', 'Jokes', 'How-to'.")
+    description: str = Field(description="What a sentence in this category does, in under 10 words.")
+
+
+class SentenceLabel(BaseModel):
+    index: int = Field(description="The sentence number from the numbered list.")
+    category: str = Field(description="The name of one of mix_categories, exactly as written there.")
+
+
+class VoiceInsights(BaseModel):
+    """A short, quotable digest of a voice profile for the persona's Insights page."""
+
+    headline: str = Field(description="One short verdict on the voice mix, under 8 words, e.g. 'Mostly chatty, backed up by data.'")
+    tone: list[str] = Field(description="4-6 tone and voice traits, each under 8 words.")
+    signature_phrases: list[str] = Field(description="4-8 phrases quoted verbatim from the author's writing.")
+    steer_clear: list[str] = Field(description="2-5 things this author avoids, each under 8 words.")
+    mix_categories: list[MixCategory] = Field(description="3-5 kinds of sentence that make up this voice.")
+    sentence_categories: list[SentenceLabel] = Field(description="One label for every numbered sentence.")
+    image_habits: list[str] = Field(description="3-4 short lines on how the author uses images and captions.")
+    caption_example: str = Field(description="The author's caption or credit format, verbatim, or an empty string.")

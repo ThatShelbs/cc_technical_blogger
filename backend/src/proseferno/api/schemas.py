@@ -107,6 +107,8 @@ class PersonaDefaults(BaseModel):
     default_platform: Platform | None = None
     # The formula new posts start from; {} = everything automatic.
     default_formula: FormulaParts | None = None
+    # How new posts open: an opening style id or "auto" (unknown ids are stored as "auto").
+    default_opening_style: str | None = Field(None, max_length=40)
 
 
 class PersonaUpdate(PersonaDefaults):
@@ -129,6 +131,84 @@ class VoiceProfileVersion(BaseModel):
     label: str
     edited_by_user: bool
     created_at: datetime
+
+
+Stage = Literal["draft", "ready", "published"]
+Outcome = Literal["too_early", "small", "good", "viral"]
+EvolutionKind = Literal["edits", "secret_sauce"]
+
+
+class PlaybookEntry(BaseModel):
+    text: str
+    project_id: int | None = None
+    title: str = ""
+    outcome: str | None = None
+    added_at: str = ""
+
+
+class EvolutionItemOut(BaseModel):
+    id: str
+    area: str
+    change: str
+    evidence: str
+    # profile | playbook
+    target: str
+    applied: bool = False
+
+
+class EvolutionOut(BaseModel):
+    id: int
+    persona_id: int
+    project_id: int | None
+    # edits | secret_sauce
+    kind: str
+    outcome: str | None
+    project_title: str
+    # analyzing | pending | applied | dismissed | error | clean
+    state: str
+    summary: str
+    items: list[EvolutionItemOut]
+    edit_rate: float | None
+    voice_profile_version: int | None
+    applied_version: int | None
+    job_id: str | None
+    error: str | None
+    created_at: datetime
+    applied_at: datetime | None
+
+
+class EditRatePoint(BaseModel):
+    project_id: int | None
+    title: str
+    edit_rate: float
+    created_at: datetime
+
+
+class PersonaEvolutionOut(BaseModel):
+    evolutions: list[EvolutionOut]
+    # Share of generated text changed in each published post, oldest first: falls as the persona learns.
+    edit_rates: list[EditRatePoint]
+    playbook: list[PlaybookEntry]
+
+
+class EvolveIn(BaseModel):
+    kind: EvolutionKind
+
+
+class ApplyEvolutionIn(BaseModel):
+    item_ids: list[str] = Field(min_length=1)
+
+
+class DiffSegment(BaseModel):
+    # equal | insert | delete
+    op: str
+    text: str
+
+
+class BaselineDiffOut(BaseModel):
+    edit_rate: float
+    baseline_title: str
+    segments: list[DiffSegment]
 
 
 class EditLesson(BaseModel):
@@ -160,6 +240,7 @@ class PersonaOut(BaseModel):
     default_include_code: str
     default_platform: str
     default_formula: FormulaParts
+    default_opening_style: str
     visual_style: str
     credit_template: str
     voice_profile_words: int
@@ -167,6 +248,9 @@ class PersonaOut(BaseModel):
     voice_sample_min_words: int
     voice_influence_weight: int
     edit_lessons: list[EditLesson]
+    playbook: list[PlaybookEntry]
+    # Proposals from published posts waiting for review.
+    pending_evolutions: int
     own_samples: int
     influence_samples: int
     # The version new posts use (pinned, else latest).
@@ -323,6 +407,8 @@ class ProjectCreate(BaseModel):
     dials: Dials = Field(default_factory=lambda: Dials())
     brand_kit: BrandKit | None = None
     generate: bool = True
+    # "ab" writes the post twice for a blind A/B test (see abtest.service) instead of once.
+    mode: Literal["standard", "ab"] = "standard"
 
 
 class BrandKit(BaseModel):
@@ -354,6 +440,10 @@ class ProjectUpdate(BaseModel):
     prompt: str | None = Field(None, min_length=3)
     dials: Dials | None = None
     persona_id: int | None = None
+    # Where the post is: draft -> ready -> published. Publishing compares it with the generated text.
+    stage: Stage | None = None
+    # How a published post did; Good traction or Viral reads it for its secret sauce.
+    outcome: Outcome | None = None
 
 
 class GenerateIn(BaseModel):
@@ -403,7 +493,82 @@ class ImageOut(BaseModel):
     error: str | None
     history: list[ImageHistoryOut]
     # Memes only: the format and joke in use, and how many other pitched ideas "New idea" can still try.
+    # An opening meme (a meme sandwich) has this too, alongside ``opening``.
     meme: MemeInfoOut | None = None
+    # The opening image only: its style, the panel's pitches and verdicts, sources and the render review.
+    opening: OpeningInfoOut | None = None
+
+
+class OpeningPitchOut(BaseModel):
+    """One concept the opening room pitched, with the panel's scores."""
+
+    index: int
+    style: str
+    style_label: str
+    template: str
+    hook: str
+    concept: str
+    # Each judge's 1-10 score: scroller, art_director, fact_checker, author.
+    scores: dict[str, int]
+    note: str
+    total: int
+    # A fact checker or author score under 5 rules a concept out (it is still on the board).
+    ruled_out: bool
+    tried: bool
+    current: bool
+
+
+class OpeningSourceOut(BaseModel):
+    title: str
+    url: str
+
+
+class OpeningReviewOut(BaseModel):
+    # "passed", "redrawn" (sent back once and redrawn), "kept" (the redraw was not better) or "skipped".
+    verdict: str
+    clickability: int = 0
+    craft: int = 0
+    problems: list[str] = []
+    note: str = ""
+
+
+class OpeningInfoOut(BaseModel):
+    style: str
+    style_label: str
+    template: str
+    # "auto" when the panel chose across styles, else the one style the pitches were limited to.
+    mode: str
+    summary: str
+    ideas_left: int
+    # Label of the style that was tried first when this image is a stand-in for it ("" otherwise).
+    fallback_from: str
+    pitches: list[OpeningPitchOut]
+    sources: list[OpeningSourceOut]
+    review: OpeningReviewOut | None
+    # Words the author can retype with no model call (code-drawn styles only; numbers are not among them).
+    slots: list[MemeSlotOut]
+    # How platform thumbnails are cut from it: "cover" (centre crop) or "contain" (padded).
+    thumbnail_fit: str
+
+
+class OpeningStyleOut(BaseModel):
+    id: str
+    label: str
+    summary: str
+    when_to_use: str
+    needs_data: bool
+    min_humor: int
+
+
+class OpeningCatalogOut(BaseModel):
+    styles: list[OpeningStyleOut]
+    # Style ids that suit each article type best (key "auto" = no type), in the order the panel weighs them.
+    suggested_by_type: dict[str, list[str]]
+
+
+class OpeningWordsIn(BaseModel):
+    # Slot name -> new text (see ``ImageOut.opening.slots``); slots left out keep their words.
+    words: dict[str, str] = Field(min_length=1)
 
 
 class MemePitchOut(BaseModel):
@@ -467,6 +632,10 @@ class RedrawIn(BaseModel):
     meme_format: str | None = None
     # Memes only: draw this stored pitch (an index from ``ImageOut.meme.pitches``).
     meme_concept: int | None = Field(default=None, ge=0)
+    # The opening image only: pitch again in this style (see GET /api/opening-styles), or build this stored pitch
+    # (an index from ``ImageOut.opening.pitches``) with no new pitching or judging.
+    opening_style: str | None = None
+    opening_concept: int | None = Field(default=None, ge=0)
 
 
 class ImageEditIn(BaseModel):
@@ -521,9 +690,88 @@ class ProjectSummary(BaseModel):
     title: str
     prompt: str
     status: str
+    stage: str
+    outcome: str | None
     thumbnail_url: str | None
+    # Status of an A/B test that still needs the author (generating | voting | deciding | error | decided).
+    ab_status: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+ABPart = Literal["title", "opener", "closer", "hero", "meme", "image_style"]
+
+
+class ABTestSummary(BaseModel):
+    """The A/B test that currently needs the author's attention on a post."""
+
+    id: int
+    # generating | voting | deciding | error | decided (decided = the "adopt what won?" question is still open)
+    status: str
+    error: str | None
+
+
+class ABVariantOut(BaseModel):
+    """One of the two posts of an open test, by position only (left = Post 1)."""
+
+    side: Literal["left", "right"]
+    title: str
+    subtitle: str
+    markdown: str
+    word_count: int
+    status: str
+    error: str | None
+    images: list[ImageOut]
+
+
+class ABTweakOut(BaseModel):
+    id: str
+    # Settings | Formula | Examples | Voice | Principles | Title | Images
+    group: str
+    label: str
+    before: str
+    after: str
+    # Pre-ticked in the adopt dialog: part of what the author chose.
+    suggested: bool
+
+
+class ABTestOut(BaseModel):
+    id: int
+    project_id: int
+    persona_id: int
+    status: str
+    error: str | None
+    # The two posts, until a winner is picked.
+    left: ABVariantOut | None
+    right: ABVariantOut | None
+    # Everything below is revealed only once the test is decided.
+    winner: Literal["control", "challenger"] | None
+    winner_side: Literal["left", "right"] | None
+    taken: list[str]
+    tweaks: list[ABTweakOut]
+    # Tweak ids adopted into the persona; None = not answered yet.
+    adopted: list[str] | None
+    evolution_id: int | None
+    created_at: datetime
+    decided_at: datetime | None
+
+
+class ABDecideIn(BaseModel):
+    winner: Literal["left", "right"]
+    # Parts to take from the other post.
+    take: list[ABPart] = Field(default_factory=list)
+    # Free-text blending instructions, applied as a tweak that can see the other post.
+    notes: str = Field("", max_length=4000)
+
+
+class ABAdoptIn(BaseModel):
+    tweak_ids: list[str] = Field(default_factory=list)
+
+
+class ABAdoptOut(BaseModel):
+    ab_test: ABTestOut
+    # Set when voice changes are being worked into a new voice profile version.
+    job: JobOut | None
 
 
 class ProjectOut(BaseModel):
@@ -550,6 +798,15 @@ class ProjectOut(BaseModel):
     references: list[ReferenceOut]
     active_job_id: str | None
     active_job_kind: str | None
+    stage: str
+    outcome: str | None
+    published_at: datetime | None
+    # True when the generated text is on record, so edits can be compared with it.
+    has_baseline: bool
+    # Share of the generated text the author changed so far (None without a baseline).
+    edit_rate: float | None
+    evolutions: list[EvolutionOut]
+    ab_test: ABTestSummary | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -565,6 +822,11 @@ class RewriteIn(BaseModel):
     action: Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote"] = "custom"
 
 
+class AddImageIn(BaseModel):
+    selection: str = Field(min_length=1)
+    instruction: str = Field(default="", max_length=2000)
+
+
 class CopyHtmlOut(BaseModel):
     html: str
 
@@ -573,3 +835,122 @@ class LinkedInPostOut(BaseModel):
     text: str
     characters: int
     written_by: Literal["claude", "template"]
+
+
+# -- persona insights ---------------------------------------------------------------
+
+
+class InsightsOverview(BaseModel):
+    persona_name: str
+    own_samples: int
+    influence_samples: int
+    own_words: int
+    voice_profile_version: int | None
+    updated_at: datetime | None
+
+
+class VoiceMixSlice(BaseModel):
+    name: str
+    description: str
+    count: int
+    # Percent of the labeled sentences.
+    share: float
+
+
+class InsightsDigestOut(BaseModel):
+    headline: str
+    tone: list[str]
+    signature_phrases: list[str]
+    steer_clear: list[str]
+    voice_mix: list[VoiceMixSlice]
+    sentences_sampled: int
+    sentences_labeled: int
+    image_habits: list[str]
+    caption_example: str
+    generated_at: str
+    # The voice profile version the digest was made from.
+    version: int
+    # True when it was made from another version than the one in use (refresh to update it).
+    stale: bool
+
+
+class FingerprintRow(BaseModel):
+    key: str
+    label: str
+    you: float
+    reference: float | None
+    unit: str
+
+
+class FingerprintOut(BaseModel):
+    reference_label: str
+    # "influences" = measured from the persona's influence samples; "typical" = rough built-in values.
+    reference_kind: Literal["influences", "typical"]
+    rows: list[FingerprintRow]
+
+
+class CountItem(BaseModel):
+    id: str
+    label: str
+    count: int
+
+
+class FormulaNode(BaseModel):
+    id: str
+    stage: Literal["article_type", "opener", "body", "closer"]
+    label: str
+
+
+class FormulaLink(BaseModel):
+    source: str
+    target: str
+    value: int
+
+
+class FormulaFlowOut(BaseModel):
+    posts: int
+    nodes: list[FormulaNode]
+    links: list[FormulaLink]
+
+
+class PostPoint(BaseModel):
+    project_id: int
+    title: str
+    created_at: datetime
+    stage: str
+    outcome: str | None
+    words: int
+    authenticity: float | None
+    voice_match: float | None
+    critique: float | None
+
+
+class LessonItem(BaseModel):
+    kind: str
+    old: str
+    new: str
+    count: int
+
+
+class TrackRecordOut(BaseModel):
+    posts: int
+    published: int
+    words: int
+    images: int
+    references: int
+    stages: list[CountItem]
+    outcomes: list[CountItem]
+    points: list[PostPoint]
+    meme_formats: list[CountItem]
+    lessons: list[LessonItem]
+    playbook: int
+
+
+class PersonaInsightsOut(BaseModel):
+    overview: InsightsOverview
+    digest: InsightsDigestOut | None
+    fingerprint: FingerprintOut | None
+    openers: list[CountItem]
+    phrases: list[CountItem]
+    formula: FormulaFlowOut
+    track_record: TrackRecordOut

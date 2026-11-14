@@ -35,6 +35,7 @@ from proseferno.config import Settings
 from proseferno.llm.base import (
     Citation,
     LLMError,
+    LLMImagesUnsupportedError,
     LLMRefusalError,
     OnDelta,
     ResearchResult,
@@ -205,7 +206,11 @@ class ClaudeCodeLLM:
         effort: str,
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
+        images: list[bytes] | None = None,
     ) -> T:
+        if images:
+            # Headless Claude Code runs with no tools and a text prompt, so it cannot be shown a picture.
+            raise LLMImagesUnsupportedError()
         result = await self._call(
             task,
             system,

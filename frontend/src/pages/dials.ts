@@ -67,6 +67,10 @@ export interface DialsState {
   /** null = use the persona's default */
   platform: Platform | null
   includeCode: IncludeCode | null
+  /** null = use the persona's default; 'auto' = the panel picks across the styles that suit the post */
+  openingStyle: string | null
+  /** The author's own direction for the opening image; empty = none */
+  openingNote: string
 }
 
 export const emptyDials: DialsState = {
@@ -82,6 +86,8 @@ export const emptyDials: DialsState = {
   audience: '',
   platform: null,
   includeCode: null,
+  openingStyle: null,
+  openingNote: '',
 }
 
 /** Build the dials payload: only send what the user changed, so the persona's defaults and smart defaults apply. */
@@ -101,6 +107,8 @@ export function buildDials(state: DialsState): Dials {
   if (state.audience.trim()) dials.audience = state.audience.trim()
   if (state.platform !== null) dials.platform = state.platform
   if (state.includeCode !== null) dials.include_code = state.includeCode
+  if (state.openingStyle !== null) dials.opening_style = state.openingStyle
+  if (state.openingNote.trim()) dials.opening_note = state.openingNote.trim()
   return { ...dials, ...buildFormula(state.formula) }
 }
 
@@ -125,6 +133,8 @@ export function dialsToState(dials: Dials | Record<string, unknown> | null | und
     audience: d.audience ?? '',
     platform: d.platform ?? null,
     includeCode: d.include_code ?? null,
+    openingStyle: d.opening_style ?? null,
+    openingNote: d.opening_note ?? '',
   }
 }
 
@@ -147,5 +157,6 @@ export function shownDials(dials: DialsState, persona: PersonaOut | undefined) {
     humor: dials.humor ?? persona?.default_humor ?? 5,
     education: dials.education ?? (persona?.default_education as Education | undefined) ?? 'intermediate',
     includeCode: dials.includeCode ?? (persona?.default_include_code as IncludeCode | undefined) ?? 'auto',
+    openingStyle: dials.openingStyle ?? persona?.default_opening_style ?? 'auto',
   }
 }

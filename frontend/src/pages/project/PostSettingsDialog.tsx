@@ -2,10 +2,11 @@ import { ChevronDown, ListTree, RefreshCw, RotateCcw, Undo2 } from 'lucide-react
 import { useState } from 'react'
 
 import { errorText } from '../../api/client'
-import { usePersonas, useProjectMutations } from '../../api/hooks'
+import { usePersonas, useABTestMutations, useProjectMutations } from '../../api/hooks'
 import type { JobOut, ProjectOut } from '../../api/types.gen'
 import { DialsFields } from '../../components/DialsFields'
 import { FormulaFields } from '../../components/FormulaFields'
+import { OpeningFields } from '../../components/OpeningFields'
 import { Button, Dialog, Field, Notice, Select, Textarea } from '../../components/ui'
 import { planOutline } from '../../lib/outline'
 import { PLATFORMS, buildDials, dialsToState, emptyDials, shownDials, type DialsState, type Platform } from '../dials'
@@ -32,6 +33,7 @@ export function PostSettingsDialog({
 
 function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: (job: JobOut) => void }) {
   const { generate } = useProjectMutations(project.id)
+  const { start: startAB } = useABTestMutations(project.id)
   const { data: personas = [] } = usePersonas()
   const [prompt, setPrompt] = useState(project.prompt)
   const [personaId, setPersonaId] = useState(project.persona_id)
@@ -46,14 +48,16 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
   const changedDials = Object.keys(buildDials(dials)).length > 0
   const canWrite = prompt.trim().length >= 3 && !!persona?.voice_profile_version
 
-  const submit = () => {
+  const body = () => {
     // revision_passes is not on the form; keep it if the post had one.
     const passes = project.dials?.revision_passes
-    generate.mutate(
-      { prompt: prompt.trim(), persona_id: personaId, dials: { ...buildDials(dials), ...(passes !== undefined ? { revision_passes: Number(passes) } : {}) } },
-      { onSuccess: onStarted },
-    )
+    return {
+      prompt: prompt.trim(),
+      persona_id: personaId,
+      dials: { ...buildDials(dials), ...(passes !== undefined ? { revision_passes: Number(passes) } : {}) },
+    }
   }
+  const submit = () => generate.mutate(body(), { onSuccess: onStarted })
 
   return (
     <form
@@ -127,6 +131,20 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
               idPrefix="settings-"
             />
           </div>
+          <div className="space-y-3 border-t border-line pt-4">
+            <h3 className="font-bold">Opening image</h3>
+            <OpeningFields
+              style={dials.openingStyle}
+              note={dials.openingNote}
+              onChange={set}
+              defaultStyle={persona?.default_opening_style}
+              formula={dials.formula}
+              formulaDefaults={persona?.default_formula}
+              brief={prompt}
+              humor={shownDials(dials, persona).humor}
+              idPrefix="settings-"
+            />
+          </div>
           <div className="border-t border-line pt-4">
             <DialsFields dials={dials} onChange={set} persona={persona} idPrefix="settings-" />
           </div>
@@ -139,12 +157,23 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
       {persona && !persona.voice_profile_version && (
         <Notice tone="warn">{persona.name} has no voice profile yet. Pick another persona or generate one first.</Notice>
       )}
-      {generate.error && <Notice tone="error">{errorText(generate.error)}</Notice>}
+      {(generate.error || startAB.error) && <Notice tone="error">{errorText(generate.error ?? startAB.error)}</Notice>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <p className="text-sm text-muted">Regenerating replaces the current text and images. Pinned titles are kept.</p>
-        <Button type="submit" variant="flame" icon={<RefreshCw className="size-4" />} disabled={!canWrite} loading={generate.isPending}>
-          Regenerate with these settings
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!canWrite}
+            loading={startAB.isPending}
+            onClick={() => startAB.mutate(body(), { onSuccess: onStarted })}
+          >
+            A/B test these settings
+          </Button>
+          <Button type="submit" variant="flame" icon={<RefreshCw className="size-4" />} disabled={!canWrite} loading={generate.isPending}>
+            Regenerate with these settings
+          </Button>
+        </div>
       </div>
     </form>
   )

@@ -1,4 +1,4 @@
-import { Link2, Maximize2, MessageSquareText, Minimize2, Quote, Wand2 } from 'lucide-react'
+import { ImagePlus, Link2, Maximize2, MessageSquareText, Minimize2, Quote, Wand2 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import type { RewriteIn } from '../api/types.gen'
@@ -30,7 +30,18 @@ export interface SectionRun {
 }
 
 /** The six ways to regenerate a highlighted section; "Custom brief" takes feedback such as "make it more positive". */
-export function SectionActions({ onRun, pending, disabled }: { onRun: (run: SectionRun) => void; pending: SectionAction | null; disabled?: boolean }) {
+export function SectionActions({
+  onRun,
+  onAddImage,
+  pending,
+  disabled,
+}: {
+  onRun: (run: SectionRun) => void
+  /** Draw an image near the highlight (the page finds the nearest paragraph or sentence break). */
+  onAddImage?: () => void
+  pending: SectionAction | null
+  disabled?: boolean
+}) {
   const [custom, setCustom] = useState(false)
   const [brief, setBrief] = useState('')
   const locked = disabled || pending !== null
@@ -51,6 +62,18 @@ export function SectionActions({ onRun, pending, disabled }: { onRun: (run: Sect
             {label}
           </Button>
         ))}
+        {onAddImage && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ImagePlus className="size-4" />}
+            title="Draw a relevant image after this passage and adjust nearby text if needed"
+            disabled={locked}
+            onClick={onAddImage}
+          >
+            Add image
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -105,12 +128,14 @@ export function SectionToolbar({
   pending,
   disabled,
   onRun,
+  onAddImage,
 }: {
   container: RefObject<HTMLElement | null>
   markdown: string
   pending: SectionAction | null
   disabled?: boolean
   onRun: (source: string, run: SectionRun) => void
+  onAddImage?: (source: string) => void
 }) {
   const [captured, setCaptured] = useState<Captured | null>(null)
   const [problem, setProblem] = useState('')
@@ -180,7 +205,12 @@ export function SectionToolbar({
       {problem ? (
         <p className="px-2 py-1 text-sm text-muted">{problem}</p>
       ) : (
-        <SectionActions pending={pending} disabled={disabled} onRun={(run) => onRun(captured.source, run)} />
+        <SectionActions
+          pending={pending}
+          disabled={disabled}
+          onRun={(run) => onRun(captured.source, run)}
+          onAddImage={onAddImage && (() => onAddImage(captured.source))}
+        />
       )}
     </div>
   )

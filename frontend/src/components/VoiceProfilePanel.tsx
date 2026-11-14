@@ -8,7 +8,7 @@ import { keys, usePersona, usePersonaMutations, useSaveVoiceProfile, useVoicePro
 import type { PersonaOut } from '../api/types.gen'
 import { useJob } from '../api/useJob'
 import { Markdown } from './Article'
-import { Badge, Button, Card, Dialog, EmptyState, Field, Input, Notice, ProgressBar, Select, Textarea } from './ui'
+import { Badge, Button, Card, Dialog, EmptyState, Field, Input, Notice, ProgressBar, Select, StatTile, Textarea } from './ui'
 import { cx } from '../lib/cx'
 
 const STAT_LABELS: [string, string, (v: number) => string][] = [
@@ -338,12 +338,7 @@ export function VoiceProfilePanel({ personaId, onGenerated }: { personaId: numbe
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {STAT_LABELS.map(([key, label, fmt]) => {
               const value = voiceProfile.data.baseline_stylometrics[key]
-              return typeof value === 'number' ? (
-                <div key={key} className="rounded-xl border border-line bg-surface p-3">
-                  <p className="text-xs text-muted">{label}</p>
-                  <p className="text-lg font-bold tabular-nums">{fmt(value)}</p>
-                </div>
-              ) : null
+              return typeof value === 'number' ? <StatTile key={key} label={label} value={fmt(value)} /> : null
             })}
           </div>
 

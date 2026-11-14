@@ -253,7 +253,11 @@ export function ImagesCard() {
         </Badge>
       </div>
       <ul className="list-disc space-y-1 pl-5 text-sm">
-        <li>Hero and stock-style illustrations, concept icons and memes: hand-built SVG vector art.</li>
+        <li>
+          Opening images picked by a panel of judges: visual metaphors, data art, cheat sheets, sourced charts, big numbers, versus splits, frameworks and
+          memes.
+        </li>
+        <li>Illustrations, concept icons and memes: hand-built SVG vector art.</li>
         <li>Diagrams (workflows, architectures, comparisons): clean SVG in your inferno palette.</li>
         <li>Data visualizations: Vega-Lite charts with inline data, labeled when the numbers are illustrative.</li>
       </ul>

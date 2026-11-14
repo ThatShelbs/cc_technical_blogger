@@ -1,23 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
+import { expect, test } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { shot } from './screenshots'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SAMPLE = path.resolve(here, 'fixtures/sample-post.md')
-const SCREENSHOTS = path.resolve(here, '../../docs/screenshots')
-// UPDATE_SCREENSHOTS=1 refreshes the README screenshots in docs/screenshots.
-const capture = process.env.UPDATE_SCREENSHOTS === '1'
-
-async function shot(page: Page, name: string) {
-  if (capture) await page.screenshot({ path: path.join(SCREENSHOTS, `${name}.png`) })
-}
-
-test.beforeAll(() => {
-  if (capture) mkdirSync(SCREENSHOTS, { recursive: true })
-})
 
 test('first run: persona, writing sample, voice profile, post, editor, export, themes', async ({ page }) => {
+  // The whole first run, A/B test included, takes a few minutes in demo mode.
+  test.setTimeout(300_000)
   await page.addInitScript(() => localStorage.setItem('proseferno-theme', 'light'))
   await page.goto('/')
 
@@ -59,6 +51,10 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByLabel('Opener', { exact: true })).toHaveValue('contrarian')
   await page.getByLabel('Opener', { exact: true }).selectOption({ label: 'Joke: the confession' })
   await shot(page, 'formula')
+  // Opening image: Auto names the styles that suit the post; pick one for this post
+  await expect(page.getByText(/Pitches ideas across .*Versus split/)).toBeVisible()
+  await page.locator('#opening-style').selectOption({ label: 'Versus split · suits this post' })
+  await expect(page.getByText('Two columns: before and after, myth and reality, the old way and the new.')).toBeVisible()
   await page.getByRole('button', { name: /Write my post/ }).click()
   await expect(page.getByText('Writing your post')).toBeVisible()
 
@@ -68,6 +64,20 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.locator('figure img')).toHaveCount(4)
   await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()
   await shot(page, 'editor-day')
+
+  // The opening image: the panel's pitches, each scored by four judges, with the words retypeable
+  const opening = page.locator('figure').filter({ hasText: 'Opening image · Versus split' })
+  await expect(opening).toBeVisible()
+  await opening.getByRole('button', { name: 'Ideas' }).click()
+  const ideas = page.getByRole('dialog', { name: 'Opening image ideas' })
+  await expect(ideas.getByRole('listitem')).toHaveCount(4)
+  await expect(ideas.getByText('Panel pick')).toBeVisible()
+  await expect(ideas.getByText('Art director').first()).toBeVisible()
+  await ideas.getByRole('button', { name: 'Close', exact: true }).click()
+  await opening.getByRole('button', { name: 'Words' }).click()
+  await page.getByLabel('Headline').fill('Stop slicing your data')
+  await page.getByRole('button', { name: 'Save words' }).click()
+  await expect(page.getByRole('dialog', { name: "Edit the opening image's words" })).toHaveCount(0)
 
   // References: five sources, quotes and resources worked into the post, each one redrawable
   await expect(page.getByRole('heading', { name: 'References' })).toBeVisible()
@@ -94,21 +104,23 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
 
   // Highlight a sentence in the preview, compact it in place, then undo
   const sentence = 'Bar charts. Seriously, bar charts.'
-  await page.evaluate((needle) => {
-    const walker = document.createTreeWalker(document.querySelector('.article')!, NodeFilter.SHOW_TEXT)
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const at = node.textContent?.indexOf(needle) ?? -1
-      if (at < 0) continue
-      const range = document.createRange()
-      range.setStart(node, at)
-      range.setEnd(node, at + needle.length)
-      const selection = window.getSelection()!
-      selection.removeAllRanges()
-      selection.addRange(range)
-      return
-    }
-    throw new Error('sentence not found')
-  }, sentence)
+  const highlight = () =>
+    page.evaluate((needle) => {
+      const walker = document.createTreeWalker(document.querySelector('.article')!, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const at = node.textContent?.indexOf(needle) ?? -1
+        if (at < 0) continue
+        const range = document.createRange()
+        range.setStart(node, at)
+        range.setEnd(node, at + needle.length)
+        const selection = window.getSelection()!
+        selection.removeAllRanges()
+        selection.addRange(range)
+        return
+      }
+      throw new Error('sentence not found')
+    }, sentence)
+  await highlight()
   await expect(page.getByRole('toolbar', { name: 'Section actions' })).toBeVisible()
   await page.getByRole('button', { name: 'Compact' }).click()
   await expect(page.getByText(/Bar charts win\./)).toBeVisible({ timeout: 60_000 })
@@ -116,6 +128,28 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.locator('figure img')).toHaveCount(4)
   await page.getByRole('button', { name: 'Undo last change' }).click()
   await expect(page.getByText(sentence)).toBeVisible()
+
+  // Highlight the same sentence and add an image there: it lands after the paragraph, then one undo takes it out
+  await highlight()
+  await page.getByRole('button', { name: 'Add image' }).click()
+  await expect(page.getByText('Image added')).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('figure img')).toHaveCount(5)
+  await expect(page.getByText(/The diagram below shows it\./)).toBeVisible()
+  await page.getByRole('button', { name: 'Undo last change' }).click()
+  await expect(page.locator('figure img')).toHaveCount(4)
+  await expect(page.getByText(/The diagram below shows it\./)).toHaveCount(0)
+
+  // Remaking the closing meme in another format fixes the text that described the old one; undo puts it back
+  const closing = page.locator('figure').filter({ hasText: 'Closing meme' })
+  await closing.getByRole('button', { name: 'Ideas' }).click()
+  const memeIdeas = page.getByRole('dialog', { name: 'Meme ideas' })
+  const formatPicker = memeIdeas.getByLabel('Meme format')
+  await formatPicker.selectOption((await formatPicker.inputValue()) === 'venn' ? 'nutrition_label' : 'venn')
+  await expect(page.getByText('Text updated to match')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/The picture changed, so this line did too\./)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Undo last change' }).click()
+  await expect(page.getByText(/The picture changed, so this line did too\./)).toHaveCount(0)
 
   // Brief & settings: the original brief, the planned outline, every dial
   await page.getByRole('button', { name: 'Edit brief & settings' }).click()
@@ -148,6 +182,34 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText('Scan signals (calibrated to your own posts)')).toBeVisible()
   await page.getByRole('button', { name: 'Close' }).click()
 
+  // Publish: the post is compared with what was generated; a hit's secret sauce goes into the playbook
+  const teach = page
+    .locator('div')
+    .filter({ has: page.getByRole('heading', { name: 'Teach the persona' }) })
+    .last()
+  await expect(teach.getByText(/You changed \d+% of the generated text/)).toBeVisible()
+  await teach.getByRole('button', { name: 'Compare' }).click()
+  await expect(page.getByRole('dialog', { name: 'Generated vs. your version' }).locator('del').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Published', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Too early' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(teach.getByText('From your edits')).toBeVisible()
+  await expect(teach.getByText(/Nothing to change|To review/)).toBeVisible({ timeout: 30_000 })
+  await page.getByRole('button', { name: 'Good traction' }).click()
+  const sauce = teach.getByRole('listitem').filter({ hasText: 'Secret sauce' })
+  await sauce.getByRole('button', { name: 'Review 2 suggestions' }).click({ timeout: 30_000 })
+  const review = page.getByRole('dialog', { name: /^Secret sauce: / })
+  await expect(review.getByText('Pick a side in the title and defend it in the first paragraph.')).toBeVisible()
+  await review.getByRole('button', { name: 'Apply 2' }).click()
+  await expect(sauce.getByText('Applied')).toBeVisible({ timeout: 30_000 })
+  await sauce.getByRole('link', { name: /persona.s evolution/ }).click()
+  await expect(page.getByRole('tab', { name: /Evolution/ })).toHaveAttribute('aria-selected', 'true')
+  const playbook = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Forget this playbook entry' }) })
+  await expect(playbook.filter({ hasText: 'Pick a side in the title and defend it in the first paragraph.' })).toBeVisible()
+  await expect(playbook).toHaveCount(2)
+  await page.goBack()
+  await expect(page.getByRole('button', { name: 'Good traction' })).toHaveAttribute('aria-pressed', 'true')
+
   // Persona switcher in the sidebar
   await page.getByRole('button', { name: /Writing as/ }).click()
   await expect(page.getByRole('dialog', { name: 'Switch persona' })).toBeVisible()
@@ -161,4 +223,30 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   // Posts list shows the thumbnail
   await page.getByRole('link', { name: 'Posts' }).click()
   await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
+  await expect(page.getByText('Good traction')).toBeVisible()
+  await page.getByRole('button', { name: /^Draft/ }).click()
+  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toHaveCount(0)
+  await page.getByRole('button', { name: /^Published/ }).click()
+  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
+
+  // A/B Test Mode: two blind versions, a pick with parts of the other one, then adopt what won
+  await page.goto('/projects/new')
+  await page.getByLabel(/What should this post be about/).fill('Why dashboards nobody opens keep getting built')
+  await page.getByRole('radio', { name: /A\/B test/ }).click()
+  await page.getByRole('button', { name: 'Write two versions' }).click()
+  await expect(page.getByRole('heading', { name: 'Which post do you like better?' })).toBeVisible({ timeout: 120_000 })
+  await expect(page.getByLabel('Post 1').locator('img').first()).toBeVisible()
+  await shot(page, 'ab-compare')
+  await page.getByRole('button', { name: 'Pick Post 2' }).click()
+  await page.getByRole('checkbox', { name: /Opener/ }).check()
+  await page.getByRole('checkbox', { name: /Image style/ }).check()
+  await page.getByRole('button', { name: 'Keep Post 2 with the blend' }).click()
+  await expect(page.getByRole('heading', { name: /^A\/B test: Post 2 was/ })).toBeVisible({ timeout: 120_000 })
+  await page.getByRole('button', { name: 'Review the changes' }).click()
+  const adopt = page.getByRole('dialog', { name: 'Adopt what won the A/B test' })
+  await expect(adopt.getByText('In the post you kept').first()).toBeVisible()
+  await adopt.getByRole('button', { name: /^Adopt \d+ change/ }).click()
+  await expect(adopt).toBeHidden({ timeout: 60_000 })
+  await expect(page.getByRole('heading', { name: /^A\/B test:/ })).toHaveCount(0)
+  await expect(page.locator('figure img').first()).toBeVisible()
 })

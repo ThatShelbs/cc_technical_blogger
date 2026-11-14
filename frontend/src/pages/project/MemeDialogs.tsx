@@ -67,6 +67,9 @@ export function MemeWordsDialog({
   saving,
   error,
   onSave,
+  title = "Edit the meme's words",
+  intro = 'The art stays as it is and the text is refitted. Nothing is sent to Claude.',
+  labelOf = (slot: MemeSlotOut) => slot.name.replaceAll('_', ' '),
 }: {
   open: boolean
   onClose: () => void
@@ -74,6 +77,9 @@ export function MemeWordsDialog({
   saving: boolean
   error?: string | null
   onSave: (words: Record<string, string>) => void
+  title?: string
+  intro?: string
+  labelOf?: (slot: MemeSlotOut) => string
 }) {
   const [words, setWords] = useState<Record<string, string>>({})
   const value = (slot: MemeSlotOut) => words[slot.name] ?? slot.text
@@ -81,7 +87,7 @@ export function MemeWordsDialog({
   const changed = slots.some((slot) => value(slot) !== slot.text)
 
   return (
-    <Dialog open={open} onClose={onClose} title="Edit the meme's words">
+    <Dialog open={open} onClose={onClose} title={title}>
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -89,15 +95,15 @@ export function MemeWordsDialog({
           onSave(Object.fromEntries(slots.map((slot) => [slot.name, value(slot)])))
         }}
       >
-        <p className="text-sm text-muted">The art stays as it is and the text is refitted. Nothing is sent to Claude.</p>
+        <p className="text-sm text-muted">{intro}</p>
         {slots.map((slot) => {
-          const id = `meme-word-${slot.name}`
+          const id = `meme-word-${slot.name.replaceAll('.', '-')}`
           const text = value(slot)
           const long = text.length > slot.max_chars
           const hint = `${slot.hint}${slot.optional ? ' Optional.' : ''} ${text.length}/${slot.max_chars}${long ? ': long text is drawn smaller.' : ''}`
           const props = { id, value: text, onChange: (e: { target: { value: string } }) => setWords({ ...words, [slot.name]: e.target.value }) }
           return (
-            <Field key={slot.name} label={slot.name.replaceAll('_', ' ')} hint={hint} htmlFor={id}>
+            <Field key={slot.name} label={labelOf(slot)} hint={hint} htmlFor={id}>
               {slot.max_chars > 60 ? <Textarea rows={2} {...props} /> : <Input {...props} />}
             </Field>
           )

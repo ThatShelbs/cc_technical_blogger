@@ -2,10 +2,12 @@
 
 from proseferno.db.engine import make_engine
 from proseferno.db.models import (
+    ABTest,
     AppSetting,
     Formula,
     Job,
     Persona,
+    PersonaEvolution,
     Project,
     ProjectImage,
     ProjectReference,
@@ -15,10 +17,12 @@ from proseferno.db.models import (
 )
 
 __all__ = [
+    "ABTest",
     "AppSetting",
     "Formula",
     "Job",
     "Persona",
+    "PersonaEvolution",
     "Project",
     "ProjectImage",
     "ProjectReference",

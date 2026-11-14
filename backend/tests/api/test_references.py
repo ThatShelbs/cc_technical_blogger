@@ -27,7 +27,7 @@ def test_generation_weaves_in_five_verified_references(client: TestClient, sampl
     assert deeper < project["markdown"].index("{{image:meme}}")
     # References are researched and woven before the images are drawn, so images see the final text.
     tasks = fake_llm.tasks()
-    assert tasks.index("reference plan") < tasks.index("research") < tasks.index("reference weave") < tasks.index("hero image design")
+    assert tasks.index("reference plan") < tasks.index("research") < tasks.index("reference weave") < tasks.index("opening ideas")
     # Image placeholders all survive.
     assert project["markdown"].count("{{image:") == len(project["images"])
 

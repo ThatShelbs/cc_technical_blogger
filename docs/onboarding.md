@@ -105,7 +105,10 @@ npm run e2e          # Playwright, against the real backend in demo mode
 | An export platform | `backend/src/proseferno/export/` and `PLATFORMS` in `export/bundle.py` | Add a writing guide, see [exporting.md](exporting.md). |
 | An article type, opener, body or closer style (formulas) | `writer/formulas.py` (the catalog; the UI reads it from the API) | See [formulas.md](formulas.md); `uv run pytest tests/unit/test_formulas.py tests/api/test_formulas.py`. |
 | Which references a post gets, and how they are checked | `prompts/reference_*.md`, `writer/references.py` | See [references.md](references.md); `uv run pytest tests/unit/test_references.py tests/api/test_references.py`. |
+| How the persona learns from published posts | `prompts/evolve_*.md`, `secret_sauce.md`, `evolution/service.py` | See [evolution.md](evolution.md); `uv run pytest tests/unit/test_evolution.py tests/api/test_evolution.py`. |
+| What an A/B test's challenger changes, or how a winner is blended | `abtest/perturb.py`, `abtest/blend.py`, `abtest/service.py` | See [ab-testing.md](ab-testing.md); `uv run pytest tests/unit/test_abtest.py tests/api/test_ab_tests.py`. |
 | What images look like | `prompts/image_system.md`, `image_spec.md`, `images/service.py` | See [images.md](images.md). |
+| How a post opens (opening image styles, the judging panel, templates) | `images/opening/` (`styles.py` is the catalog), `prompts/opening_*.md` | See [opening-images.md](opening-images.md); `uv run pytest tests/unit/test_opening.py tests/api/test_opening.py`; `uv run python scripts/opening_gallery.py`. |
 | A screen | `frontend/src/pages/` | Check day and night mode. |
 | Colors | `frontend/src/index.css` tokens only | Never raw colors in components. |
 | An API endpoint | `backend/src/proseferno/api/` plus a model in `api/schemas.py` | `uv run python scripts/export_types.py`, then add a payload to `demo.py` for any new structured output. |
@@ -123,6 +126,11 @@ npm run e2e          # Playwright, against the real backend in demo mode
 - **Project**: one post. Its **brief** is the sentence or outline you gave it.
 - **Tweak, rewrite, regenerate**: the three ways to revise a post. A tweak is a list of small edits, never a full rewrite.
 - **Revisions**: the last ten text versions, for Undo. Images keep their own history.
+- **Stage and outcome**: where a post is (Draft, Ready, Published) and how a published one did (Too early, Small traction, Good traction, Viral).
+- **Baseline**: the text exactly as Proseferno last generated it. Publishing compares your final text with it.
+- **Evolution**: proposals learned from published posts (from your edits, or a hit's secret sauce). You review and apply them.
+- **Playbook**: moves from your best-received posts, fed to every writer call.
+- **Insights**: a persona's tab with a short Claude digest of the voice profile and charts measured from samples and posts (see [insights.md](insights.md)).
 - **Reads-as-human score**: 0-100 AI-detection report (100 reads as human): a scan calibrated to your own samples plus a Claude judge.
 - **Job**: long work that runs in the background and streams progress to the browser over server-sent events (SSE).
 - **Connection**: how Claude is reached. *API* uses a Console key or sign-in; *subscription* runs your own Claude Code with your Pro or Max plan.

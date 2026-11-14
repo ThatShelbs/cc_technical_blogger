@@ -8,6 +8,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from proseferno.db import Persona
+from proseferno.images.opening.styles import clean_style, eligible, suggested
+from proseferno.images.opening.styles import label as opening_label
 from proseferno.writer.formulas import (
     AUTO,
     NOTE_FIELDS,
@@ -201,6 +203,9 @@ class Dials(FormulaParts):
     platform: Platform | None = None
     include_code: IncludeCode | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
+    # How the post opens (see images.opening.styles): a style id or "auto" (the panel picks), plus the author's own direction.
+    opening_style: str | None = Field(None, max_length=40)
+    opening_note: str | None = Field(None, max_length=400)
 
 
 class ResolvedDials(BaseModel):
@@ -236,6 +241,13 @@ class ResolvedDials(BaseModel):
     platform_guide: str
     include_code: IncludeCode
     revision_passes: int
+    # The opening image: the chosen style ("auto" = the panel picks), its label, the author's note, the styles that suit
+    # this post best (shown as the hint) and every style the panel may consider on Auto.
+    opening_style: str = AUTO
+    opening_label: str = ""
+    opening_note: str = ""
+    opening_suggested: list[str] = Field(default_factory=list)
+    opening_eligible: list[str] = Field(default_factory=list)
 
 
 def classify_topic(text: str) -> str:
@@ -295,7 +307,14 @@ def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: i
     detected = formula.article_type == AUTO and detect_article_type(prompt) != AUTO
     if detected:
         formula = formula.model_copy(update={"article_type": detect_article_type(prompt)})
+    # The post's choice wins; an explicit "auto" on the post overrides the persona's default style.
+    opening = clean_style(dials.opening_style if dials.opening_style else getattr(persona, "default_opening_style", AUTO))
     return ResolvedDials(
+        opening_style=opening,
+        opening_label=opening_label(opening),
+        opening_note=(dials.opening_note or "").strip(),
+        opening_suggested=suggested(formula.article_type, formula.opener, humor),
+        opening_eligible=eligible(formula.article_type, formula.opener, humor),
         **formula.model_dump(),
         article_type_detected=detected,
         formula_label=formula_label(formula),

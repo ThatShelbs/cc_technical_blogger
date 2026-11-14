@@ -13,7 +13,7 @@ const PLATFORMS = [
   {
     id: 'medium',
     name: 'Medium',
-    tip: 'Copy, then paste into a new Medium story. Headings map to Medium’s large and small headings; the hero image becomes the preview.',
+    tip: 'Copy, then paste into a new Medium story. Headings map to Medium’s large and small headings; the opening image becomes the preview.',
   },
   {
     id: 'substack',

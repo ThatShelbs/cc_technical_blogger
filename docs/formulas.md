@@ -139,7 +139,11 @@ The meme's writers' room (`prompts/meme_ideas.md`, see [images](images.md#closin
 - A post that opens on a joke should get at least one pitch that brings that joke back, changed by what the post showed.
 - With a **Full circle** closer the text already returns to the opening, so the meme lands somewhere else.
 
-With no formula in force the room is told nothing extra. The other images need no such note: their briefs are written by the planner, which plans to the formula (a *Show the result first* opener can put the result in the hero, an *Experiment report* body asks for charts of the results).
+With no formula in force the room is told nothing extra. The other images need no such note: their briefs are written by the planner, which plans to the formula (a *Show the result first* opener can put the result in the opening image, an *Experiment report* body asks for charts of the results).
+
+### The opening image
+
+The article type and the opener also decide which [opening image styles](opening-images.md) suit the post: a how-to suggests a cheat sheet or framework diagram, a comparison a versus split or data chart, a *Surprising number* or *Show the result first* opener a big number or data chart, a joke opener an opening meme. On Auto the panel pitches across those styles plus open visual metaphors and data art, and the room is told the formula. The opening image is not part of the formula; choose it next to the formula on the new-post form.
 
 Stored values are catalog ids. An id that is no longer in the catalog resolves to automatic, so removing a style never breaks an old post.
 
@@ -170,3 +174,5 @@ The styles are drawn from common practice in content strategy, journalism, docum
 - **Openers:** journalism's lede types (summary, anecdotal, scene-setting, question, delayed; see [MasterClass on ledes](https://www.masterclass.com/articles/how-to-write-a-lede-in-journalism)) and copywriting hooks ([Copyblogger](https://copyblogger.com/hook-and-idea/)). The joke openers are separate comic mechanisms: self-deprecation, incongruous analogy, misdirection, exaggeration and mock-seriousness ([Writer's Digest](https://writersdigest.com/write-better-fiction/how-to-mix-humor-into-your-writing)).
 - **Bodies:** narrative and inverted-pyramid story structures ([story structures in journalism](https://courses.rodrigozamith.com/intro-to-journalism/creating-news-content/story-structures/)), problem-agitate-solve from copywriting, and the point-by-point and block patterns of comparison writing.
 - **Closers:** circular endings, zooming out and ending on a line rather than a recap ([Pomona College on conclusions](https://www.pomona.edu/node/4608)), and the blog conventions of one next step or one question ([MasterClass](https://www.masterclass.com/articles/how-to-end-a-blog-post)).
+
+The backend mirrors the shuffle in `formulas.shuffle_part` (same rules as `shufflePart` in `frontend/src/lib/formula.ts`; change both together). An [A/B test](ab-testing.md) uses it to give its challenger two new formula parts.

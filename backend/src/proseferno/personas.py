@@ -6,7 +6,7 @@ import shutil
 
 from sqlmodel import Session, col, delete, select
 
-from proseferno.db import Persona, Project, ProjectImage, ProjectReference, Sample, VoiceProfile
+from proseferno.db import ABTest, Persona, PersonaEvolution, Project, ProjectImage, ProjectReference, Sample, VoiceProfile
 from proseferno.ingest import ParsedDocument
 from proseferno.ingest.stylometrics import compute
 from proseferno.storage import Storage
@@ -46,7 +46,9 @@ def delete_persona_data(session: Session, storage: Storage, persona: Persona) ->
         session.exec(delete(ProjectImage).where(col(ProjectImage.project_id).in_(project_ids)))  # type: ignore[call-overload]
         session.exec(delete(ProjectReference).where(col(ProjectReference.project_id).in_(project_ids)))  # type: ignore[call-overload]
         session.exec(delete(Project).where(col(Project.persona_id) == persona_id))  # type: ignore[call-overload]
+    session.exec(delete(ABTest).where(col(ABTest.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(Sample).where(col(Sample.persona_id) == persona_id))  # type: ignore[call-overload]
+    session.exec(delete(PersonaEvolution).where(col(PersonaEvolution.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(VoiceProfile).where(col(VoiceProfile.persona_id) == persona_id))  # type: ignore[call-overload]
     was_active = persona.is_active
     session.delete(persona)

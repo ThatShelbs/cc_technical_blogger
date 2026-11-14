@@ -28,14 +28,17 @@ from proseferno.api.schemas import (
     VoiceProfileOut,
     VoiceProfileVersion,
 )
-from proseferno.db import Persona, Sample, VoiceProfile, utcnow
+from proseferno.db import Persona, PersonaEvolution, Sample, VoiceProfile, utcnow
+from proseferno.evolution import EVOLUTION_JOBS
 from proseferno.example import ExampleError, remove_example, seed_example
+from proseferno.images.opening.styles import clean_style
 from proseferno.ingest import SUPPORTED_EXTENSIONS, UnsupportedFormatError, fetch_url, parse_file
 from proseferno.personas import add_sample, delete_persona_data
 from proseferno.sample_content import SAMPLE_AUTHOR, sample_posts
 from proseferno.services import Services
 from proseferno.storage import safe_filename
 from proseferno.voice import current_voice_profile, generate_voice_profile, latest_voice_profile, unpin, voice_profile_version
+from proseferno.voice.insights import INSIGHTS_JOB
 from proseferno.writer.formulas import clean as clean_formula
 
 router = APIRouter(prefix="/api")
@@ -57,7 +60,13 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         select(VoiceProfile).where(VoiceProfile.persona_id == persona.id).order_by(col(VoiceProfile.version).desc())
     ).all()
     current = current_voice_profile(session, persona.id)
-    active = services.jobs.active_for(persona_id=persona.id)
+    # Evolution and Insights jobs are followed where they started, not as a voice profile job.
+    active = [j for j in services.jobs.active_for(persona_id=persona.id) if j.kind not in (*EVOLUTION_JOBS, INSIGHTS_JOB)]
+    pending = session.exec(
+        select(func.count())
+        .select_from(PersonaEvolution)
+        .where(PersonaEvolution.persona_id == persona.id, PersonaEvolution.state == "pending")
+    ).one()
     return PersonaOut(
         **persona.model_dump(exclude={"updated_at"}),
         own_samples=counts.get("own", 0),
@@ -67,6 +76,7 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         latest_voice_profile_version=voice_profiles[0].version if voice_profiles else None,
         voice_profile_versions=[version_out(s) for s in voice_profiles],
         active_job_id=active[0].id if active else None,
+        pending_evolutions=pending,
     )
 
 
@@ -156,6 +166,8 @@ def update_persona(persona_id: int, body: PersonaUpdate, session: SessionDep, se
             continue
         if key == "default_formula":
             value = clean_formula(value)
+        if key == "default_opening_style":
+            value = clean_style(value)
         setattr(persona, key, value.strip() if isinstance(value, str) else value)
     persona.updated_at = utcnow()
     session.add(persona)

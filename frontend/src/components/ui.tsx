@@ -88,8 +88,9 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   )
 }
 
-export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'danger' }) {
+export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'danger' | 'flame' }) {
   const tones = {
+    flame: 'flame-button text-white',
     neutral: 'bg-surface-2 text-muted',
     accent: 'bg-accent-soft text-fg',
     success: 'bg-success-soft text-success',
@@ -136,6 +137,17 @@ export function ProgressBar({ value, label }: { value: number; label?: string })
       >
         <div className="flame-bar h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.max(3, pct)}%` }} />
       </div>
+    </div>
+  )
+}
+
+/** One headline number with its label. */
+export function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="text-lg font-bold tabular-nums">{value}</p>
+      {hint && <p className="text-xs text-muted">{hint}</p>}
     </div>
   )
 }

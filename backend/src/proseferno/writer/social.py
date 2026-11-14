@@ -14,6 +14,7 @@ from proseferno.llm import LLM
 from proseferno.prompts import render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
+from proseferno.voice.playbook import format_playbook
 from proseferno.writer.pipeline import WriterError, writer_system
 
 
@@ -36,7 +37,8 @@ async def write_linkedin_post(*, llm: LLM, settings: Settings, engine: Engine, p
     if voice_profile is None:
         raise WriterError("This persona has no voice profile yet.")
     lessons = format_lessons(persona.edit_lessons if persona else None)
-    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons)
+    playbook = format_playbook(persona.playbook if persona else None)
+    system = writer_system(voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), lessons, playbook)
     post = await llm.structured(
         task="linkedin post",
         system=system,

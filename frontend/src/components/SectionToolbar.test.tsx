@@ -36,4 +36,18 @@ describe('SectionActions', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Searching the web for a source')
     expect(screen.queryByRole('button', { name: 'Compact' })).toBeNull()
   })
+
+  it('offers Add image only when the page can add one, and calls it with no brief', async () => {
+    const { rerender } = render(<SectionActions onRun={vi.fn()} pending={null} />)
+    expect(screen.queryByRole('button', { name: 'Add image' })).toBeNull()
+    const onAddImage = vi.fn()
+    rerender(<SectionActions onRun={vi.fn()} onAddImage={onAddImage} pending={null} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Add image' }))
+    expect(onAddImage).toHaveBeenCalledTimes(1)
+  })
+
+  it('locks Add image while another action runs', () => {
+    render(<SectionActions onRun={vi.fn()} onAddImage={vi.fn()} pending={null} disabled />)
+    expect(screen.getByRole('button', { name: 'Add image' })).toBeDisabled()
+  })
 })
