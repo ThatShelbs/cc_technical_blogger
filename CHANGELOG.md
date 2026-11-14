@@ -6,7 +6,7 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ### Fixed
 
-- **Posts no longer point at examples that are not there.** "Here is the top of the file:" followed by nothing is gone. The default image count now follows how often you use images (measured from your writing), screenshots are drawn by Claude as a mock of the screen the post describes (use **Replace** for the real one), code the author would show as a screenshot is written as a code block, the editor is shown every lead-in with nothing after it, and anything still missing after editing becomes a drawn image right where the text promised it.
+- **Posts no longer point at examples that are not there.** "Here is the top of the file:" followed by nothing is gone. The default image count now follows how often you use images (measured from your writing), screenshots are drawn by Claude as a mock of the screen the post describes (use **Replace** for the real one), code the author would show as a screenshot is written as a code block, the editor is shown every lead-in with nothing after it, and anything still missing after editing becomes a drawn image right where the text promised it. Older posts can be fixed in place with `POST /api/projects/{id}/examples`.
 
 ### Added
 

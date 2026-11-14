@@ -9,6 +9,7 @@ from proseferno.api.projects import _check_idle, _writable_persona, project_out
 from proseferno.api.schemas import EnrichIn, JobOut, ProjectOut, ReferenceRedrawIn, RevertIn
 from proseferno.voice import current_voice_profile
 from proseferno.writer import WriterError
+from proseferno.writer.examples import fill_missing_examples
 from proseferno.writer.references import enrich_post, redraw_reference, remove_reference, revert_reference
 
 router = APIRouter(prefix="/api")
@@ -35,6 +36,22 @@ async def add_references(project_id: int, session: SessionDep, services: Service
             kinds=list(body.kinds) if body.kinds else None,
             ctx=ctx,
         ),
+        project_id=project_id,
+    )
+    return JobOut(**job.model_dump())
+
+
+@router.post("/projects/{project_id}/examples", response_model=JobOut, status_code=202)
+async def add_missing_examples(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Draw an image after every lead-in ("Here is the file:") that has nothing after it, for posts written before that was checked."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post first.")
+    _writable_persona(session, project.persona_id)
+    _check_idle(services, project_id)
+    job = await services.jobs.start(
+        "fill_examples",
+        lambda ctx: fill_missing_examples(engine=services.engine, images=services.images, project_id=project_id, ctx=ctx),
         project_id=project_id,
     )
     return JobOut(**job.model_dump())

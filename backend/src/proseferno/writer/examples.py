@@ -8,11 +8,22 @@ slot right after its lead-in, so the image step draws it (a "screenshot" is a dr
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from proseferno.images import PLACEHOLDER_RE
+from sqlalchemy import Engine
+from sqlmodel import Session, col, select
+
+from proseferno.db import Persona, Project, ProjectImage, utcnow
+from proseferno.images import PLACEHOLDER_RE, ImageService
+from proseferno.voice import current_voice_profile
+from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ImageKind, ImageSlot
+
+if TYPE_CHECKING:
+    from proseferno.writer.pipeline import Reporter
 
 # Never add more than this many images to one post on top of the planned ones.
 MAX_EXTRA_SLOTS = 8
@@ -204,3 +215,82 @@ def add_example_slots(markdown: str, slots: list[ImageSlot], *, fill_dangling: b
     hero = [s for s in slots if s.kind == "hero"]
     meme = [s for s in slots if s.kind == "meme"]
     return text, [*hero, *middle, *meme]
+
+
+async def fill_missing_examples(*, engine: Engine, images: ImageService, project_id: int, ctx: Reporter) -> dict[str, Any]:
+    """Fix a post written before lead-ins were checked: draw an image for every example it introduces but lacks.
+
+    The text only gains placeholder lines (the old text is kept in the history); existing images are untouched.
+    """
+    with Session(engine, expire_on_commit=False) as session:
+        project = session.get(Project, project_id)
+        if project is None:
+            raise ValueError("Project not found.")
+        persona = session.get(Persona, project.persona_id)
+        voice_profile = current_voice_profile(session, project.persona_id)
+        rows = list(session.exec(select(ProjectImage).where(ProjectImage.project_id == project_id).order_by(col(ProjectImage.position))))
+    if persona is None:
+        raise ValueError("The project's persona no longer exists.")
+    slots = [
+        ImageSlot(slot_id=r.slot_id, kind=r.kind, section_index=0, purpose=r.purpose or "", brief=r.prompt or r.purpose or "")  # type: ignore[arg-type]
+        for r in rows
+    ]
+    await ctx.progress(0.05, "Looking for examples the post introduces but does not show")
+    markdown, new_slots = add_example_slots(project.markdown, slots)
+    added = [s for s in new_slots if s.slot_id not in {r.slot_id for r in rows}]
+    if not added:
+        await ctx.progress(1.0, "Every example in this post is already there")
+        return {"project_id": project_id, "added": []}
+
+    order = {slot.slot_id: i for i, slot in enumerate(new_slots)}
+    with Session(engine) as session:
+        row = session.get(Project, project_id)
+        assert row is not None
+        push_revision(row, "Before adding missing examples", "edit")
+        row.markdown = markdown
+        plan = dict(row.plan or {})
+        plan["image_slots"] = [s.model_dump() for s in new_slots]
+        row.plan = plan
+        row.updated_at = utcnow()
+        session.add(row)
+        for image in session.exec(select(ProjectImage).where(ProjectImage.project_id == project_id)):
+            image.position = order.get(image.slot_id, len(order))
+            session.add(image)
+        fresh = [
+            ProjectImage(
+                project_id=project_id, slot_id=s.slot_id, position=order[s.slot_id], kind=s.kind, purpose=s.purpose, prompt=s.brief
+            )
+            for s in added
+        ]
+        session.add_all(fresh)
+        session.commit()
+        image_ids = [i.id for i in fresh if i.id is not None]
+    await ctx.emit("draft_reset", {})
+    await ctx.emit("draft_delta", {"text": markdown})
+
+    done = 0
+
+    async def draw(image_id: int) -> None:
+        nonlocal done
+        await images.create(
+            image_id,
+            persona=persona,
+            title=project.title,
+            markdown=markdown,
+            voice_profile=voice_profile.markdown if voice_profile else "",
+            brand_kit=project.brand_kit,
+            usage=ctx.add_usage,
+        )
+        done += 1
+        await ctx.emit("image_ready", {"image_id": image_id})
+        await ctx.progress(0.1 + 0.9 * done / len(image_ids), f"Drew {done} of {len(image_ids)} missing examples")
+
+    await ctx.progress(0.1, f"Drawing {len(image_ids)} missing examples")
+    semaphore = asyncio.Semaphore(3)
+
+    async def limited(image_id: int) -> None:
+        async with semaphore:
+            await draw(image_id)
+
+    await asyncio.gather(*(limited(i) for i in image_ids))
+    return {"project_id": project_id, "added": [s.slot_id for s in added]}
