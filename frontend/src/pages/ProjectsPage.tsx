@@ -143,6 +143,8 @@ export function ProjectsPage() {
                     <Badge tone={status.tone}>{status.label}</Badge>
                     {outcome && outcome.id !== 'too_early' && <Badge tone={outcome.tone}>{outcome.label}</Badge>}
                     {examplePersonas.has(project.persona_id) && <Badge tone="accent">Example</Badge>}
+                    {project.ab_status === 'voting' && <Badge tone="flame">A/B: pick a winner</Badge>}
+                    {project.ab_status === 'decided' && <Badge tone="accent">A/B result</Badge>}
                   </span>
                   <span className="text-xs text-muted">{new Date(project.updated_at).toLocaleDateString()}</span>
                 </div>

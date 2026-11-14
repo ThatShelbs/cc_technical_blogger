@@ -4,6 +4,9 @@ import { EMPTY_CATALOG } from '../lib/formula'
 import type { ReferenceKind } from '../lib/references'
 import { api } from './client'
 import type {
+  ABAdoptOut,
+  ABDecideIn,
+  ABTestOut,
   AuthStatusOut,
   AuthTestOut,
   BaselineDiffOut,
@@ -60,6 +63,7 @@ export const keys = {
   evolution: (personaId: number) => ['personas', personaId, 'evolution'] as const,
   insights: (personaId: number) => ['personas', personaId, 'insights'] as const,
   baselineDiff: (projectId: number) => ['projects', projectId, 'baseline-diff'] as const,
+  abTest: (id: number) => ['ab-tests', id] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -320,6 +324,38 @@ export function useProjectMutations(projectId?: number) {
       mutationFn: (id: number) => api.del<void>(`/api/projects/${id}`),
       onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects }),
     }),
+  }
+}
+
+// -- A/B tests -------------------------------------------------------------------
+
+/** One A/B test: the two posts by position while it is open; the winner, roles and tweaks once decided. */
+export const useABTest = (id: number | null | undefined) =>
+  useQuery({ queryKey: keys.abTest(id ?? 0), queryFn: () => api.get<ABTestOut>(`/api/ab-tests/${id}`), enabled: !!id })
+
+export function useABTestMutations(projectId: number, testId?: number) {
+  const qc = useQueryClient()
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: keys.project(projectId) })
+    void qc.invalidateQueries({ queryKey: keys.projects })
+    if (testId) void qc.invalidateQueries({ queryKey: keys.abTest(testId) })
+  }
+  return {
+    refresh,
+    /** Write the post twice: as the persona is, and with every setting nudged. A body first applies a new brief, dials or persona. */
+    start: useMutation({ mutationFn: (body?: GenerateIn) => api.post<JobOut>(`/api/projects/${projectId}/ab-tests`, body), onSuccess: refresh }),
+    decide: useMutation({ mutationFn: (body: ABDecideIn) => api.post<JobOut>(`/api/ab-tests/${testId}/decide`, body) }),
+    /** Adopt the chosen tweaks into the persona (an empty list keeps it as it is). */
+    adopt: useMutation({
+      mutationFn: (tweakIds: string[]) => api.post<ABAdoptOut>(`/api/ab-tests/${testId}/adopt`, { tweak_ids: tweakIds }),
+      onSuccess: (data) => {
+        qc.setQueryData(keys.abTest(data.ab_test.id), data.ab_test)
+        refresh()
+        void qc.invalidateQueries({ queryKey: ['personas'] })
+      },
+    }),
+    retry: useMutation({ mutationFn: () => api.post<JobOut>(`/api/ab-tests/${testId}/retry`) }),
+    discard: useMutation({ mutationFn: () => api.del<void>(`/api/ab-tests/${testId}`), onSuccess: refresh }),
   }
 }
 
