@@ -32,6 +32,7 @@ const FAILED_TITLE: Record<string, string> = {
   tweak_post: 'Could not apply your feedback',
   enrich_post: 'Could not add references',
   redraw_reference: 'Could not redraw that reference',
+  add_image: 'Could not add the image',
 }
 
 const SCORE_LABELS: [keyof Critique, string][] = [
@@ -235,7 +236,7 @@ interface EditorProps {
 }
 
 function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings, onTweakStarted }: EditorProps) {
-  const { update, rewrite } = useProjectMutations(project.id)
+  const { update, rewrite, addImage } = useProjectMutations(project.id)
   const referenceActions = useReferenceActions(project.id, { busy, onJobStarted: onTweakStarted })
   const [mode, setMode] = useState<'preview' | 'markdown'>('preview')
   const [text, setText] = useState(project.markdown)
@@ -251,6 +252,20 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
   if (savedMarkdown !== project.markdown) {
     setSavedMarkdown(project.markdown)
     setText(project.markdown)
+  }
+
+  /** Add an image near a highlight: the job finds the nearest paragraph or sentence break and the page follows it. */
+  const addImageAt = (source: string) => {
+    addImage.mutate(
+      { selection: source },
+      {
+        onSuccess: (job) => {
+          setSelection('')
+          window.getSelection()?.removeAllRanges()
+          onTweakStarted(job)
+        },
+      },
+    )
   }
 
   const captureSelection = () => {
@@ -336,7 +351,14 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
                 }}
               />
             </div>
-            <SectionToolbar container={preview} markdown={project.markdown} pending={pendingAction} disabled={busy} onRun={regenerate} />
+            <SectionToolbar
+              container={preview}
+              markdown={project.markdown}
+              pending={pendingAction}
+              disabled={busy || addImage.isPending}
+              onRun={regenerate}
+              onAddImage={addImageAt}
+            />
           </Card>
         ) : (
           <Card padded={false} className="space-y-2 p-3">
@@ -357,7 +379,12 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
                 {dirty ? (
                   <p className="px-2 py-1 text-sm text-muted">Save your edits first, then regenerate the selection.</p>
                 ) : (
-                  <SectionActions pending={pendingAction} disabled={busy} onRun={(run) => regenerate(selection, run)} />
+                  <SectionActions
+                    pending={pendingAction}
+                    disabled={busy || addImage.isPending}
+                    onRun={(run) => regenerate(selection, run)}
+                    onAddImage={() => addImageAt(selection)}
+                  />
                 )}
               </div>
             )}
@@ -365,6 +392,7 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
         )}
         {update.error && <Notice tone="error">{errorText(update.error)}</Notice>}
         {rewrite.error && <Notice tone="error">{errorText(rewrite.error)}</Notice>}
+        {addImage.error && <Notice tone="error">{errorText(addImage.error)}</Notice>}
       </div>
 
       <aside className="space-y-4">
@@ -434,6 +462,7 @@ export function ProjectPage() {
   const abOpen = !!abTest && ['voting', 'error', 'generating', 'deciding'].includes(abTest.status)
   const tweaking = running && jobKind === 'tweak_post'
   const referencing = running && REFERENCE_JOBS.includes(jobKind)
+  const addingImage = running && jobKind === 'add_image'
   const follow = (j: JobOut) => {
     setFinished(null)
     setParams({ job: j.id, kind: j.kind }, { replace: true })
@@ -457,12 +486,18 @@ export function ProjectPage() {
         {String(finished.state.result.notes_error)} Try it again with “Tweak with feedback”.
       </Notice>
     )
-  } else if (tweaking || referencing) {
-    const what = tweaking ? 'Applying your feedback…' : jobKind === 'enrich_post' ? 'Finding references…' : 'Finding a new reference…'
+  } else if (tweaking || referencing || addingImage) {
+    const what = tweaking
+      ? 'Applying your feedback…'
+      : addingImage
+        ? 'Adding an image…'
+        : jobKind === 'enrich_post'
+          ? 'Finding references…'
+          : 'Finding a new reference…'
     banner = (
       <Card className="space-y-2">
         <p className="text-sm font-semibold">{what}</p>
-        <ProgressBar value={job.progress} label={tweaking ? 'Feedback progress' : 'References progress'} />
+        <ProgressBar value={job.progress} label={tweaking ? 'Feedback progress' : addingImage ? 'Image progress' : 'References progress'} />
         <p className="text-xs text-muted">{job.message || 'Starting'}</p>
       </Card>
     )
@@ -471,6 +506,15 @@ export function ProjectPage() {
     banner = (
       <Notice tone="success" title={`Added ${added} reference${added === 1 ? '' : 's'}`}>
         Each one is marked next to its link in the post. Not quite right? Redraw it, or use “Undo last change”.
+      </Notice>
+    )
+  } else if (finished?.kind === 'add_image' && finished.state.status === 'succeeded') {
+    const result = finished.state.result ?? {}
+    banner = (
+      <Notice tone={result.image_error ? 'warn' : 'success'} title="Image added">
+        {String(result.summary ?? 'Done.')}
+        {result.image_error ? ` The image itself could not be drawn (${String(result.image_error)}); use Redraw on it.` : ''} Not quite right? Use “Undo last
+        change”; it takes the image out too.
       </Notice>
     )
   } else if (finished?.kind === 'tweak_post' && finished.state.status === 'succeeded') {
@@ -541,7 +585,7 @@ export function ProjectPage() {
               {banner}
             </>
           }
-          busy={tweaking || referencing || abDeciding}
+          busy={tweaking || referencing || addingImage || abDeciding}
           onRegenerate={regenerate}
           onABTest={runABTest}
           onOpenSettings={() => setSettingsOpen(true)}

@@ -14,6 +14,7 @@ from proseferno.api.deps import ServicesDep, SessionDep, image_or_404, persona_o
 from proseferno.api.evolution import evolution_out
 from proseferno.api.schemas import (
     ABTestSummary,
+    AddImageIn,
     CopyHtmlOut,
     GenerateIn,
     ImageEditIn,
@@ -81,9 +82,12 @@ from proseferno.writer import (
     tweak_post,
     word_count,
 )
+from proseferno.writer.add_image import add_image_at
+from proseferno.writer.image_text import describe_image, failed_sync_result, sync_text_to_images
 from proseferno.writer.pipeline import measure
 from proseferno.writer.references import in_post, project_references
 from proseferno.writer.social import write_linkedin_post
+from proseferno.writer.tweak import locate
 
 router = APIRouter(prefix="/api")
 
@@ -484,6 +488,19 @@ async def tweak(project_id: int, body: TweakIn, session: SessionDep, services: S
     return JobOut(**job.model_dump())
 
 
+def _drop_added_image(session: Session, services: Services, project: Project, slot_id: str) -> None:
+    """Remove an image the author added from a highlight: its row, files and plan slot. The caller commits."""
+    folder = services.storage.image_dir(project.id)  # type: ignore[arg-type]
+    for image in session.exec(select(ProjectImage).where(ProjectImage.project_id == project.id, ProjectImage.slot_id == slot_id)):
+        names = {image.file_name, *(entry.get("file_name") for entry in image.history)} - {None}
+        for name in names:
+            (folder / str(name)).unlink(missing_ok=True)
+        session.delete(image)
+    plan = dict(project.plan or {})
+    plan["image_slots"] = [slot for slot in plan.get("image_slots", []) if slot.get("slot_id") != slot_id]
+    project.plan = plan
+
+
 @router.post("/projects/{project_id}/revisions/{index}/restore", response_model=ProjectOut)
 def restore_revision(project_id: int, index: int, session: SessionDep, services: ServicesDep) -> ProjectOut:
     """Bring back an earlier text version; the current text becomes a version too, so this can be undone."""
@@ -494,6 +511,9 @@ def restore_revision(project_id: int, index: int, session: SessionDep, services:
     _check_idle(services, project_id)
     entry = revisions.pop(index)
     project.revisions = revisions
+    if entry.get("added_slot"):
+        # The text from before an image was added: the image goes too, or its placeholder would come straight back.
+        _drop_added_image(session, services, project, str(entry["added_slot"]))
     push_revision(project, f"Before restoring: {entry.get('label', '')}", "restore")
     project.markdown = finish_text(str(entry.get("markdown", "")), project.plan)
     title, subtitle = split_title(project.markdown)
@@ -600,6 +620,24 @@ def update_image(image_id: int, body: ImageUpdate, session: SessionDep) -> Image
     return image_out(image)
 
 
+async def _sync_text(services: Services, project_id: int, changes: list[tuple[str, str, str]], ctx) -> dict:  # type: ignore[no-untyped-def]
+    """After images are redrawn, fix the sentences that described the old ones. Never fails the redraw."""
+    if services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS):
+        return {"text_edits": 0, "text_summary": ""}
+    try:
+        await ctx.progress(0.85, "Updating the text around the image")
+        return await sync_text_to_images(
+            engine=services.engine,
+            llm=services.llm,
+            settings=services.settings,
+            project_id=project_id,
+            changes=changes,
+            usage=ctx.add_usage,
+        )
+    except Exception as exc:  # noqa: BLE001 - the redraw already succeeded; a failed text check must not fail it
+        return failed_sync_result(exc)
+
+
 async def _image_job(
     services: Services,
     session: Session,
@@ -619,6 +657,7 @@ async def _image_job(
     brand_kit = dict(project.brand_kit or {})
     voice_profile = current_voice_profile(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
+    before = describe_image(image)
 
     async def run(ctx):  # type: ignore[no-untyped-def]
         await ctx.progress(0.1, "Editing image" if instruction else "Redrawing image")
@@ -640,7 +679,10 @@ async def _image_job(
         )
         if result.status == "error":
             raise ImageProviderError(result.error or "Image generation failed.")
-        return {"image_id": image_id}
+        return {
+            "image_id": image_id,
+            **await _sync_text(services, image.project_id, [(result.slot_id, before, describe_image(result))], ctx),
+        }
 
     job = await services.jobs.start("edit_image" if instruction else "redraw_image", run, project_id=project.id)
     return JobOut(**job.model_dump())
@@ -740,6 +782,7 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
     drawn = [
         (i.id, i.kind) for i in project_images(session, project_id) if i.id is not None and i.provider not in ("upload", "placeholder")
     ]
+    before = {i.id: (i.slot_id, describe_image(i)) for i in project_images(session, project_id) if i.id is not None}
     image_ids = [image_id for image_id, _ in drawn]
     if not image_ids:
         raise HTTPException(409, "This post has no drawn images to redraw.")
@@ -747,6 +790,7 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
     async def run(ctx):  # type: ignore[no-untyped-def]
         done = 0
         semaphore = asyncio.Semaphore(3)
+        redrawn: dict[int, ProjectImage] = {}
         # The closing meme waits for the opening image, so a meme sandwich's closer knows the new opener.
         opened = asyncio.Event()
         if not any(kind == "hero" for _, kind in drawn):
@@ -758,7 +802,7 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
                 await opened.wait()
             try:
                 async with semaphore:
-                    await services.images.create(
+                    redrawn[image_id] = await services.images.create(
                         image_id,
                         persona=persona,
                         title=title,
@@ -777,9 +821,38 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
 
         await ctx.progress(0.05, f"Redrawing {len(image_ids)} images")
         await asyncio.gather(*(one(i, kind) for i, kind in drawn))
-        return {"image_ids": image_ids}
+        changes = [(before[i][0], before[i][1], describe_image(img)) for i, img in redrawn.items() if i in before]
+        return {"image_ids": image_ids, **await _sync_text(services, project_id, changes, ctx)}
 
     job = await services.jobs.start("redraw_images", run, project_id=project_id)
+    return JobOut(**job.model_dump())
+
+
+@router.post("/projects/{project_id}/images", response_model=JobOut, status_code=202)
+async def add_image(project_id: int, body: AddImageIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Add an image near a highlighted passage: Claude picks the spot and the kind, draws it, and reworks adjacent text."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post before adding images.")
+    _check_no_open_test(session, project_id)
+    _writable_persona(session, project.persona_id)
+    _check_idle(services, project_id)
+    if locate(project.markdown, body.selection) is None:
+        raise HTTPException(422, "Could not find the highlighted text in the post. Select it again.")
+    job = await services.jobs.start(
+        "add_image",
+        lambda ctx: add_image_at(
+            engine=services.engine,
+            llm=services.llm,
+            settings=services.settings,
+            images=services.images,
+            project_id=project_id,
+            selection=body.selection,
+            instruction=body.instruction,
+            ctx=ctx,
+        ),
+        project_id=project_id,
+    )
     return JobOut(**job.model_dump())
 
 

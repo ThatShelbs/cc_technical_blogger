@@ -59,6 +59,11 @@ export interface ABVariantOut {
   images: ImageOut[];
 }
 
+export interface AddImageIn {
+  selection: string;
+  instruction?: string;
+}
+
 export interface ApiKeyIn {
   api_key: string;
 }

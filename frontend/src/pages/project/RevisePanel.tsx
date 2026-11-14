@@ -127,6 +127,7 @@ const KIND_LABEL: Record<string, string> = {
   section: 'Before section change',
   edit: 'Before edit',
   restore: 'Before restore',
+  image: 'Before image change',
 }
 
 function when(iso: string): string {

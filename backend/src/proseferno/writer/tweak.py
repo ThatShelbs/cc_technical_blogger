@@ -37,7 +37,7 @@ from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ImageSlot, PostEdits, TextEdit
 
 # Jobs that change a post's text; only one runs per project at a time.
-TEXT_JOBS = ("generate_post", "tweak_post", "enrich_post", "redraw_reference", "ab_generate", "ab_decide")
+TEXT_JOBS = ("generate_post", "tweak_post", "enrich_post", "redraw_reference", "ab_generate", "ab_decide", "add_image")
 
 
 def locate(markdown: str, text: str) -> tuple[int, int] | None:

@@ -822,6 +822,11 @@ class RewriteIn(BaseModel):
     action: Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote"] = "custom"
 
 
+class AddImageIn(BaseModel):
+    selection: str = Field(min_length=1)
+    instruction: str = Field(default="", max_length=2000)
+
+
 class CopyHtmlOut(BaseModel):
     html: str
 
