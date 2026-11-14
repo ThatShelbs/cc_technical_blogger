@@ -7,6 +7,8 @@ A persona should get better with every post you publish. Proseferno learns from 
 
 Nothing changes until you review a proposal and apply it.
 
+A third source is a blind [A/B test](ab-testing.md): voice, principle and title changes you adopt from a winning challenger are applied as a proposal of kind `ab_test` ("A/B test winner"), the same way as below.
+
 ## Stages and outcomes
 
 Every post has a **stage**, set in the post's header:
