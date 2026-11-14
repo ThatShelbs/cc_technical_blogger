@@ -46,6 +46,7 @@ flowchart TB
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
 | `voice/` | Sample analysis, best-practice research, voice profile synthesis, exemplar selection. |
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, section regeneration (`section.py`: rewrite, compact, expand, add source or quote, custom brief), feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
+| `abtest/` | A/B Test Mode: builds the challenger's random tweaks (`perturb.py`), splices parts of one post into the other (`blend.py`), and runs, decides, discards and adopts tests (`service.py`; see [A/B testing](ab-testing.md)). |
 | `evolution/` | Persona evolution: compares a published post with its generated baseline, reads hits for their secret sauce, and applies approved changes as a new voice profile version and playbook entries (see [evolution](evolution.md)). |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
 | `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the meme generator (pitch, then art where the format has any), the bundled fonts and the composer that owns meme layout and type. |
@@ -68,6 +69,7 @@ backend/                           FastAPI + uv (Python 3.13)
     voice/      Sample analysis, research, voice profile synthesis, exemplar selection, learning from edits
     writer/     Dials, plan, draft, critique/revise, feedback tweaks, text history, LinkedIn feed post
     authenticity/  AI-generation detection: calibrated scan + Claude judge
+    abtest/     A/B Test Mode: challenger tweaks, blending, deciding and adopting
     evolution/  Learn from published posts: edits vs. the generated baseline, secret sauce, playbook
     images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
     export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles

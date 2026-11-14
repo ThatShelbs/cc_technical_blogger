@@ -37,8 +37,19 @@ class WriterError(ValueError):
     pass
 
 
-def writer_system(voice_profile: str, exemplars: str, lessons: str = "", playbook: str = "") -> list[SystemBlock]:
-    """Stable prefix shared by every call in a project, cached after the exemplars."""
+@dataclass
+class Variation:
+    """What an A/B test's challenger changes beyond its dials (see abtest.perturb): the examples and the emphasis."""
+
+    exemplar_ids: list[int]
+    emphasis: str = ""
+
+
+def writer_system(voice_profile: str, exemplars: str, lessons: str = "", playbook: str = "", emphasis: str = "") -> list[SystemBlock]:
+    """Stable prefix shared by every call in a project, cached after the exemplars.
+
+    ``emphasis`` is an A/B challenger's "lean on this, ease off that" block; empty for every normal post.
+    """
     blocks = [SystemBlock(raw("writer_system")), SystemBlock(f"# Voice profile\n\n{voice_profile}")]
     if lessons:
         blocks.append(
@@ -55,6 +66,8 @@ def writer_system(voice_profile: str, exemplars: str, lessons: str = "", playboo
                 + playbook
             )
         )
+    if emphasis:
+        blocks.append(SystemBlock(emphasis))
     return [*blocks, SystemBlock(exemplars, cache=True)]
 
 
@@ -219,9 +232,11 @@ async def generate_article(
     settings: Settings,
     images: ImageService,
     project_id: int,
-    ctx: JobContext,
+    ctx: JobContext | Reporter,
     links: LinkChecker | None = None,
+    variation: Variation | None = None,
 ) -> dict[str, Any]:
+    """Write the project's post and draw its images. ``variation`` is set only for an A/B test's challenger."""
     # expire_on_commit=False: these rows are read for the rest of the (long) job after the session closes.
     with Session(engine, expire_on_commit=False) as session:
         project = session.get(Project, project_id)
@@ -241,7 +256,9 @@ async def generate_article(
         raise WriterError("Generate a voice profile for this persona before writing a post.")
 
     try:
-        return await _generate(engine, llm, settings, images, project, persona, voice_profile, samples, ctx, links or NoLinkChecker())
+        return await _generate(
+            engine, llm, settings, images, project, persona, voice_profile, samples, ctx, links or NoLinkChecker(), variation
+        )
     except Exception as exc:
         with Session(engine) as session:
             row = session.get(Project, project_id)
@@ -285,10 +302,14 @@ async def write_post(
     on_plan: Callable[[ArticlePlan], None] | None = None,
     on_draft: Callable[[str, dict[str, Any]], None] | None = None,
     enrich: Callable[[str, ArticlePlan, list[SystemBlock]], Awaitable[str]] | None = None,
+    variation: Variation | None = None,
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise -> optional ``enrich`` pass (references). Images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
-    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons, playbook)
+    if variation is not None and variation.exemplar_ids:
+        by_id = {s.id: s for s in samples}
+        exemplars = [by_id[i] for i in variation.exemplar_ids if i in by_id] or exemplars
+    system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons, playbook, variation.emphasis if variation else "")
     settings_text = prompt_settings(dials)
 
     # 1. Plan
@@ -428,8 +449,9 @@ async def _generate(
     persona: Persona,
     voice_profile: VoiceProfile,
     samples: list[Sample],
-    ctx: JobContext,
+    ctx: JobContext | Reporter,
     links: LinkChecker,
+    variation: Variation | None = None,
 ) -> dict[str, Any]:
     from proseferno.writer import references  # imports this module
 
@@ -484,6 +506,7 @@ async def _generate(
         # The old text versions belong to the old images, so a regeneration starts a fresh history.
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured, revisions=[]),
         enrich=add_references,
+        variation=variation,
     )
     draft, plan, slots = post.markdown, post.plan, post.plan.image_slots
 

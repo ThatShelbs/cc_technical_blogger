@@ -13,7 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
 from proseferno import __version__
-from proseferno.api import evolution, formulas, insights, jobs, personas, projects, references, system
+from proseferno.abtest.service import fail_interrupted
+from proseferno.api import ab_tests, evolution, formulas, insights, jobs, personas, projects, references, system
 from proseferno.config import Settings, get_settings
 from proseferno.db import Persona
 from proseferno.evolution import fail_analyzing
@@ -41,13 +42,14 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         services.images.fail_pending()
         fail_pending_references(services.engine)
         fail_analyzing(services.engine)
+        fail_interrupted(services.engine)
         await _seed_demo(settings, services)
         yield
         await services.jobs.shutdown()
 
     app = FastAPI(title="Proseferno", version=__version__, lifespan=lifespan)
     app.state.services = services
-    for module in (system, personas, insights, projects, references, formulas, evolution, jobs):
+    for module in (system, personas, insights, projects, ab_tests, references, formulas, evolution, jobs):
         app.include_router(module.router)
     _mount_frontend(app, settings.frontend_dist)
     return app

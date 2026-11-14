@@ -2,6 +2,7 @@
 
 from proseferno.writer.dials import Dials, ResolvedDials, classify_topic, resolve
 from proseferno.writer.pipeline import (
+    Variation,
     WriterError,
     WrittenPost,
     ensure_placeholders,
@@ -31,6 +32,7 @@ __all__ = [
     "SectionAction",
     "TextEdit",
     "TitleOptions",
+    "Variation",
     "WriterError",
     "WrittenPost",
     "apply_edits",

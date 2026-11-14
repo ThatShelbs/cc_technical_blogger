@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 
 import { errorText } from '../../api/client'
-import { keys, usePersonas, useProject, useProjectMutations } from '../../api/hooks'
+import { keys, useABTestMutations, usePersonas, useProject, useProjectMutations } from '../../api/hooks'
 import type { JobOut, ProjectOut } from '../../api/types.gen'
 import { useJob, type Critique, type JobState } from '../../api/useJob'
 import { Article } from '../../components/Article'
@@ -12,6 +12,9 @@ import { SectionActions, SectionToolbar, type SectionAction, type SectionRun } f
 import { Badge, Button, Card, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { referenceForHref } from '../../lib/references'
+import { ABCompare } from './ab/ABCompare'
+import { ABGenerationView } from './ab/ABGenerationView'
+import { ABReveal } from './ab/ABReveal'
 import { AuthenticityPanel } from './AuthenticityPanel'
 import { BrandKitCard } from './BrandKitCard'
 import { EvolutionCard } from './EvolutionCard'
@@ -219,11 +222,13 @@ interface EditorProps {
   /** A tweak is running: the post stays visible but cannot be changed. */
   busy: boolean
   onRegenerate: () => void
+  /** Write the post twice and compare them blind (A/B Test Mode). */
+  onABTest: () => void
   onOpenSettings: () => void
   onTweakStarted: (job: JobOut) => void
 }
 
-function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakStarted }: EditorProps) {
+function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings, onTweakStarted }: EditorProps) {
   const { update, rewrite } = useProjectMutations(project.id)
   const referenceActions = useReferenceActions(project.id, { busy, onJobStarted: onTweakStarted })
   const [mode, setMode] = useState<'preview' | 'markdown'>('preview')
@@ -357,7 +362,15 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
       </div>
 
       <aside className="space-y-4">
-        <ReviseCard project={project} dirty={dirty} busy={busy} onTweakStarted={onTweakStarted} onOpenSettings={onOpenSettings} onRegenerate={onRegenerate} />
+        <ReviseCard
+          project={project}
+          dirty={dirty}
+          busy={busy}
+          onTweakStarted={onTweakStarted}
+          onOpenSettings={onOpenSettings}
+          onRegenerate={onRegenerate}
+          onABTest={onABTest}
+        />
         <EvolutionCard project={project} />
         <ReferencesCard project={project} actions={referenceActions} />
         <HistoryCard project={project} busy={busy} dirty={dirty} />
@@ -386,6 +399,7 @@ export function ProjectPage() {
   const { data: project, isLoading, error } = useProject(id)
   const { data: allPersonas } = usePersonas()
   const { generate } = useProjectMutations(id)
+  const { start: startAB } = useABTestMutations(id, undefined)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // The last finished job, kept after the URL is cleared so its outcome can be shown.
   const [finished, setFinished] = useState<{ kind: string; state: JobState } | null>(null)
@@ -395,6 +409,8 @@ export function ProjectPage() {
   const job = useJob(jobId, (state) => {
     void qc.invalidateQueries({ queryKey: keys.project(id) })
     void qc.invalidateQueries({ queryKey: keys.projects })
+    // An A/B job changes its test: the choice, the reveal, the parts taken.
+    void qc.invalidateQueries({ queryKey: ['ab-tests'] })
     setFinished({ kind: jobKind, state })
     setParams({}, { replace: true })
   })
@@ -405,6 +421,11 @@ export function ProjectPage() {
   const running = !!jobId && job.status !== 'succeeded' && job.status !== 'failed'
   // Only a full generation takes over the page; other text jobs (feedback, references) show a banner over the editor.
   const generating = running && jobKind === 'generate_post'
+  // An A/B test takes over the page until a winner is picked: two posts being written, then the blind choice.
+  const abWriting = running && jobKind === 'ab_generate'
+  const abDeciding = running && jobKind === 'ab_decide'
+  const abTest = project.ab_test
+  const abOpen = !!abTest && ['voting', 'error', 'generating', 'deciding'].includes(abTest.status)
   const tweaking = running && jobKind === 'tweak_post'
   const referencing = running && REFERENCE_JOBS.includes(jobKind)
   const follow = (j: JobOut) => {
@@ -412,10 +433,25 @@ export function ProjectPage() {
     setParams({ job: j.id, kind: j.kind }, { replace: true })
   }
   const regenerate = () => generate.mutate(undefined, { onSuccess: follow })
+  const runABTest = () => startAB.mutate(undefined, { onSuccess: follow })
   const failed = finished?.state.status === 'failed' ? finished : null
 
   let banner: ReactNode = null
-  if (tweaking || referencing) {
+  if (abDeciding) {
+    banner = (
+      <Card className="space-y-2">
+        <p className="text-sm font-semibold">Making your pick the post…</p>
+        <ProgressBar value={job.progress} label="A/B decision progress" />
+        <p className="text-xs text-muted">{job.message || 'Starting'}</p>
+      </Card>
+    )
+  } else if (finished?.kind === 'ab_decide' && finished.state.status === 'succeeded' && finished.state.result?.notes_error) {
+    banner = (
+      <Notice tone="warn" title="Your blend note could not be applied">
+        {String(finished.state.result.notes_error)} Try it again with “Tweak with feedback”.
+      </Notice>
+    )
+  } else if (tweaking || referencing) {
     const what = tweaking ? 'Applying your feedback…' : jobKind === 'enrich_post' ? 'Finding references…' : 'Finding a new reference…'
     banner = (
       <Card className="space-y-2">
@@ -450,7 +486,9 @@ export function ProjectPage() {
           <p className="text-sm font-semibold text-muted">Post</p>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{project.title || 'Untitled post'}</h1>
         </div>
-        {generating || project.status === 'generating' ? (
+        {abWriting || abOpen ? (
+          <Badge tone="accent">A/B test</Badge>
+        ) : generating || project.status === 'generating' ? (
           <Badge tone="accent">Writing…</Badge>
         ) : project.status === 'error' ? (
           <Badge tone="danger">Needs attention</Badge>
@@ -482,22 +520,37 @@ export function ProjectPage() {
       )}
       {generating ? (
         <GenerationView job={job} />
+      ) : abWriting ? (
+        <ABGenerationView job={job} />
+      ) : abDeciding && !project.markdown ? (
+        banner
+      ) : abOpen && abTest && !abDeciding ? (
+        <ABCompare projectId={project.id} testId={abTest.id} onStarted={follow} />
       ) : project.markdown ? (
         <Editor
           project={project}
-          banner={banner}
-          busy={tweaking || referencing}
+          banner={
+            <>
+              {abTest?.status === 'decided' && !abDeciding && <ABReveal projectId={project.id} testId={abTest.id} />}
+              {banner}
+            </>
+          }
+          busy={tweaking || referencing || abDeciding}
           onRegenerate={regenerate}
+          onABTest={runABTest}
           onOpenSettings={() => setSettingsOpen(true)}
           onTweakStarted={follow}
         />
       ) : (
         <Card className="space-y-4">
           <p className="whitespace-pre-wrap text-muted">{project.prompt}</p>
-          {generate.error && <Notice tone="error">{errorText(generate.error)}</Notice>}
+          {(generate.error || startAB.error) && <Notice tone="error">{errorText(generate.error ?? startAB.error)}</Notice>}
           <div className="flex flex-wrap gap-2">
             <Button variant="flame" onClick={regenerate} loading={generate.isPending}>
               Write this post
+            </Button>
+            <Button variant="secondary" onClick={runABTest} loading={startAB.isPending}>
+              Write two versions (A/B test)
             </Button>
             <Button variant="secondary" onClick={() => setSettingsOpen(true)}>
               Edit brief & settings

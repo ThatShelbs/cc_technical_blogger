@@ -84,7 +84,11 @@ def persona_insights(persona_id: int, session: SessionDep, services: ServicesDep
     influences = [s for s in samples if s.kind == "influence"]
     profile = current_voice_profile(session, persona_id)
     digest = _digest(session, persona_id, profile)
-    projects = list(session.exec(select(Project).where(Project.persona_id == persona_id).order_by(col(Project.created_at))))
+    projects = list(
+        session.exec(
+            select(Project).where(Project.persona_id == persona_id, col(Project.variant).is_(None)).order_by(col(Project.created_at))
+        )
+    )
     written = [p for p in projects if p.markdown.strip()]
     return PersonaInsightsOut(
         overview=InsightsOverview(

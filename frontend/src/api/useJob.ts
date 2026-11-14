@@ -34,7 +34,11 @@ export interface JobState {
   references: { ready: number; total: number } | null
   /** What the job returned, once it succeeded. */
   result: Record<string, unknown> | null
+  /** An A/B test writes two posts at once: each one's progress and draft, by position (left = Post 1). */
+  lanes: Partial<Record<Lane, JobState>>
 }
+
+export type Lane = 'left' | 'right'
 
 export const initialJobState: JobState = {
   status: 'idle',
@@ -48,6 +52,7 @@ export const initialJobState: JobState = {
   imagesReady: [],
   references: null,
   result: null,
+  lanes: {},
 }
 
 interface JobEvent {
@@ -75,6 +80,15 @@ export function reduceJob(state: JobState, event: JobEvent): JobState {
       return { ...state, references: { ready: Number(data.ready ?? 0), total: Number(data.total ?? 0) } }
     case 'image_ready':
       return { ...state, imagesReady: [...state.imagesReady, Number(data.image_id)] }
+    case 'lane': {
+      const lane = data.lane as Lane
+      if (lane !== 'left' && lane !== 'right') return state
+      const inner = reduceJob(state.lanes[lane] ?? { ...initialJobState, status: 'running' }, {
+        type: String(data.type),
+        data: (data.data ?? {}) as Record<string, unknown>,
+      })
+      return { ...state, lanes: { ...state.lanes, [lane]: inner } }
+    }
     case 'status': {
       const status = String(data.status) as JobStatus
       return {
@@ -90,7 +104,7 @@ export function reduceJob(state: JobState, event: JobEvent): JobState {
   }
 }
 
-const EVENT_TYPES = ['progress', 'draft_delta', 'draft_reset', 'voice_delta', 'plan', 'critique', 'references', 'image_ready', 'status']
+const EVENT_TYPES = ['progress', 'draft_delta', 'draft_reset', 'voice_delta', 'plan', 'critique', 'references', 'image_ready', 'lane', 'status']
 
 /**
  * Follow a background job over Server-Sent Events. Events carry a sequence id, so a

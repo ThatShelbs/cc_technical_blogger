@@ -204,6 +204,38 @@ describe('NewProjectPage', () => {
       prompt: 'Why A/B tests are underpowered',
       dials: {},
       persona_id: 1,
+      mode: 'standard',
     })
+  })
+
+  it('writes two versions in A/B test mode', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/personas') return new Response(JSON.stringify([PERSONA]))
+      if (url === '/api/projects' && init?.method === 'POST') {
+        return new Response(JSON.stringify({ project: { id: 42 }, job_id: 'job1' }), { status: 201 })
+      }
+      return new Response('{}')
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/projects/new']}>
+          <Routes>
+            <Route path="/projects/new" element={<NewProjectPage />} />
+            <Route path="/projects/:id" element={<p>Opened project</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('radio', { name: /Generate & tweak/ })).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(screen.getByRole('radio', { name: /A\/B test/ }))
+    await userEvent.type(screen.getByLabelText(/What should this post be about/), 'Peeking at tests')
+    await userEvent.click(screen.getByRole('button', { name: 'Write two versions' }))
+
+    await waitFor(() => expect(screen.getByText('Opened project')).toBeInTheDocument())
+    const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/projects' && init?.method === 'POST')
+    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ prompt: 'Peeking at tests', mode: 'ab' })
   })
 })

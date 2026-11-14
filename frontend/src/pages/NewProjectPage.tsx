@@ -10,12 +10,18 @@ import { emptyBrandKit, isEmptyBrandKit } from '../lib/brandKit'
 import { DialsFields } from '../components/DialsFields'
 import { FormulaFields } from '../components/FormulaFields'
 import { Button, Card, Field, Notice, PageHeader, Select, Textarea } from '../components/ui'
+import { cx } from '../lib/cx'
 
 const EXAMPLE = `Why most A/B tests at big companies are underpowered
 - story: the test that "won" and then quietly lost
 - explain power and minimum detectable effect simply
 - quick Python snippet to size a test
 - what to do when you can't get more traffic`
+
+const MODES = [
+  ['standard', 'Generate & tweak', 'One post in your voice, then refine it with feedback.'],
+  ['ab', 'A/B test', 'Two posts: one as your persona is, one with its settings nudged. Pick the better one blind. About twice the cost.'],
+] as const
 
 export function NewProjectPage() {
   const navigate = useNavigate()
@@ -25,6 +31,7 @@ export function NewProjectPage() {
   const [custom, setCustom] = useState(false)
   const [dials, setDials] = useState<DialsState>(emptyDials)
   const [brandKit, setBrandKit] = useState(emptyBrandKit)
+  const [mode, setMode] = useState<'standard' | 'ab'>('standard')
   const set = (patch: Partial<DialsState>) => setDials((d) => ({ ...d, ...patch }))
 
   // What each control shows: the user's choice, else the persona's default.
@@ -35,7 +42,7 @@ export function NewProjectPage() {
   const ready = !!persona?.voice_profile_version
   const submit = () =>
     create.mutate(
-      { prompt, dials: buildDials(dials), persona_id: persona?.id, ...(isEmptyBrandKit(brandKit) ? {} : { brand_kit: brandKit }) },
+      { prompt, dials: buildDials(dials), persona_id: persona?.id, mode, ...(isEmptyBrandKit(brandKit) ? {} : { brand_kit: brandKit }) },
       { onSuccess: (data) => navigate(`/projects/${data.project.id}${data.job_id ? `?job=${data.job_id}` : ''}`) },
     )
 
@@ -81,6 +88,21 @@ export function NewProjectPage() {
               Use an example prompt
             </Button>
           )}
+          <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How to write it">
+            {MODES.map(([value, title, hint]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={mode === value}
+                onClick={() => setMode(value)}
+                className={cx('rounded-xl border px-4 py-3 text-left', mode === value ? 'border-accent bg-accent-soft' : 'border-line hover:bg-surface-2')}
+              >
+                <span className="block font-semibold">{title}</span>
+                <span className="block text-sm text-muted">{hint}</span>
+              </button>
+            ))}
+          </div>
           <Button
             type="submit"
             variant="flame"
@@ -89,7 +111,7 @@ export function NewProjectPage() {
             disabled={!ready || prompt.trim().length < 3}
             loading={create.isPending}
           >
-            Write my post
+            {mode === 'ab' ? 'Write two versions' : 'Write my post'}
           </Button>
         </Card>
 
