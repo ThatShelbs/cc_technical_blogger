@@ -329,6 +329,54 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
         }
     if name == "Judgement":
         return {"reasoning": "Passage A has the author's wry asides.", "authentic": "A", "confidence": 3, "similarity": 7}
+    if name == "EvolutionPlan":
+        return {
+            "summary": "You trimmed the throat-clearing and swapped abstract lines for a concrete example.",
+            "items": [
+                {
+                    "area": "Voice & Tone",
+                    "change": "Open each section with the concrete example, then name the rule.",
+                    "evidence": "You moved the bar-chart example above the explanation.",
+                    "target": "profile",
+                },
+                {
+                    "area": "Lexicon",
+                    "change": "Cut hedges like 'it is worth noting'; say the thing.",
+                    "evidence": "Removed: 'It is worth noting that'.",
+                    "target": "profile",
+                },
+                {
+                    "area": "Humor",
+                    "change": "End a section on a one-line aside when the point is already made.",
+                    "evidence": "Added: 'Honestly, they are mostly round because nobody stopped them.'",
+                    "target": "playbook",
+                },
+            ],
+        }
+    if name == "SecretSauce":
+        return {
+            "summary": "The title promised a fight and the post delivered one, with a fix readers could use the same day.",
+            "items": [
+                {
+                    "area": "Titles",
+                    "change": "Pick a side in the title and defend it in the first paragraph.",
+                    "evidence": "'Pie Charts Are Lame' then 'I am not in it.'",
+                    "target": "playbook",
+                },
+                {
+                    "area": "Structure Blueprint",
+                    "change": "Pair every complaint with a replacement the reader can use today.",
+                    "evidence": "'What To Use Instead' follows the roast.",
+                    "target": "playbook",
+                },
+            ],
+        }
+    if name == "ProfileEdits":
+        # The Lexicon heading is in every demo and sample profile; the second change is left for the fallback rule.
+        return {
+            "summary": "Added a rule to the Lexicon.",
+            "edits": [{"item": "c1", "find": "## Lexicon", "replace": "## Lexicon\n\n- Lead with the concrete example, then the rule."}],
+        }
     raise AssertionError(f"FakeLLM has no payload for {name}")
 
 

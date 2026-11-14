@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, col, delete, select
 
 from proseferno.api.deps import ServicesDep, SessionDep, image_or_404, persona_or_404, project_or_404
+from proseferno.api.evolution import evolution_out
 from proseferno.api.schemas import (
     CopyHtmlOut,
     GenerateIn,
@@ -39,7 +40,8 @@ from proseferno.api.schemas import (
     TweakIn,
 )
 from proseferno.authenticity import analyze, author_profile
-from proseferno.db import Persona, Project, ProjectImage, ProjectReference, Sample, utcnow
+from proseferno.db import Persona, PersonaEvolution, Project, ProjectImage, ProjectReference, Sample, utcnow
+from proseferno.evolution import change_stage, edit_rate, start_analysis
 from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
 from proseferno.images.memes import FAMILIES, FORMATS, get_format, load_state
@@ -190,8 +192,14 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
         )
         for i, entry in enumerate(project.revisions or [])
     ]
+    evolutions = session.exec(
+        select(PersonaEvolution).where(PersonaEvolution.project_id == project.id).order_by(col(PersonaEvolution.created_at))
+    ).all()
     return ProjectOut(
-        **project.model_dump(exclude={"revisions"}),
+        **project.model_dump(exclude={"revisions", "baseline_markdown", "baseline_title"}),
+        has_baseline=bool(project.baseline_markdown),
+        edit_rate=edit_rate(project.baseline_markdown, project.markdown) if project.baseline_markdown else None,
+        evolutions=[evolution_out(e) for e in evolutions],
         revisions=revisions,
         resolved_dials=resolved,
         images=[image_out(i) for i in project_images(session, project.id)],
@@ -248,7 +256,9 @@ def list_projects(session: SessionDep) -> list[ProjectSummary]:
         hero = session.exec(select(ProjectImage).where(ProjectImage.project_id == project.id, ProjectImage.slot_id == "hero")).first()
         out.append(
             ProjectSummary(
-                **project.model_dump(include={"id", "persona_id", "title", "prompt", "status", "created_at", "updated_at"}),
+                **project.model_dump(
+                    include={"id", "persona_id", "title", "prompt", "status", "stage", "outcome", "created_at", "updated_at"}
+                ),
                 persona_name=names.get(project.persona_id, ""),
                 thumbnail_url=image_url(hero) if hero else None,
             )
@@ -290,7 +300,7 @@ def get_project(project_id: int, session: SessionDep, services: ServicesDep) -> 
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectOut)
-def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, services: ServicesDep) -> ProjectOut:
+async def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, services: ServicesDep) -> ProjectOut:
     project = project_or_404(session, project_id)
     if body.markdown is not None and body.markdown != project.markdown:
         push_revision(project, "Before your edit", "edit")
@@ -313,9 +323,13 @@ def update_project(project_id: int, body: ProjectUpdate, session: SessionDep, se
     if body.persona_id is not None and body.persona_id != project.persona_id:
         _writable_persona(session, body.persona_id)
         project.persona_id = body.persona_id
+    due = change_stage(session, project, stage=body.stage, outcome=body.outcome) if body.stage or body.outcome else []
     project.updated_at = utcnow()
     session.add(project)
     session.commit()
+    # Publishing compares the post with what was generated; a hit is read for its secret sauce.
+    for kind in due:
+        await start_analysis(services, project_id, kind)
     session.refresh(project)
     return project_out(session, project, services)
 

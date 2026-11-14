@@ -14,6 +14,7 @@ import { cx } from '../../lib/cx'
 import { referenceForHref } from '../../lib/references'
 import { AuthenticityPanel } from './AuthenticityPanel'
 import { BrandKitCard } from './BrandKitCard'
+import { EvolutionCard } from './EvolutionCard'
 import { ExportDialog } from './ExportDialog'
 import { GenerationView } from './GenerationView'
 import { ImageCard } from './ImageCard'
@@ -21,6 +22,7 @@ import { ReferenceLink, ReferencesCard } from './ReferencesCard'
 import { useReferenceActions } from './useReferenceActions'
 import { PostSettingsDialog } from './PostSettingsDialog'
 import { BriefCard, HistoryCard, ReviseCard } from './RevisePanel'
+import { StageControl } from './StageControl'
 
 const REFERENCE_JOBS = ['enrich_post', 'redraw_reference']
 const FAILED_TITLE: Record<string, string> = {
@@ -356,6 +358,7 @@ function Editor({ project, banner, busy, onRegenerate, onOpenSettings, onTweakSt
 
       <aside className="space-y-4">
         <ReviseCard project={project} dirty={dirty} busy={busy} onTweakStarted={onTweakStarted} onOpenSettings={onOpenSettings} onRegenerate={onRegenerate} />
+        <EvolutionCard project={project} />
         <ReferencesCard project={project} actions={referenceActions} />
         <HistoryCard project={project} busy={busy} dirty={dirty} />
         <TitlePicker project={project} />
@@ -447,9 +450,13 @@ export function ProjectPage() {
           <p className="text-sm font-semibold text-muted">Post</p>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{project.title || 'Untitled post'}</h1>
         </div>
-        <Badge tone={project.status === 'ready' ? 'success' : project.status === 'error' ? 'danger' : 'accent'}>
-          {generating ? 'Writing…' : project.status}
-        </Badge>
+        {generating || project.status === 'generating' ? (
+          <Badge tone="accent">Writing…</Badge>
+        ) : project.status === 'error' ? (
+          <Badge tone="danger">Needs attention</Badge>
+        ) : project.markdown ? (
+          <StageControl project={project} disabled={running} />
+        ) : null}
       </div>
       {allPersonas?.find((p) => p.id === project.persona_id)?.is_example && (
         <div className="mb-6">

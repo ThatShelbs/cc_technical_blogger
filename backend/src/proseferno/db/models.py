@@ -56,6 +56,8 @@ class Persona(SQLModel, table=True):
     voice_influence_weight: int = 5
     # What the author keeps changing in generated posts (see voice.lessons), most frequent first.
     edit_lessons: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # What made the author's well-received posts work (see voice.playbook): {text, project_id, title, outcome, added_at}.
+    playbook: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -120,8 +122,49 @@ class Project(SQLModel, table=True):
     brand_kit: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
     voice_profile_version: int | None = None
     error: str | None = None
+    # Where the author is with the post: draft -> ready -> published (separate from the generation ``status``).
+    stage: str = "draft"
+    # How a published post did: too_early | small | good | viral; None until published.
+    outcome: str | None = None
+    published_at: datetime | None = None
+    # The text exactly as the app last generated it (reset by each full generation), to compare with what was published.
+    baseline_markdown: str = Field(default="", sa_column=Column(Text, default=""))
+    baseline_title: str = ""
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class PersonaEvolution(SQLModel, table=True):
+    """A proposed change to a persona, learned from one post (see evolution.service).
+
+    ``edits`` compares the generated baseline with the published text; ``secret_sauce`` reads a post that did
+    well. Items are reviewed and applied by the author: profile items become a new voice profile version,
+    playbook items join ``Persona.playbook``.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    persona_id: int = Field(foreign_key="persona.id", index=True)
+    project_id: int | None = Field(default=None, index=True)
+    # edits | secret_sauce
+    kind: str
+    # The post's outcome when this was made.
+    outcome: str | None = None
+    project_title: str = ""
+    # analyzing | pending | applied | dismissed | error
+    state: str = "analyzing"
+    summary: str = Field(default="", sa_column=Column(Text, default=""))
+    # [{id, area, change, evidence, target: profile|playbook, applied}]
+    items: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # Share of the generated text the author changed (edits only), 0-1.
+    edit_rate: float | None = None
+    # The baseline this was computed from, so a re-publish of the same text does not analyze twice.
+    baseline_hash: str = ""
+    voice_profile_version: int | None = None
+    applied_version: int | None = None
+    job_id: str | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+    applied_at: datetime | None = None
 
 
 class ProjectImage(SQLModel, table=True):

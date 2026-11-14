@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     effort_detect: Effort = "low"
     # Planning, researching and weaving references (sources, quotes, social posts, resources) into a post.
     effort_references: Effort = "medium"
+    # Learning from published posts: what the author's edits and their hits say about the persona.
+    effort_evolve: Effort = "medium"
     revision_passes: int = 1
     research_max_searches: int = 8
     # Web searches per reference; each reference is researched on its own.

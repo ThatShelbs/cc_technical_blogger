@@ -28,7 +28,8 @@ from proseferno.api.schemas import (
     VoiceProfileOut,
     VoiceProfileVersion,
 )
-from proseferno.db import Persona, Sample, VoiceProfile, utcnow
+from proseferno.db import Persona, PersonaEvolution, Sample, VoiceProfile, utcnow
+from proseferno.evolution import EVOLUTION_JOBS
 from proseferno.example import ExampleError, remove_example, seed_example
 from proseferno.ingest import SUPPORTED_EXTENSIONS, UnsupportedFormatError, fetch_url, parse_file
 from proseferno.personas import add_sample, delete_persona_data
@@ -57,7 +58,13 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         select(VoiceProfile).where(VoiceProfile.persona_id == persona.id).order_by(col(VoiceProfile.version).desc())
     ).all()
     current = current_voice_profile(session, persona.id)
-    active = services.jobs.active_for(persona_id=persona.id)
+    # Evolution jobs are followed from their proposal, not as a voice profile job.
+    active = [j for j in services.jobs.active_for(persona_id=persona.id) if j.kind not in EVOLUTION_JOBS]
+    pending = session.exec(
+        select(func.count())
+        .select_from(PersonaEvolution)
+        .where(PersonaEvolution.persona_id == persona.id, PersonaEvolution.state == "pending")
+    ).one()
     return PersonaOut(
         **persona.model_dump(exclude={"updated_at"}),
         own_samples=counts.get("own", 0),
@@ -67,6 +74,7 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         latest_voice_profile_version=voice_profiles[0].version if voice_profiles else None,
         voice_profile_versions=[version_out(s) for s in voice_profiles],
         active_job_id=active[0].id if active else None,
+        pending_evolutions=pending,
     )
 
 

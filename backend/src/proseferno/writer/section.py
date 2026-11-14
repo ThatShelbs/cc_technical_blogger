@@ -18,6 +18,7 @@ from proseferno.llm import LLM, ResearchResult, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons, record_feedback
+from proseferno.voice.playbook import format_playbook
 from proseferno.writer.pipeline import WriterError, measure, split_title, writer_system
 from proseferno.writer.references import PlannedReference, check_edit, links_in, project_references, research_block
 from proseferno.writer.revisions import push_revision
@@ -159,6 +160,7 @@ async def rewrite_passage(
         voice_profile.markdown,
         format_exemplars(select_exemplars(project.prompt, samples)),
         format_lessons(persona.edit_lessons if persona else None),
+        format_playbook(persona.playbook if persona else None),
     )
     replacement = await llm.text(
         task="passage rewrite" if action == "custom" else f"passage {action}",

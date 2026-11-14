@@ -21,6 +21,12 @@ $influence_analyses
 ### Edits the author keeps making to generated posts (strong evidence of their taste; fold it into the Lexicon and Do / Don't)
 $edit_lessons
 
+### Changes the author approved after publishing posts (keep every one; they override older evidence)
+$approved_changes
+
+### What made the author's best-received posts work (weave into Signature Moves and Structure Blueprint)
+$playbook
+
 ### Research on best practices (optional; adapt to the author, never override their voice)
 $best_practices
 

@@ -23,6 +23,7 @@ from proseferno.llm import LLM
 from proseferno.prompts import render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons, record_feedback
+from proseferno.voice.playbook import format_playbook
 from proseferno.writer.dials import Dials, resolve
 from proseferno.writer.pipeline import (
     WriterError,
@@ -117,7 +118,10 @@ async def tweak_post(
     dials = resolve(Dials(**(project.dials or {})), persona, project.prompt, default_revisions=settings.revision_passes)
     # Same system blocks as generation, so the voice profile and exemplars come from the prompt cache.
     system = writer_system(
-        voice_profile.markdown, format_exemplars(select_exemplars(project.prompt, samples)), format_lessons(persona.edit_lessons)
+        voice_profile.markdown,
+        format_exemplars(select_exemplars(project.prompt, samples)),
+        format_lessons(persona.edit_lessons),
+        format_playbook(persona.playbook),
     )
 
     await ctx.progress(0.1, "Working your feedback into the post")

@@ -22,7 +22,8 @@ MAX_PER_EDIT = 20
 _WORD_RE = re.compile(r"\w")
 
 
-def _words(markdown: str) -> list[str]:
+def words(markdown: str) -> list[str]:
+    """The words of a post, without image placeholders."""
     return PLACEHOLDER_RE.sub(" ", markdown).split()
 
 
@@ -32,7 +33,7 @@ def _meaningful(text: str) -> bool:
 
 def extract_lessons(before: str, after: str) -> list[dict[str, str]]:
     """Short removals and replacements between the generated text and the author's edit."""
-    old, new = _words(before), _words(after)
+    old, new = words(before), words(after)
     lessons: list[dict[str, str]] = []
     matcher = difflib.SequenceMatcher(a=old, b=new, autojunk=False)
     for op, i1, i2, j1, j2 in matcher.get_opcodes():
