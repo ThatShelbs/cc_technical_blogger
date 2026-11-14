@@ -409,6 +409,8 @@ export function ProjectPage() {
   const job = useJob(jobId, (state) => {
     void qc.invalidateQueries({ queryKey: keys.project(id) })
     void qc.invalidateQueries({ queryKey: keys.projects })
+    // An A/B job changes its test: the choice, the reveal, the parts taken.
+    void qc.invalidateQueries({ queryKey: ['ab-tests'] })
     setFinished({ kind: jobKind, state })
     setParams({}, { replace: true })
   })

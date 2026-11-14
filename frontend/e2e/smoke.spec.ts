@@ -8,6 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const SAMPLE = path.resolve(here, 'fixtures/sample-post.md')
 
 test('first run: persona, writing sample, voice profile, post, editor, export, themes', async ({ page }) => {
+  // The whole first run, A/B test included, takes a few minutes in demo mode.
+  test.setTimeout(300_000)
   await page.addInitScript(() => localStorage.setItem('proseferno-theme', 'light'))
   await page.goto('/')
 
@@ -184,4 +186,25 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toHaveCount(0)
   await page.getByRole('button', { name: /^Published/ }).click()
   await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
+
+  // A/B Test Mode: two blind versions, a pick with parts of the other one, then adopt what won
+  await page.goto('/projects/new')
+  await page.getByLabel(/What should this post be about/).fill('Why dashboards nobody opens keep getting built')
+  await page.getByRole('radio', { name: /A\/B test/ }).click()
+  await page.getByRole('button', { name: 'Write two versions' }).click()
+  await expect(page.getByRole('heading', { name: 'Which post do you like better?' })).toBeVisible({ timeout: 120_000 })
+  await expect(page.getByLabel('Post 1').locator('img').first()).toBeVisible()
+  await shot(page, 'ab-compare')
+  await page.getByRole('button', { name: 'Pick Post 2' }).click()
+  await page.getByRole('checkbox', { name: /Opener/ }).check()
+  await page.getByRole('checkbox', { name: /Image style/ }).check()
+  await page.getByRole('button', { name: 'Keep Post 2 with the blend' }).click()
+  await expect(page.getByRole('heading', { name: /^A\/B test: Post 2 was/ })).toBeVisible({ timeout: 120_000 })
+  await page.getByRole('button', { name: 'Review the changes' }).click()
+  const adopt = page.getByRole('dialog', { name: 'Adopt what won the A/B test' })
+  await expect(adopt.getByText('In the post you kept').first()).toBeVisible()
+  await adopt.getByRole('button', { name: /^Adopt \d+ change/ }).click()
+  await expect(adopt).toBeHidden({ timeout: 60_000 })
+  await expect(page.getByRole('heading', { name: /^A\/B test:/ })).toHaveCount(0)
+  await expect(page.locator('figure img').first()).toBeVisible()
 })
