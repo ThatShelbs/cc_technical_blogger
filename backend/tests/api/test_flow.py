@@ -660,3 +660,25 @@ def test_examples_a_post_introduces_are_drawn(client: TestClient, sample_docx: b
     # A drawn screenshot can be edited like any other drawing; the author can still replace it.
     job = client.post(f"/api/images/{shot['id']}/edit", json={"instruction": "Dark theme"}).json()
     assert job["status"] == "succeeded", job
+
+
+def test_an_older_post_gets_its_missing_examples(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    before = {i["id"]: i["url"] for i in project["images"]}
+    markdown = project["markdown"].replace("\n## ", "\nHere is what the settings page looks like:\n\n## ", 1)
+    assert client.patch(f"/api/projects/{project['id']}", json={"markdown": markdown}).status_code == 200
+
+    job = client.post(f"/api/projects/{project['id']}/examples").json()
+    assert job["status"] == "succeeded", job
+    after = client.get(f"/api/projects/{project['id']}").json()
+    shot = next(i for i in after["images"] if i["kind"] == "screenshot")
+    assert shot["status"] == "ready" and shot["purpose"] == "Here is what the settings page looks like:"
+    assert f"Here is what the settings page looks like:\n\n{{{{image:{shot['slot_id']}}}}}" in after["markdown"]
+    assert [i["position"] for i in after["images"]] == sorted(i["position"] for i in after["images"])
+    # The other images are untouched and the old text is one undo away.
+    assert all(i["url"] == before[i["id"]] for i in after["images"] if i["id"] in before)
+    assert after["revisions"][0]["label"] == "Before adding missing examples"
+
+    # Nothing left to add the second time.
+    again = client.post(f"/api/projects/{project['id']}/examples").json()
+    assert again["result"]["added"] == []

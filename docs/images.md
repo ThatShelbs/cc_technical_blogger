@@ -24,6 +24,7 @@ Authors lead into examples ("Here is the top of the file:", "This is what it loo
 - The editor gets every lead-in with nothing after it (`find_dangling_leadins`: a paragraph that ends in a colon and promises to show something, followed by prose or a section heading) and tells the reviser to add what is missing.
 - A placeholder the writer made up right after a lead-in becomes a real slot instead of being dropped.
 - Whatever is still missing after editing becomes a new image slot right after its lead-in (`add_example_slots`; usually a drawn *screenshot*), briefed with the lead-in and the text around it, so it is drawn with the post's other images. The text is not changed. At most eight images are added this way.
+- A post written before this check can get the same fix: `POST /api/projects/{id}/examples` (job `fill_examples`, `fill_missing_examples`) adds and draws the missing images, keeps every existing image, and saves the old text in the history.
 
 ## Design and rendering
 
