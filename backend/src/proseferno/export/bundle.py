@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 from typing import Literal
 
-from PIL import Image
+from PIL import Image, ImageStat
 
 from proseferno.db import Project, ProjectImage
 from proseferno.export.linkedin import carousel_pdf, carousel_pptx, carousel_slides, template_post
@@ -23,6 +23,8 @@ from proseferno.export.render import (
 )
 from proseferno.export.x import HEADER_SIZE as X_HEADER_SIZE
 from proseferno.export.x import teaser_post
+from proseferno.images.opening.room import fit_of
+from proseferno.images.opening.room import load_state as load_opening_state
 from proseferno.storage import slugify
 from proseferno.writer import split_title
 
@@ -138,7 +140,7 @@ def build_bundle(
                 zf.write(fig.path, f"images/{fig.file_name}")
         hero = figures.get("hero")
         if hero is not None and hero.path is not None and hero.path.exists():
-            zf.writestr("thumbnail.png", _thumbnail(hero.path, THUMBNAIL_SIZE[platform]))
+            zf.writestr("thumbnail.png", _thumbnail(hero.path, THUMBNAIL_SIZE[platform], thumbnail_fit(images)))
 
         relative = lambda f: f"images/{f.file_name}"  # noqa: E731
         if platform == "medium":
@@ -169,15 +171,44 @@ def build_bundle(
     return f"{slug}-{platform}.zip", buffer.getvalue()
 
 
-def _thumbnail(path: Path, size: tuple[int, int]) -> bytes:
+def thumbnail_fit(images: list[ProjectImage]) -> str:
+    """How the thumbnail is cut from the opening image: "contain" for styles that must stay whole (an opening meme),
+    else "cover" (a centre crop; the other styles keep everything important in the centre band)."""
+    hero = next((i for i in images if i.slot_id == "hero"), None)
+    if hero is None or hero.provider == "upload":
+        return "cover"
+    return fit_of(load_opening_state(hero.spec))
+
+
+def _edge_color(img: Image.Image) -> tuple[int, int, int]:
+    """The average colour of the image's border, to pad it without a visible seam."""
+    width, height = img.size
+    strips = [
+        img.crop((0, 0, width, 4)),
+        img.crop((0, height - 4, width, height)),
+        img.crop((0, 0, 4, height)),
+        img.crop((width - 4, 0, width, height)),
+    ]
+    means = [ImageStat.Stat(strip).mean for strip in strips]
+    return tuple(round(sum(m[c] for m in means) / len(means)) for c in range(3))  # type: ignore[return-value]
+
+
+def _thumbnail(path: Path, size: tuple[int, int], fit: str = "cover") -> bytes:
     with Image.open(path) as source:
         img = source.convert("RGB")
         target_w, target_h = size
+        out = io.BytesIO()
+        if fit == "contain":
+            scale = min(target_w / img.width, target_h / img.height)
+            resized = img.resize((round(img.width * scale), round(img.height * scale)), Image.Resampling.LANCZOS)
+            canvas = Image.new("RGB", size, _edge_color(img))
+            canvas.paste(resized, ((target_w - resized.width) // 2, (target_h - resized.height) // 2))
+            canvas.save(out, format="PNG")
+            return out.getvalue()
         scale = max(target_w / img.width, target_h / img.height)
         resized = img.resize((round(img.width * scale), round(img.height * scale)), Image.Resampling.LANCZOS)
         left = (resized.width - target_w) // 2
         top = (resized.height - target_h) // 2
-        out = io.BytesIO()
         resized.crop((left, top, left + target_w, top + target_h)).save(out, format="PNG")
         return out.getvalue()
 

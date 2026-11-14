@@ -33,8 +33,9 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | `PROSEFERNO_MODEL` | Claude model | `claude-opus-5-5` |
 | `PROSEFERNO_USE_FALLBACKS` | Server-side refusal fallback | `true` |
 | `PROSEFERNO_REVISION_PASSES` | Editing passes per post | `1` |
-| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE` | see `config.py` |
+| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `OPENING_IDEAS`, `OPENING_JUDGE`, `OPENING_REVIEW`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE` | see `config.py` |
 | `PROSEFERNO_REFERENCE_MAX_SEARCHES` | Web searches per reference | `3` |
+| `PROSEFERNO_OPENING_MAX_SEARCHES` | Web searches for the numbers behind a data opener (chart or big number) | `4` |
 | `PROSEFERNO_CHECK_REFERENCE_LINKS` | Fetch each reference URL once and drop the ones that are gone | `true` |
 | `PROSEFERNO_DEMO` | Demo mode (canned responses) | `false` |
 | `PROSEFERNO_DEMO_SEED` | In demo mode, start an empty database with the example persona and post | `true` |

@@ -28,9 +28,10 @@ class RoutingLLM:
         effort: str,
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
+        images: list[bytes] | None = None,
     ) -> T:
         return await self.active.structured(
-            task=task, system=system, prompt=prompt, schema=schema, effort=effort, max_tokens=max_tokens, usage=usage
+            task=task, system=system, prompt=prompt, schema=schema, effort=effort, max_tokens=max_tokens, usage=usage, images=images
         )
 
     async def text(

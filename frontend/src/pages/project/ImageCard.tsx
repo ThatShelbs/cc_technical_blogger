@@ -3,24 +3,26 @@ import { Dices, History, ImagePlus, Lightbulb, PencilLine, Type, Wand2 } from 'l
 import { useRef, useState } from 'react'
 
 import { errorText } from '../../api/client'
-import { keys, useImageMutations, useMemeFormats } from '../../api/hooks'
+import { keys, useImageMutations, useMemeFormats, useOpeningStyles, type RedrawPicks } from '../../api/hooks'
 import type { ImageOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
 import { fullCaption } from '../../lib/article'
 import { Badge, Button, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { MemeIdeasDialog, MemeWordsDialog } from './MemeDialogs'
+import { OpeningIdeasDialog } from './OpeningDialogs'
 
 const PROVIDER_LABEL: Record<string, string> = {
   'claude-svg': 'Claude SVG',
   'vega-lite': 'Claude + Vega-Lite',
   'claude-meme': 'Claude meme',
+  'claude-opening': 'Claude + Proseferno layout',
   placeholder: 'Placeholder',
   upload: 'Your upload',
 }
 
 const KIND_LABEL: Record<string, string> = {
-  hero: 'Hero · thumbnail',
+  hero: 'Opening · thumbnail',
   diagram: 'Diagram',
   chart: 'Chart',
   illustration: 'Illustration',
@@ -48,18 +50,28 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
   const [instruction, setInstruction] = useState('')
   const busy = !!jobId || mutations.upload.isPending
   // Only images Claude drew have a design to edit; uploads and placeholders can be redrawn or replaced.
-  const editable = image.provider === 'claude-svg' || image.provider === 'vega-lite' || image.provider === 'claude-meme'
-  const isMeme = image.kind === 'meme'
+  const editable = ['claude-svg', 'vega-lite', 'claude-meme', 'claude-opening'].includes(image.provider)
+  // The opening image (also the thumbnail) carries the panel's pitches; an opening meme has the meme tools too.
+  const opening = image.kind === 'hero' ? image.opening : null
+  const isMeme = image.kind === 'meme' || !!(opening && image.meme)
   const memeFormats = useMemeFormats(isMeme)
+  const { data: openingCatalog } = useOpeningStyles()
   const [ideasOpen, setIdeasOpen] = useState(false)
+  const [memeIdeasOpen, setMemeIdeasOpen] = useState(false)
   const [wordsOpen, setWordsOpen] = useState(false)
-  const redraw = (rethink: boolean, meme: { memeFormat?: string; memeConcept?: number } = {}) => {
+  const redraw = (rethink: boolean, picks: RedrawPicks = {}) => {
     setIdeasOpen(false)
-    mutations.redraw.mutate({ id: image.id, rethink, ...meme }, { onSuccess: (j) => setJobId(j.id) })
+    setMemeIdeasOpen(false)
+    mutations.redraw.mutate({ id: image.id, rethink, ...picks }, { onSuccess: (j) => setJobId(j.id) })
   }
   // A meme whose format has no art is drawn by the template alone, so there is nothing for Redraw to redraw.
   const hasArt = !image.meme || image.meme.has_art
-  const hasIdeas = !!image.meme?.pitches.length
+  const hasIdeas = opening ? opening.pitches.length > 0 : !!image.meme?.pitches.length
+  const openIdeas = () => (opening ? setIdeasOpen(true) : setMemeIdeasOpen(true))
+  // Words the author can retype with no model call: a code-drawn opening's text, or a meme's.
+  const openingWords = !!opening?.slots.length
+  const wordSlots = opening?.slots.length ? opening.slots : (image.meme?.slots ?? [])
+  const wordsMutation = openingWords ? mutations.openingWords : mutations.memeWords
   const edit = () =>
     mutations.edit.mutate(
       { id: image.id, instruction: instruction.trim() },
@@ -74,6 +86,12 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
 
   return (
     <figure className="group my-8 font-sans not-italic">
+      {/* The opening image is the thumbnail and often carries a headline, so its label sits above it, not on it. */}
+      {opening && (
+        <div className="mb-2 flex justify-center">
+          <Badge tone="accent">{opening.style_label ? `Opening image · ${opening.style_label}` : KIND_LABEL.hero}</Badge>
+        </div>
+      )}
       <div className="relative overflow-hidden rounded-xl border border-line bg-sunken">
         {image.url ? (
           <img src={image.url} alt={image.alt} className={cx('w-full', busy && 'opacity-40')} />
@@ -89,9 +107,11 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             </span>
           </div>
         )}
-        <div className="absolute top-2 left-2">
-          <Badge tone="accent">{KIND_LABEL[image.kind] ?? image.kind}</Badge>
-        </div>
+        {!opening && (
+          <div className="absolute top-2 left-2">
+            <Badge tone="accent">{KIND_LABEL[image.kind] ?? image.kind}</Badge>
+          </div>
+        )}
       </div>
 
       {fullCaption(image) && <figcaption className="mt-2 text-center text-sm text-muted">{fullCaption(image)}</figcaption>}
@@ -113,6 +133,28 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
       {isMeme && image.meme?.premise && (
         <p className="mt-1 text-center text-xs text-muted">
           {image.meme.format_name}: {image.meme.premise}
+        </p>
+      )}
+      {opening?.fallback_from && (
+        <p className="mt-1 text-center text-xs text-muted">
+          The panel&rsquo;s first pick ({opening.fallback_from}) could not be built, so this is its next best idea. Open Ideas to see them all.
+        </p>
+      )}
+      {opening && opening.sources.length > 0 && (
+        <p className="mt-1 text-center text-xs text-muted">
+          Sources:{' '}
+          {opening.sources.map((source, i) => (
+            <span key={source.title}>
+              {i > 0 && '; '}
+              {source.url ? (
+                <a href={source.url} target="_blank" rel="noreferrer" className="underline">
+                  {source.title}
+                </a>
+              ) : (
+                source.title
+              )}
+            </span>
+          ))}
         </p>
       )}
       {image.meme?.fallback_from && (
@@ -157,9 +199,9 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             size="sm"
             variant="secondary"
             icon={<Lightbulb className="size-4" />}
-            onClick={() => setIdeasOpen(true)}
+            onClick={openIdeas}
             disabled={busy}
-            title="See every joke Claude pitched, pick one, or ask for more"
+            title={opening ? 'See every opening the panel judged, pick one, or try another style' : 'See every joke Claude pitched, pick one, or ask for more'}
           >
             Ideas
           </Button>
@@ -175,17 +217,17 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             New idea
           </Button>
         )}
-        {!!image.meme?.slots.length && (
+        {wordSlots.length > 0 && (
           <Button
             size="sm"
             variant="secondary"
             icon={<Type className="size-4" />}
             onClick={() => {
-              mutations.memeWords.reset()
+              wordsMutation.reset()
               setWordsOpen(true)
             }}
             disabled={busy}
-            title="Retype the meme's text; the art stays and Claude is not asked"
+            title="Retype the text; the layout or art stays and Claude is not asked"
           >
             Words
           </Button>
@@ -225,10 +267,29 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
         />
       </div>
 
-      {image.meme && hasIdeas && (
-        <MemeIdeasDialog
+      {opening && hasIdeas && (
+        <OpeningIdeasDialog
           open={ideasOpen}
           onClose={() => setIdeasOpen(false)}
+          opening={opening}
+          styles={openingCatalog.styles}
+          onPick={(index) => redraw(false, { openingConcept: index })}
+          onNext={() => redraw(true)}
+          onStyle={(id) => redraw(false, { openingStyle: id })}
+          onMemeIdeas={
+            image.meme?.pitches.length
+              ? () => {
+                  setIdeasOpen(false)
+                  setMemeIdeasOpen(true)
+                }
+              : undefined
+          }
+        />
+      )}
+      {image.meme && !!image.meme.pitches.length && (
+        <MemeIdeasDialog
+          open={memeIdeasOpen}
+          onClose={() => setMemeIdeasOpen(false)}
           meme={image.meme}
           formats={memeFormats.data ?? []}
           onPick={(index) => redraw(false, { memeConcept: index })}
@@ -236,14 +297,21 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           onFormat={(id) => redraw(false, { memeFormat: id })}
         />
       )}
-      {image.meme && wordsOpen && (
+      {wordsOpen && wordSlots.length > 0 && (
         <MemeWordsDialog
           open
           onClose={() => setWordsOpen(false)}
-          slots={image.meme.slots}
-          saving={mutations.memeWords.isPending}
-          error={mutations.memeWords.error ? errorText(mutations.memeWords.error) : null}
-          onSave={(words) => mutations.memeWords.mutate({ id: image.id, words }, { onSuccess: () => setWordsOpen(false) })}
+          slots={wordSlots}
+          saving={wordsMutation.isPending}
+          error={wordsMutation.error ? errorText(wordsMutation.error) : null}
+          onSave={(words) => wordsMutation.mutate({ id: image.id, words }, { onSuccess: () => setWordsOpen(false) })}
+          {...(openingWords
+            ? {
+                title: "Edit the opening image's words",
+                intro: 'The layout is redrawn with your words at once. Numbers and sources stay as researched. Nothing is sent to Claude.',
+                labelOf: (slot: { hint: string }) => slot.hint,
+              }
+            : {})}
         />
       )}
 

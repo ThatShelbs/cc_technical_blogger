@@ -36,6 +36,13 @@ class LLMRefusalError(LLMError):
         super().__init__(f"Claude declined this request{detail}. {explanation or ''}".strip())
 
 
+class LLMImagesUnsupportedError(LLMError):
+    """The active connection cannot show images to Claude (callers skip the step that needs them)."""
+
+    def __init__(self) -> None:
+        super().__init__("This Claude connection cannot look at images.")
+
+
 @dataclass(frozen=True)
 class SystemBlock:
     """One block of a system prompt. ``cache`` marks the end of a stable prefix."""
@@ -68,7 +75,11 @@ class LLM(Protocol):
         effort: str,
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
-    ) -> T: ...
+        images: list[bytes] | None = None,
+    ) -> T:
+        """``images`` are PNGs shown to Claude before the prompt; a connection that cannot send them raises
+        :class:`LLMImagesUnsupportedError`."""
+        ...
 
     async def text(
         self,

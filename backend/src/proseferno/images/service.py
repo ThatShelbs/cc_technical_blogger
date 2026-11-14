@@ -32,6 +32,8 @@ from proseferno.images.memes import (
     plan_callbacks,
     voice_section,
 )
+from proseferno.images.opening.room import OpeningContext, OpeningResult, OpeningRoom, opening_meme_spec
+from proseferno.images.opening.room import load_state as load_opening_state
 from proseferno.images.render import add_meme_text, svg_to_png, vega_to_png
 from proseferno.images.specs import ChartSpec, SvgMemeSpec, SvgSpec
 from proseferno.llm import LLM, LLMError, SystemBlock
@@ -61,6 +63,7 @@ def tool_label(provider: str, model: str) -> str:
         "claude-svg": f"{claude} (SVG)",
         "vega-lite": f"{claude} + Vega-Lite",
         "claude-meme": f"{claude} (meme)",
+        "claude-opening": f"{claude} (layout)",
         "placeholder": "Proseferno",
     }.get(provider, provider)
 
@@ -111,17 +114,37 @@ def brand_palette(brand_kit: dict[str, Any] | None) -> tuple[str, ...]:
     return tuple(str(c) for c in (brand_kit or {}).get("palette") or [])
 
 
-def _formula_note(dials: dict[str, Any], persona: Persona, brief: str) -> str:
-    """The post's formula as the meme's writers' room should read it: the same one the writer followed."""
+def _resolved(dials: dict[str, Any], persona: Persona, brief: str) -> Any:
+    """The post's dials resolved the way the writer resolved them; None for dials an older version saved."""
     # Imported here because the writer package imports this one.
     from proseferno.writer.dials import Dials, resolve
-    from proseferno.writer.formulas import NOTE_FIELDS, PART_FIELDS, ResolvedFormula, meme_note
 
     try:
-        resolved = resolve(Dials(**dials), persona, brief, default_revisions=0)
-    except ValueError:  # dials saved by an older version: the meme is pitched without the formula
+        return resolve(Dials(**dials), persona, brief, default_revisions=0)
+    except ValueError:
+        return None
+
+
+def _formula_note(dials: dict[str, Any], persona: Persona, brief: str) -> str:
+    """The post's formula as the meme's writers' room should read it: the same one the writer followed."""
+    from proseferno.writer.formulas import NOTE_FIELDS, PART_FIELDS, ResolvedFormula, meme_note
+
+    resolved = _resolved(dials, persona, brief)
+    if resolved is None:  # dials saved by an older version: the meme is pitched without the formula
         return ""
     return meme_note(ResolvedFormula(**{field: getattr(resolved, field) for field in (*PART_FIELDS, *NOTE_FIELDS)}))
+
+
+def is_meme(image: ProjectImage) -> bool:
+    """A closing meme, or an opening image that is a meme (a meme sandwich): both have meme words and pitches."""
+    return image.kind == "meme" or (image.kind == "hero" and opening_meme_spec(image.spec) is not None)
+
+
+def meme_spec(image: ProjectImage) -> str:
+    """The meme state of a meme image, whichever end of the post it is on."""
+    if image.kind == "hero":
+        return opening_meme_spec(image.spec) or ""
+    return image.spec
 
 
 class ImageService:
@@ -131,6 +154,7 @@ class ImageService:
         self.settings = settings
         self.storage = storage
         self.memes = MemeMaker(llm, settings)
+        self.opening = OpeningRoom(llm, settings, self.memes)
 
     async def create(
         self,
@@ -146,12 +170,15 @@ class ImageService:
         instruction: str = "",
         meme_format: str | None = None,
         meme_concept: int | None = None,
+        opening_style: str | None = None,
+        opening_concept: int | None = None,
         usage: UsageSink | None = None,
     ) -> ProjectImage:
         """Design and render one image, then persist the result.
 
         With an ``instruction`` the current image is edited ("make the arrows orange") instead of redrawn.
         ``meme_format`` makes a meme in that catalog format; ``meme_concept`` draws that stored pitch.
+        For the opening image, ``opening_style`` pitches again in one style and ``opening_concept`` builds that stored pitch.
         """
         with Session(self.engine) as session:
             image = session.get(ProjectImage, image_id)
@@ -172,6 +199,8 @@ class ImageService:
                     brand_kit=brand_kit,
                     meme_format=meme_format,
                     meme_concept=meme_concept,
+                    opening_style=opening_style,
+                    opening_concept=opening_concept,
                     usage=usage,
                 )
             updates["status"] = "ready"
@@ -226,10 +255,30 @@ class ImageService:
             image = session.get(ProjectImage, image_id)
             if image is None:
                 raise KeyError(image_id)
-        if image.kind != "meme":
+        if not is_meme(image):
             raise ImageProviderError("Only memes have words to edit.")
-        meme = self.memes.reword(image.spec, words, self._art_direction(brand_kit, persona, ""))
-        updates = self._result(image, meme.png, meme.width, meme.height, meme.provider, persona, spec=meme.spec, alt=meme.alt)
+        meme = self.memes.reword(meme_spec(image), words, self._art_direction(brand_kit, persona, ""))
+        if image.kind == "hero":
+            opened = self.opening.with_meme(image.spec, meme)
+            updates = self._result(
+                image, opened.png, opened.width, opened.height, opened.provider, persona, spec=opened.spec, alt=opened.alt
+            )
+        else:
+            updates = self._result(image, meme.png, meme.width, meme.height, meme.provider, persona, spec=meme.spec, alt=meme.alt)
+        return self._save(image_id, {**updates, "status": "ready", "error": None})
+
+    def set_opening_words(
+        self, image_id: int, words: dict[str, str], *, persona: Persona, brand_kit: dict[str, Any] | None = None
+    ) -> ProjectImage:
+        """Retype a code-drawn opening image's words (cheat sheet, versus, big number, framework, chart) without asking Claude."""
+        with Session(self.engine) as session:
+            image = session.get(ProjectImage, image_id)
+            if image is None:
+                raise KeyError(image_id)
+        if image.kind != "hero":
+            raise ImageProviderError("Only the opening image has these words.")
+        result = self.opening.reword(image.spec, words, self._art_direction(brand_kit, persona, ""))
+        updates = self._result(image, result.png, result.width, result.height, result.provider, persona, spec=result.spec, alt=result.alt)
         return self._save(image_id, {**updates, "status": "ready", "error": None})
 
     def revert(self, image_id: int, index: int) -> ProjectImage:
@@ -262,31 +311,38 @@ class ImageService:
         brand_kit: dict[str, Any] | None,
         meme_format: str | None,
         meme_concept: int | None,
+        opening_style: str | None,
+        opening_concept: int | None,
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         kind = image.kind
-        if kind == "meme":
-            with Session(self.engine) as session:
-                project = session.get(Project, image.project_id)
-                plan = dict(project.plan or {}) if project else {}
-                dials = dict(project.dials or {}) if project else {}
-                brief = project.prompt if project else ""
-            humor = dials.get("humor")
-            post = MemeContext(
-                title=title,
-                markdown=markdown,
-                voice_profile=voice_profile,
-                brief=image.prompt or image.purpose,
-                joke=str(plan.get("joke") or ""),
-                callbacks=plan_callbacks(plan),
-                humor=int(humor) if humor is not None else persona.default_humor,
-                recent_formats=self._recent_meme_formats(persona, image.project_id),
-                formula=_formula_note(dials, persona, brief),
+        art = self._art_direction(brand_kit, persona, voice_profile)
+        if kind == "hero" and (meme_format is not None or meme_concept is not None) and opening_meme_spec(image.spec):
+            # The opening meme's own tools (another format, a stored pitch) work inside the opening image.
+            post = self._meme_context(image, persona, title, markdown, voice_profile, position="opening")
+            meme = await self.memes.make(
+                meme_spec(image), post, art, redraw=redraw, meme_format=meme_format, concept_index=meme_concept, usage=usage
             )
+            return self._opening_result(image, persona, self.opening.with_meme(image.spec, meme))
+        if kind == "hero":
+            context = self._opening_context(image, persona, title, markdown, voice_profile)
+            result = await self.opening.make(
+                image.spec if load_opening_state(image.spec) else "",
+                context,
+                art,
+                redraw=redraw,
+                rethink=rethink,
+                style=opening_style,
+                concept_index=opening_concept,
+                usage=usage,
+            )
+            return self._opening_result(image, persona, result)
+        if kind == "meme":
+            post = self._meme_context(image, persona, title, markdown, voice_profile)
             meme = await self.memes.make(
                 image.spec,
                 post,
-                self._art_direction(brand_kit, persona, voice_profile),
+                art,
                 redraw=redraw,
                 rethink=rethink,
                 meme_format=meme_format,
@@ -338,6 +394,13 @@ class ImageService:
         if image.kind == "meme" and load_state(image.spec):
             meme = await self.memes.edit(image.spec, instruction, self._art_direction(brand_kit, persona, ""), usage=usage)
             return self._meme_result(image, persona, meme)
+        if image.kind == "hero" and load_opening_state(image.spec):
+            with Session(self.engine) as session:
+                project = session.get(Project, image.project_id)
+                title, markdown = (project.title, project.markdown) if project else ("", "")
+            context = self._opening_context(image, persona, title, markdown, "")
+            result = await self.opening.edit(image.spec, instruction, context, self._art_direction(brand_kit, persona, ""), usage=usage)
+            return self._opening_result(image, persona, result)
         _, brand = brand_guidance(brand_kit, persona)
         prompt = render(
             "image_edit",
@@ -396,6 +459,103 @@ class ImageService:
         return self._result(
             image, meme.png, meme.width, meme.height, meme.provider, persona, spec=meme.spec, alt=meme.alt, caption=meme.caption
         )
+
+    def _opening_result(self, image: ProjectImage, persona: Persona, result: OpeningResult) -> dict[str, Any]:
+        return self._result(
+            image,
+            result.png,
+            result.width,
+            result.height,
+            result.provider,
+            persona,
+            spec=result.spec,
+            alt=result.alt,
+            caption=result.caption,
+        )
+
+    def _post_info(self, project_id: int) -> tuple[dict[str, Any], dict[str, Any], str, list[str]]:
+        """The project's plan, dials, brief and pinned titles."""
+        with Session(self.engine) as session:
+            project = session.get(Project, project_id)
+            if project is None:
+                return {}, {}, "", []
+            return dict(project.plan or {}), dict(project.dials or {}), project.prompt, list(project.pinned_titles or [])
+
+    def _meme_context(
+        self, image: ProjectImage, persona: Persona, title: str, markdown: str, voice_profile: str, *, position: str = "closing"
+    ) -> MemeContext:
+        plan, dials, brief, _ = self._post_info(image.project_id)
+        humor = dials.get("humor")
+        return MemeContext(
+            title=title,
+            markdown=markdown,
+            voice_profile=voice_profile,
+            brief=(image.prompt or image.purpose) if position == "closing" else "",
+            joke=str(plan.get("joke") or "") if position == "closing" else "",
+            callbacks=plan_callbacks(plan),
+            humor=int(humor) if humor is not None else persona.default_humor,
+            recent_formats=self._recent_meme_formats(persona, image.project_id),
+            formula=_formula_note(dials, persona, brief),
+            position=position,
+            opening=self._opening_meme_note(image.project_id) if position == "closing" else "",
+        )
+
+    def _opening_context(self, image: ProjectImage, persona: Persona, title: str, markdown: str, voice_profile: str) -> OpeningContext:
+        plan, dials, brief, pinned = self._post_info(image.project_id)
+        resolved = _resolved(dials, persona, brief)
+        humor = resolved.humor if resolved is not None else persona.default_humor
+        formula = ""
+        if resolved is not None and (resolved.article_type != "auto" or resolved.opener != "auto"):
+            formula = f"The post's formula: {resolved.formula_label}."
+        return OpeningContext(
+            title=title,
+            markdown=markdown,
+            voice_profile=voice_profile,
+            brief=image.prompt or image.purpose,
+            post_brief=brief,
+            hook=str(plan.get("hook") or ""),
+            titles=tuple(t for t in [*pinned, *(plan.get("title_options") or [])] if t and t != title)[:4],
+            humor=humor,
+            style=resolved.opening_style if resolved is not None else "auto",
+            note=resolved.opening_note if resolved is not None else "",
+            suggested=tuple(resolved.opening_suggested) if resolved is not None else (),
+            eligible=tuple(resolved.opening_eligible) if resolved is not None else (),
+            formula=formula,
+            recent_styles=self._recent_opening_styles(persona, image.project_id),
+            meme_context=self._meme_context(image, persona, title, markdown, voice_profile, position="opening"),
+        )
+
+    def _opening_meme_note(self, project_id: int) -> str:
+        """The post's opening meme in one line (format and premise), for the closing meme of a meme sandwich."""
+        with Session(self.engine) as session:
+            hero = session.exec(
+                select(ProjectImage).where(col(ProjectImage.project_id) == project_id, col(ProjectImage.kind) == "hero")
+            ).first()
+        state = load_state(opening_meme_spec(hero.spec) or "") if hero else None
+        if not state:
+            return ""
+        fmt = get_format(str(state.get("format", "")))
+        concepts, chosen = state.get("concepts") or [], state.get("chosen")
+        premise = concepts[chosen].get("premise", "") if isinstance(chosen, int) and 0 <= chosen < len(concepts) else ""
+        words = " / ".join(str(t.get("text", "")) for t in (state.get("build") or {}).get("texts") or [] if t.get("text"))
+        return f"a {fmt.name if fmt else 'meme'} meme: {premise} (words: {words})".strip()
+
+    def _recent_opening_styles(self, persona: Persona, project_id: int, limit: int = 3) -> tuple[str, ...]:
+        """The styles of this author's latest opening images in other posts, newest first."""
+        with Session(self.engine) as session:
+            specs = session.exec(
+                select(ProjectImage.spec)
+                .join(Project, col(Project.id) == col(ProjectImage.project_id))
+                .where(col(Project.persona_id) == persona.id, col(ProjectImage.kind) == "hero", col(Project.id) != project_id)
+                .order_by(col(Project.updated_at).desc())
+                .limit(limit * 2)
+            ).all()
+        styles: list[str] = []
+        for spec in specs:
+            style = str((load_opening_state(spec) or {}).get("style") or "")
+            if style and style not in styles:
+                styles.append(style)
+        return tuple(styles[:limit])
 
     @staticmethod
     def _art_direction(brand_kit: dict[str, Any] | None, persona: Persona, voice_profile: str) -> ArtDirection:

@@ -6,6 +6,7 @@ import { usePersonas, useProjectMutations } from '../../api/hooks'
 import type { JobOut, ProjectOut } from '../../api/types.gen'
 import { DialsFields } from '../../components/DialsFields'
 import { FormulaFields } from '../../components/FormulaFields'
+import { OpeningFields } from '../../components/OpeningFields'
 import { Button, Dialog, Field, Notice, Select, Textarea } from '../../components/ui'
 import { planOutline } from '../../lib/outline'
 import { PLATFORMS, buildDials, dialsToState, emptyDials, shownDials, type DialsState, type Platform } from '../dials'
@@ -122,6 +123,20 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
               value={dials.formula}
               onChange={(patch) => set({ formula: { ...dials.formula, ...patch } })}
               defaults={persona?.default_formula}
+              brief={prompt}
+              humor={shownDials(dials, persona).humor}
+              idPrefix="settings-"
+            />
+          </div>
+          <div className="space-y-3 border-t border-line pt-4">
+            <h3 className="font-bold">Opening image</h3>
+            <OpeningFields
+              style={dials.openingStyle}
+              note={dials.openingNote}
+              onChange={set}
+              defaultStyle={persona?.default_opening_style}
+              formula={dials.formula}
+              formulaDefaults={persona?.default_formula}
               brief={prompt}
               humor={shownDials(dials, persona).humor}
               idPrefix="settings-"

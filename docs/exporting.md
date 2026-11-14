@@ -2,9 +2,11 @@
 
 Open a post and click **Export**. Each platform gives you a zip bundle; Medium, Substack, LinkedIn and X also offer **Copy**, which puts the post on your clipboard as rich HTML with the images embedded, ready to paste into the platform's editor.
 
+`thumbnail.png` is cut from the post's opening image at each platform's size: a centre crop, which every opening style is laid out to survive (everything that matters sits in the middle 5:2 band). An opening meme is padded instead of cropped, with the meme's own edge colour, so no caption is cut off. See [Opening images](opening-images.md).
+
 | Platform | Bundle contents | Notes |
 | --- | --- | --- |
-| **Medium** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1400×788), `README.txt` | Title → title, subtitle → subtitle, sections → Medium's large heading, subsections → small heading. The hero becomes the story preview. |
+| **Medium** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1400×788), `README.txt` | Title → title, subtitle → subtitle, sections → Medium's large heading, subsections → small heading. The opening image becomes the story preview. |
 | **Substack** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1200×630), `README.txt` | The copied body excludes the title and subtitle; paste those into Substack's fields (they are listed in the README). Use the thumbnail as the social preview. |
 | **LinkedIn** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1920×1080 cover), `feed-post.txt`, `carousel.pdf`, `carousel.pptx`, `README.txt` | See below. |
 | **X** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1500×600 header), `teaser-post.txt`, `README.txt` | See below. |
@@ -23,7 +25,7 @@ The export gives you three ways to publish:
 
 - **Article.** *Copy article for LinkedIn* and paste into **Write article**; upload `thumbnail.png` (1920×1080) as the cover and paste the title into the title field.
 - **Feed post.** The export dialog shows a feed post with a live character count (LinkedIn's limit is 3,000; only the first ~210 characters show before "…see more"). It starts as a template built from the article; **Write with Claude** replaces it with one written in the persona's voice, which is saved with the post and included as `feed-post.txt`. Markdown is stripped because LinkedIn shows it literally.
-- **Document carousel.** `carousel.pdf` is a swipeable 4:5 (1080×1350) deck for a document post: a cover with the hero, one slide per section with its key sentences, the section's diagram or chart, and a closing slide. `carousel.pptx` is the same deck, editable in PowerPoint, Keynote or Google Slides.
+- **Document carousel.** `carousel.pdf` is a swipeable 4:5 (1080×1350) deck for a document post: a cover with the opening image, one slide per section with its key sentences, the section's diagram or chart, and a closing slide. `carousel.pptx` is the same deck, editable in PowerPoint, Keynote or Google Slides.
 
 ## X
 

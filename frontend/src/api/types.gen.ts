@@ -98,6 +98,8 @@ export interface Dials {
   platform?: "medium" | "substack" | "linkedin" | "x" | "gumroad" | "markdown" | null;
   include_code?: "auto" | "yes" | "no" | null;
   revision_passes?: number | null;
+  opening_style?: string | null;
+  opening_note?: string | null;
 }
 
 export interface DiffSegment {
@@ -284,6 +286,7 @@ export interface ImageOut {
   error: string | null;
   history: ImageHistoryOut[];
   meme?: MemeInfoOut | null;
+  opening?: OpeningInfoOut | null;
 }
 
 export interface ImageUpdate {
@@ -385,6 +388,67 @@ export interface MemeWordsIn {
   words: Record<string, string>;
 }
 
+export interface OpeningCatalogOut {
+  styles: OpeningStyleOut[];
+  suggested_by_type: Record<string, string[]>;
+}
+
+export interface OpeningInfoOut {
+  style: string;
+  style_label: string;
+  template: string;
+  mode: string;
+  summary: string;
+  ideas_left: number;
+  fallback_from: string;
+  pitches: OpeningPitchOut[];
+  sources: OpeningSourceOut[];
+  review: OpeningReviewOut | null;
+  slots: MemeSlotOut[];
+  thumbnail_fit: string;
+}
+
+export interface OpeningPitchOut {
+  index: number;
+  style: string;
+  style_label: string;
+  template: string;
+  hook: string;
+  concept: string;
+  scores: Record<string, number>;
+  note: string;
+  total: number;
+  ruled_out: boolean;
+  tried: boolean;
+  current: boolean;
+}
+
+export interface OpeningReviewOut {
+  verdict: string;
+  clickability?: number;
+  craft?: number;
+  problems?: string[];
+  note?: string;
+}
+
+export interface OpeningSourceOut {
+  title: string;
+  url: string;
+}
+
+export interface OpeningStyleOut {
+  id: string;
+  label: string;
+  summary: string;
+  when_to_use: string;
+  needs_data: boolean;
+  min_humor: number;
+}
+
+export interface OpeningWordsIn {
+  words: Record<string, string>;
+}
+
 export interface PersonaCreate {
   name: string;
   display_name?: string;
@@ -436,6 +500,7 @@ export interface PersonaOut {
   default_include_code: string;
   default_platform: string;
   default_formula: FormulaParts;
+  default_opening_style: string;
   visual_style: string;
   credit_template: string;
   voice_profile_words: number;
@@ -470,6 +535,7 @@ export interface PersonaUpdate {
   default_include_code?: "auto" | "yes" | "no" | null;
   default_platform?: "medium" | "substack" | "linkedin" | "x" | "gumroad" | "markdown" | null;
   default_formula?: FormulaParts | null;
+  default_opening_style?: string | null;
   name?: string | null;
   display_name?: string | null;
   research_enabled?: boolean | null;
@@ -580,6 +646,8 @@ export interface RedrawIn {
   rethink?: boolean;
   meme_format?: string | null;
   meme_concept?: number | null;
+  opening_style?: string | null;
+  opening_concept?: number | null;
 }
 
 export interface ReferenceHistoryOut {

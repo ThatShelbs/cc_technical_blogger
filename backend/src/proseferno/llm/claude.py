@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -46,15 +47,25 @@ class ClaudeLLM:
         effort: str,
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
+        images: list[bytes] | None = None,
     ) -> T:
         client = self._client_factory()
+        content: Any = prompt
+        if images:
+            content = [
+                *(
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(png).decode()}}
+                    for png in images
+                ),
+                {"type": "text", "text": prompt},
+            ]
 
         async def attempt() -> Any:
             # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
             # requests whose max_tokens could take longer than 10 minutes.
             async with client.beta.messages.stream(
                 **self._common(system, effort, max_tokens),
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": content}],
                 output_format=schema,
             ) as stream:
                 return await stream.get_final_message()

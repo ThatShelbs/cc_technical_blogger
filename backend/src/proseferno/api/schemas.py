@@ -107,6 +107,8 @@ class PersonaDefaults(BaseModel):
     default_platform: Platform | None = None
     # The formula new posts start from; {} = everything automatic.
     default_formula: FormulaParts | None = None
+    # How new posts open: an opening style id or "auto" (unknown ids are stored as "auto").
+    default_opening_style: str | None = Field(None, max_length=40)
 
 
 class PersonaUpdate(PersonaDefaults):
@@ -238,6 +240,7 @@ class PersonaOut(BaseModel):
     default_include_code: str
     default_platform: str
     default_formula: FormulaParts
+    default_opening_style: str
     visual_style: str
     credit_template: str
     voice_profile_words: int
@@ -488,7 +491,82 @@ class ImageOut(BaseModel):
     error: str | None
     history: list[ImageHistoryOut]
     # Memes only: the format and joke in use, and how many other pitched ideas "New idea" can still try.
+    # An opening meme (a meme sandwich) has this too, alongside ``opening``.
     meme: MemeInfoOut | None = None
+    # The opening image only: its style, the panel's pitches and verdicts, sources and the render review.
+    opening: OpeningInfoOut | None = None
+
+
+class OpeningPitchOut(BaseModel):
+    """One concept the opening room pitched, with the panel's scores."""
+
+    index: int
+    style: str
+    style_label: str
+    template: str
+    hook: str
+    concept: str
+    # Each judge's 1-10 score: scroller, art_director, fact_checker, author.
+    scores: dict[str, int]
+    note: str
+    total: int
+    # A fact checker or author score under 5 rules a concept out (it is still on the board).
+    ruled_out: bool
+    tried: bool
+    current: bool
+
+
+class OpeningSourceOut(BaseModel):
+    title: str
+    url: str
+
+
+class OpeningReviewOut(BaseModel):
+    # "passed", "redrawn" (sent back once and redrawn), "kept" (the redraw was not better) or "skipped".
+    verdict: str
+    clickability: int = 0
+    craft: int = 0
+    problems: list[str] = []
+    note: str = ""
+
+
+class OpeningInfoOut(BaseModel):
+    style: str
+    style_label: str
+    template: str
+    # "auto" when the panel chose across styles, else the one style the pitches were limited to.
+    mode: str
+    summary: str
+    ideas_left: int
+    # Label of the style that was tried first when this image is a stand-in for it ("" otherwise).
+    fallback_from: str
+    pitches: list[OpeningPitchOut]
+    sources: list[OpeningSourceOut]
+    review: OpeningReviewOut | None
+    # Words the author can retype with no model call (code-drawn styles only; numbers are not among them).
+    slots: list[MemeSlotOut]
+    # How platform thumbnails are cut from it: "cover" (centre crop) or "contain" (padded).
+    thumbnail_fit: str
+
+
+class OpeningStyleOut(BaseModel):
+    id: str
+    label: str
+    summary: str
+    when_to_use: str
+    needs_data: bool
+    min_humor: int
+
+
+class OpeningCatalogOut(BaseModel):
+    styles: list[OpeningStyleOut]
+    # Style ids that suit each article type best (key "auto" = no type), in the order the panel weighs them.
+    suggested_by_type: dict[str, list[str]]
+
+
+class OpeningWordsIn(BaseModel):
+    # Slot name -> new text (see ``ImageOut.opening.slots``); slots left out keep their words.
+    words: dict[str, str] = Field(min_length=1)
 
 
 class MemePitchOut(BaseModel):
@@ -552,6 +630,10 @@ class RedrawIn(BaseModel):
     meme_format: str | None = None
     # Memes only: draw this stored pitch (an index from ``ImageOut.meme.pitches``).
     meme_concept: int | None = Field(default=None, ge=0)
+    # The opening image only: pitch again in this style (see GET /api/opening-styles), or build this stored pitch
+    # (an index from ``ImageOut.opening.pitches``) with no new pitching or judging.
+    opening_style: str | None = None
+    opening_concept: int | None = Field(default=None, ge=0)
 
 
 class ImageEditIn(BaseModel):

@@ -26,6 +26,13 @@ from proseferno.api.schemas import (
     MemePitchOut,
     MemeSlotOut,
     MemeWordsIn,
+    OpeningCatalogOut,
+    OpeningInfoOut,
+    OpeningPitchOut,
+    OpeningReviewOut,
+    OpeningSourceOut,
+    OpeningStyleOut,
+    OpeningWordsIn,
     ProjectCreate,
     ProjectCreated,
     ProjectOut,
@@ -45,6 +52,14 @@ from proseferno.evolution import change_stage, edit_rate, start_analysis
 from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
 from proseferno.images.memes import FAMILIES, FORMATS, get_format, load_state
+from proseferno.images.opening.room import JUDGES, fit_of, sources_of
+from proseferno.images.opening.room import load_state as load_opening_state
+from proseferno.images.opening.room import ruled_out as opening_ruled_out
+from proseferno.images.opening.room import total as opening_total
+from proseferno.images.opening.specs import OpeningBuild
+from proseferno.images.opening.styles import STYLES, get_style, suggested_by_type
+from proseferno.images.opening.templates import get_template, slot_texts
+from proseferno.images.service import is_meme, meme_spec
 from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_profile
@@ -99,11 +114,73 @@ def image_out(image: ProjectImage) -> ImageOut:
         url=image_url(image),
         history=history,
         meme=meme_info(image),
+        opening=opening_info(image),
+    )
+
+
+def opening_info(image: ProjectImage) -> OpeningInfoOut | None:
+    state = load_opening_state(image.spec) if image.kind == "hero" else None
+    if state is None:
+        return None
+    entries = state.get("concepts") or []
+    chosen, tried = state.get("chosen"), set(state.get("tried") or [])
+    pitches = []
+    for i, entry in enumerate(entries):
+        style = get_style(str(entry.get("style", "")))
+        if style is None:
+            continue
+        panel = entry.get("panel") or {}
+        pitches.append(
+            OpeningPitchOut(
+                index=i,
+                style=style.id,
+                style_label=style.label,
+                template=str(entry.get("template") or ""),
+                hook=str(entry.get("hook") or ""),
+                concept=str(entry.get("concept") or ""),
+                scores={j: int(panel.get(j, 0)) for j in JUDGES},
+                note=str(panel.get("note") or ""),
+                total=opening_total(entry)[0],
+                ruled_out=opening_ruled_out(entry),
+                tried=i in tried,
+                current=i == chosen,
+            )
+        )
+    style = get_style(str(state.get("style") or ""))
+    template = get_template(str(state.get("template") or ""))
+    slots: list[MemeSlotOut] = []
+    if template is not None and state.get("build"):
+        build = OpeningBuild.model_validate(state["build"])
+        slots = [
+            MemeSlotOut(name=name, hint=hint, text=text, max_chars=limit, optional=name != "headline")
+            for name, hint, text, limit in slot_texts(template, build)
+        ]
+    review = state.get("review") or None
+    failed = get_style(str(state.get("fallback_from") or ""))
+    return OpeningInfoOut(
+        style=style.id if style else "",
+        style_label=style.label if style else "",
+        template=template.id if template else "",
+        mode=str(state.get("mode") or "auto"),
+        summary=str(state.get("summary") or ""),
+        ideas_left=sum(1 for p in pitches if not p.tried and not p.ruled_out),
+        fallback_from=failed.label if failed else "",
+        pitches=pitches,
+        sources=[OpeningSourceOut(**s) for s in sources_of(state)],
+        review=(
+            OpeningReviewOut(verdict="skipped", note=str(review.get("note", "")))
+            if review and review.get("skipped")
+            else OpeningReviewOut(**{k: review[k] for k in ("verdict", "clickability", "craft", "problems") if k in review})
+            if review
+            else None
+        ),
+        slots=slots,
+        thumbnail_fit=fit_of(state),
     )
 
 
 def meme_info(image: ProjectImage) -> MemeInfoOut | None:
-    state = load_state(image.spec) if image.kind == "meme" else None
+    state = load_state(meme_spec(image)) if is_meme(image) else None
     if state is None:
         return None
     concepts = state.get("concepts") or []
@@ -513,6 +590,8 @@ async def _image_job(
     instruction: str = "",
     meme_format: str | None = None,
     meme_concept: int | None = None,
+    opening_style: str | None = None,
+    opening_concept: int | None = None,
 ) -> JobOut:
     image = image_or_404(session, image_id)
     project = project_or_404(session, image.project_id)
@@ -536,6 +615,8 @@ async def _image_job(
             instruction=instruction,
             meme_format=meme_format,
             meme_concept=meme_concept,
+            opening_style=opening_style,
+            opening_concept=opening_concept,
             usage=ctx.add_usage,
         )
         if result.status == "error":
@@ -550,16 +631,63 @@ async def _image_job(
 async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, services: ServicesDep) -> JobOut:
     """Make a new version of one image (redesign it with ``rethink``).
 
-    Memes can switch format with ``meme_format`` or to one of their stored pitches with ``meme_concept``."""
+    Memes (closing or opening) can switch format with ``meme_format`` or to one of their stored pitches with
+    ``meme_concept``. The opening image can pitch again in one style with ``opening_style`` or build one of the
+    panel's stored pitches with ``opening_concept``."""
+    image = image_or_404(session, image_id)
     if body.meme_format is not None or body.meme_concept is not None:
-        image = image_or_404(session, image_id)
-        if image.kind != "meme":
+        if not is_meme(image):
             raise HTTPException(422, "Only memes have formats and pitches.")
         if body.meme_format is not None and not get_format(body.meme_format):
             raise HTTPException(422, f"Unknown meme format {body.meme_format!r}.")
-        if body.meme_concept is not None and body.meme_concept >= len((load_state(image.spec) or {}).get("concepts") or []):
+        if body.meme_concept is not None and body.meme_concept >= len((load_state(meme_spec(image)) or {}).get("concepts") or []):
             raise HTTPException(422, "This meme has no such pitch.")
-    return await _image_job(services, session, image_id, rethink=body.rethink, meme_format=body.meme_format, meme_concept=body.meme_concept)
+    if body.opening_style is not None or body.opening_concept is not None:
+        if image.kind != "hero":
+            raise HTTPException(422, "Only the opening image has opening styles and pitches.")
+        if body.opening_style is not None and not get_style(body.opening_style):
+            raise HTTPException(422, f"Unknown opening style {body.opening_style!r}.")
+        if body.opening_concept is not None and body.opening_concept >= len((load_opening_state(image.spec) or {}).get("concepts") or []):
+            raise HTTPException(422, "This opening image has no such pitch.")
+    return await _image_job(
+        services,
+        session,
+        image_id,
+        rethink=body.rethink,
+        meme_format=body.meme_format,
+        meme_concept=body.meme_concept,
+        opening_style=body.opening_style,
+        opening_concept=body.opening_concept,
+    )
+
+
+@router.put("/images/{image_id}/opening-words", response_model=ImageOut)
+def set_opening_words(image_id: int, body: OpeningWordsIn, session: SessionDep, services: ServicesDep) -> ImageOut:
+    """Retype the words of a code-drawn opening image (cheat sheet, versus, big number, framework, chart).
+    It is laid out again at once with no call to Claude; numbers and sources cannot be changed this way."""
+    image = image_or_404(session, image_id)
+    project = project_or_404(session, image.project_id)
+    persona = persona_or_404(session, project.persona_id)
+    try:
+        return image_out(services.images.set_opening_words(image_id, body.words, persona=persona, brand_kit=dict(project.brand_kit or {})))
+    except ImageProviderError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/opening-styles", response_model=OpeningCatalogOut)
+def opening_styles() -> OpeningCatalogOut:
+    """Every way a post can open, and which styles suit each article type."""
+    from proseferno.writer.formulas import ARTICLE_TYPES
+
+    return OpeningCatalogOut(
+        styles=[
+            OpeningStyleOut(
+                id=s.id, label=s.label, summary=s.summary, when_to_use=s.when_to_use, needs_data=s.needs_data, min_humor=s.min_humor
+            )
+            for s in STYLES
+        ],
+        suggested_by_type=suggested_by_type([t.id for t in ARTICLE_TYPES]),
+    )
 
 
 @router.put("/images/{image_id}/meme-words", response_model=ImageOut)
@@ -590,33 +718,46 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
     brand_kit = dict(project.brand_kit or {})
     voice_profile = current_voice_profile(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
-    image_ids = [i.id for i in project_images(session, project_id) if i.id is not None and i.provider not in ("upload", "placeholder")]
+    drawn = [
+        (i.id, i.kind) for i in project_images(session, project_id) if i.id is not None and i.provider not in ("upload", "placeholder")
+    ]
+    image_ids = [image_id for image_id, _ in drawn]
     if not image_ids:
         raise HTTPException(409, "This post has no drawn images to redraw.")
 
     async def run(ctx):  # type: ignore[no-untyped-def]
         done = 0
         semaphore = asyncio.Semaphore(3)
+        # The closing meme waits for the opening image, so a meme sandwich's closer knows the new opener.
+        opened = asyncio.Event()
+        if not any(kind == "hero" for _, kind in drawn):
+            opened.set()
 
-        async def one(image_id: int) -> None:
+        async def one(image_id: int, kind: str) -> None:
             nonlocal done
-            async with semaphore:
-                await services.images.create(
-                    image_id,
-                    persona=persona,
-                    title=title,
-                    markdown=markdown,
-                    voice_profile=voice,
-                    redraw=True,
-                    brand_kit=brand_kit,
-                    usage=ctx.add_usage,
-                )
+            if kind == "meme":
+                await opened.wait()
+            try:
+                async with semaphore:
+                    await services.images.create(
+                        image_id,
+                        persona=persona,
+                        title=title,
+                        markdown=markdown,
+                        voice_profile=voice,
+                        redraw=True,
+                        brand_kit=brand_kit,
+                        usage=ctx.add_usage,
+                    )
+            finally:
+                if kind == "hero":
+                    opened.set()
             done += 1
             await ctx.emit("image_ready", {"image_id": image_id})
             await ctx.progress(done / len(image_ids), f"Redrew {done} of {len(image_ids)} images")
 
         await ctx.progress(0.05, f"Redrawing {len(image_ids)} images")
-        await asyncio.gather(*(one(i) for i in image_ids))
+        await asyncio.gather(*(one(i, kind) for i, kind in drawn))
         return {"image_ids": image_ids}
 
     job = await services.jobs.start("redraw_images", run, project_id=project_id)

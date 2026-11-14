@@ -509,24 +509,34 @@ async def _generate(
     image_ids = _create_image_rows(engine, project.id, slots)
     finished = 0
     semaphore = asyncio.Semaphore(3)
+    # The closing meme waits for the opening image: when the post opens with a meme too, the closer must know it.
+    opened = asyncio.Event()
+    if not any(s.kind == "hero" for s in slots):
+        opened.set()
 
-    async def make(image_id: int) -> None:
+    async def make(image_id: int, kind: str) -> None:
         nonlocal finished
-        async with semaphore:
-            await images.create(
-                image_id,
-                persona=persona,
-                title=title or plan.chosen_title,
-                markdown=draft,
-                voice_profile=voice_profile.markdown,
-                brand_kit=project.brand_kit,
-                usage=ctx.add_usage,
-            )
+        if kind == "meme":
+            await opened.wait()
+        try:
+            async with semaphore:
+                await images.create(
+                    image_id,
+                    persona=persona,
+                    title=title or plan.chosen_title,
+                    markdown=draft,
+                    voice_profile=voice_profile.markdown,
+                    brand_kit=project.brand_kit,
+                    usage=ctx.add_usage,
+                )
+        finally:
+            if kind == "hero":
+                opened.set()
         finished += 1
         await ctx.emit("image_ready", {"image_id": image_id})
         await ctx.progress(0.7 + 0.28 * finished / len(image_ids), f"Created {finished} of {len(image_ids)} images")
 
-    await asyncio.gather(*(make(i) for i in image_ids))
+    await asyncio.gather(*(make(i, s.kind) for i, s in zip(image_ids, slots, strict=True)))
     _save(engine, project.id, status="ready")
     await ctx.progress(1.0, "Your post is ready")
     return {"project_id": project.id}

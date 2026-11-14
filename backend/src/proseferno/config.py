@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     effort_images: Effort = "medium"
     # The meme writers' room: pitching and judging five jokes is worth more thought than drawing one.
     effort_meme_ideas: Effort = "high"
+    # The opening image is the thumbnail: pitching across styles is worth the most thought, then an independent panel
+    # judges the pitches, and a final review looks at the finished picture.
+    effort_opening_ideas: Effort = "high"
+    effort_opening_judge: Effort = "medium"
+    effort_opening_review: Effort = "medium"
+    # Web searches for the numbers behind a data opener (chart or big number).
+    opening_max_searches: int = 4
     effort_detect: Effort = "low"
     effort_insights: Effort = "low"
     # Planning, researching and weaving references (sources, quotes, social posts, resources) into a post.

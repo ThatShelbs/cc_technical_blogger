@@ -115,18 +115,23 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     system_text = "\n".join(block.text for block in draft_call["system"])
     assert "edited by hand" in system_text and "Pie Charts Are Lame" in system_text
 
-    # Images: file, redraw (Claude designs a new version), upload, revert.
+    # Images: file, redraw (the opening keeps the panel's pick and builds it again), upload, revert.
     hero = project["images"][0]
     assert client.get(hero["url"]).headers["content-type"] == "image/png"
-    designs_before = fake_llm.tasks().count("hero image design")
+    assert hero["opening"]["pitches"] and hero["opening"]["review"]["verdict"] == "passed"
+
+    def opening_builds() -> list[dict]:
+        return [c for c in fake_llm.calls if c["task"].startswith("opening ") and c["task"].endswith(("drawing", "build"))]
+
+    builds_before, ideas_before = len(opening_builds()), fake_llm.tasks().count("opening ideas")
     redraw = client.post(f"/api/images/{hero['id']}/redraw", json={}).json()
     assert redraw["status"] == "succeeded", redraw
-    assert fake_llm.tasks().count("hero image design") == designs_before + 1
-    assert "This is a redraw" in fake_llm.calls[-1]["prompt"]
+    assert len(opening_builds()) == builds_before + 1 and fake_llm.tasks().count("opening ideas") == ideas_before
+    assert "This is a redraw" in opening_builds()[-1]["prompt"]
     uploaded = client.post(f"/api/images/{hero['id']}/upload", files={"file": ("shot.png", png_bytes(), "image/png")}).json()
     assert uploaded["provider"] == "upload" and len(uploaded["history"]) == 3
     reverted = client.post(f"/api/images/{hero['id']}/revert", json={"index": 0}).json()
-    assert reverted["provider"] == "claude-svg"
+    assert reverted["provider"] == hero["provider"]
     assert client.get(reverted["history"][1]["url"]).status_code == 200
 
     # Editing: title, caption, passage rewrite.
@@ -528,7 +533,7 @@ def test_brand_kit_and_edit_image(client: TestClient, sample_docx: bytes, fake_l
     created = client.post("/api/projects", json={"prompt": "Pie charts", "brand_kit": kit, "dials": {"revision_passes": 0}}).json()
     project = client.get(f"/api/projects/{created['project']['id']}").json()
     assert project["brand_kit"]["palette"] == ["#112233", "#aabbcc"]
-    hero_call = next(c for c in fake_llm.calls if c["task"] == "hero image design")
+    hero_call = next(c for c in fake_llm.calls if c["task"].startswith("opening ") and c["task"].endswith("drawing"))
     assert "chalkboard sketch" in hero_call["prompt"] and "#112233" in hero_call["prompt"] and "a tiny robot" in hero_call["prompt"]
     bad = client.patch(f"/api/projects/{project['id']}", json={"brand_kit": {"palette": ["orange"]}})
     assert bad.status_code == 422
@@ -550,7 +555,9 @@ def test_redraw_all_images_uses_the_new_brand_kit(client: TestClient, sample_doc
     fake_llm.calls.clear()
     job = client.post(f"{url}/images/redraw").json()
     assert job["status"] == "succeeded", job
-    designs = [c for c in fake_llm.calls if c["task"].endswith("image design") or c["task"].startswith("meme build")]
+    designs = [c for c in fake_llm.calls if c["task"].endswith(("image design", "drawing")) or c["task"].startswith("meme build")]
+    # The opening image is rebuilt from the panel's pick: no new pitching or judging.
+    assert "opening ideas" not in fake_llm.tasks() and "opening panel" not in fake_llm.tasks()
     # A meme in a format with no art is redrawn by code alone, with no call to Claude.
     drawn = [i for i in project["images"] if i["kind"] != "meme" or i["meme"]["has_art"]]
     assert len(designs) == len(drawn) and all("risograph print" in c["prompt"] for c in designs)

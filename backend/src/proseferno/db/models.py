@@ -41,6 +41,8 @@ class Persona(SQLModel, table=True):
     default_platform: str = "medium"
     # The formula new posts start from (see writer.formulas): article_type, opener, body, closer and notes; {} = all automatic.
     default_formula: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
+    # How new posts open (see images.opening.styles): a style id, or "auto" = the panel picks from the styles that suit the post.
+    default_opening_style: str = "auto"
     # Voice profile version used for new posts; None = always the latest.
     pinned_voice_profile_version: int | None = None
     # One line that keeps a post's generated images looking like a set.
