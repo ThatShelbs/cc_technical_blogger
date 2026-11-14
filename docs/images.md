@@ -6,7 +6,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 
 | Kind | Purpose | Made by |
 | --- | --- | --- |
-| **hero** | Opening image and thumbnail: an editorial "stock-style" illustration made for this post | Claude SVG (16:9) |
+| **hero** | Opening image and thumbnail, in one of nine styles a judging panel picks from: visual metaphor, data art, opening meme, cheat sheet, sourced data chart, big number, versus split, framework diagram or screen mock ([Opening images](opening-images.md)) | Claude SVG, a code template with Claude's words and verified data, or the meme room (16:9) |
 | **illustration** | A conceptual image or visual metaphor for a section | Claude SVG (16:9) |
 | **icon** | One concept icon, or a row of 2-4, anchoring a list of steps or principles | Claude SVG |
 | **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
@@ -14,7 +14,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **screenshot** | The post shows what a screen looks like (an app page, settings, a chat, an editor, a terminal) | Claude SVG: a faithful mock of that screen with the post's real content; **Replace** it with a real capture if you have one |
 | **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Proseferno owns layout and type ([below](#closing-memes)) |
 
-Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the hero (as wide as 5:2), so the hero keeps its subject in the middle band.
+Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the opening image (as wide as 5:2), so it keeps everything that matters in the middle band. The opening image has its own pitch, panel and review; see [Opening images](opening-images.md).
 
 ## Examples the post introduces
 
@@ -40,7 +40,7 @@ Fonts are bundled in `images/memes/fonts/` (Anton, Inter, Comic Neue and JetBrai
 
 ## Closing memes
 
-The meme is the last thing a reader sees and the thing they share, so it gets its own pipeline (`images/memes/`):
+The meme is the last thing a reader sees and the thing they share, so it gets its own pipeline (`images/memes/`). The same room makes an opening meme when a post opens with one (a [meme sandwich](opening-images.md#meme-sandwich)); the closing meme is then made after it and told about it.
 
 1. **Writers' room** (`prompts/meme_ideas.md`, effort `effort_meme_ideas`, default high). Claude reads the whole post (a very long post keeps its opening and its ending, where callbacks pay off), the plan's closing joke and its running jokes and key concepts, the humor dial and the voice profile's *Humor* section, then pitches five concepts across at least three format families. Each pitch has the final words for every slot, chart data where the format needs it and a caption, and is scored on relevance, instant recognizability, surprise, clarity, voice fit and whether it works shared on its own. The best one wins. The room is told which formats the author's last three memes used, so posts do not all end the same way. It is also told the post's [formula](formulas.md#the-closing-meme) (article type, opener, body, closer), because the meme lands straight after the closer: it must add a beat, not repeat the closer, and a post that opened on a joke can have that joke brought back.
 2. **Production** (`prompts/meme_build.md`), only for formats with art. Claude draws SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel) and may tighten the words. Missing pieces or overlong text get one retry with the problems quoted back. The seven formats with no art (chat, terminal, Nutrition Facts, alignment chart, pie, spurious correlation, Venn) skip this call: they are composed straight from the pitch.
@@ -79,7 +79,7 @@ Each image gets a credit from the persona's template (default `Author: {name}; M
 
 > The saddest pie; Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)
 
-Charts read "Made with Claude Opus 5.5 + Vega-Lite", memes "Made with Claude Opus 5.5 (meme)", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
+Charts read "Made with Claude Opus 5.5 + Vega-Lite", memes "Made with Claude Opus 5.5 (meme)", code-laid-out opening images "Made with Claude Opus 5.5 (layout)", and charts with made-up numbers are labeled *(illustrative data)*. Captions never name another tool as the image's maker, even if your own posts credit one. You can edit any caption, credit or alt text. Captions and credits live only on the image; caption lines the writer puts in the post body are removed.
 
 ## When an image fails
 

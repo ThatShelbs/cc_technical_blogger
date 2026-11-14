@@ -55,6 +55,28 @@ class MemeContext:
     recent_formats: tuple[str, ...] = ()
     # The post's formula as the room should read it (``writer.formulas.meme_note``); "" when none is in force.
     formula: str = ""
+    # "closing" (the last image) or "opening" (the first image and thumbnail, see ``images.opening``).
+    position: str = "closing"
+    # For a closing meme when the post also opens with one (a meme sandwich): the opener's format and premise.
+    opening: str = ""
+
+
+def position_guide(post: MemeContext) -> str:
+    """What the room is pitching: the closer, the closer of a meme sandwich, or the opener."""
+    if post.position == "opening":
+        return (
+            "Pitch the opening meme for this post: the first thing a reader sees, and the post's thumbnail. It sets up the "
+            "tension, pain or question the post resolves, so it must land for someone who has not read the post yet: no "
+            "spoilers and no callbacks to things the post explains later. Favor formats that still read as a wide thumbnail. "
+            "The post closes with its own meme, so save the big payoff for the ending."
+        )
+    if post.opening:
+        return (
+            "Pitch the closing meme for this post. The post also opens with a meme, so this is a meme sandwich. The opener: "
+            f"{post.opening}. Use a different format family from the opener and never repeat its joke; the best closer pays "
+            "it off (a bookend) now that the reader has the whole story."
+        )
+    return "Pitch the closing meme for this post."
 
 
 @dataclass
@@ -104,6 +126,8 @@ def clip_post(markdown: str, limit: int = POST_LIMIT, tail: int = POST_TAIL) -> 
     text = PLACEHOLDER_RE.sub("", markdown).strip()
     if len(text) <= limit:
         return text
+    if tail <= 0:
+        return f"{text[:limit].rstrip()}\n\n[... the rest of the post is omitted ...]"
     return f"{text[: limit - tail].rstrip()}\n\n[... the middle of the post is omitted ...]\n\n{text[-tail:].lstrip()}"
 
 
@@ -320,17 +344,21 @@ class MemeMaker:
     async def _ideate(self, post: MemeContext, only: str | None, exclude: list[str], usage: UsageSink | None) -> dict[str, Any]:
         avoid = "\n".join(f"- {p}" for p in exclude)
         recent = ", ".join(post.recent_formats)
+        opening = post.position == "opening"
         prompt = render(
             "meme_ideas",
+            position_guide=position_guide(post),
             title=post.title,
             joke=post.joke or "(none given)",
             callbacks=post.callbacks or "(none planned)",
-            brief=post.brief or "A funny, relevant joke that lands the ending.",
+            brief=post.brief
+            or ("A joke that sets up the problem this post solves." if opening else "A funny, relevant joke that lands the ending."),
             humor=post.humor,
             humor_guide=humor_guide(post.humor),
             formula=f"\n{post.formula}\n" if post.formula else "",
             humor_section=voice_section(post.voice_profile, "Humor") or "(not described: use dry, specific, good-natured humor)",
-            post=clip_post(post.markdown),
+            # The opener is pitched from the post's beginning; the closer keeps its ending, where callbacks pay off.
+            post=clip_post(post.markdown, tail=0) if opening else clip_post(post.markdown),
             menu=menu(only),
             constraint=f"\nOnly use the format `{only}`: all five concepts must use it, each with a different joke.\n" if only else "",
             exclude=f"\nThese premises were already used; pitch different jokes:\n{avoid}\n" if exclude else "",

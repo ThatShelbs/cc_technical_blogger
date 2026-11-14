@@ -50,9 +50,10 @@ Each one touches a small, well-contained part of the code and is covered by the 
 
 1. **Tune a prompt and measure it.** Change one instruction in `prompts/critique.md`, then run `uv run --project backend python backend/evals/voice_fidelity.py --demo --yes` to see how the eval is wired (a real run on your own writing costs money and needs `--yes`).
 2. **Add a dial.** Follow an existing one, for example "skimmability": `writer/dials.py` (resolution and prompt text), `api/schemas.py`, `db/models.py` (a persona default; give it a column default), `frontend/src/pages/dials.ts` and `components/DialsFields.tsx`. Regenerate the types.
-3. **Add a formula style.** A new opener, body structure or closer is one catalog entry in `writer/formulas.py`, listed under the article types it suits; the UI picks it up from the API. See `docs/formulas.md`.
-4. **Add an export platform.** Look at `export/x.py` (small) and `PLATFORMS` in `export/bundle.py`; add a writing guide for it and a test in `tests/unit/`.
-5. **Improve a screen's empty state.** Find one in `frontend/src/pages/` (try Personas), and check it in day and night mode.
+3. **Add an opening image style or template.** A style is one entry in `images/opening/styles.py`; a code-drawn template is a layout function plus a `Template` entry in `images/opening/templates.py` and a canned build in `demo.py`. The tests render every template. See `docs/opening-images.md`.
+4. **Add a formula style.** A new opener, body structure or closer is one catalog entry in `writer/formulas.py`, listed under the article types it suits; the UI picks it up from the API. See `docs/formulas.md`.
+5. **Add an export platform.** Look at `export/x.py` (small) and `PLATFORMS` in `export/bundle.py`; add a writing guide for it and a test in `tests/unit/`.
+6. **Improve a screen's empty state.** Find one in `frontend/src/pages/` (try Personas), and check it in day and night mode.
 
 ## Conventions
 

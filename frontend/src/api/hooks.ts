@@ -20,6 +20,7 @@ import type {
   Health,
   ImageOut,
   MemeFormatOut,
+  OpeningCatalogOut,
   JobOut,
   LinkedInPostOut,
   PersonaCreate,
@@ -58,6 +59,7 @@ export const keys = {
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
   memeFormats: ['meme-formats'] as const,
+  openingStyles: ['opening-styles'] as const,
   formulaCatalog: ['formula-catalog'] as const,
   formulas: ['formulas'] as const,
   evolution: (personaId: number) => ['personas', personaId, 'evolution'] as const,
@@ -424,6 +426,14 @@ export function useEvolutionMutations(personaId: number, projectId?: number) {
 export const useMemeFormats = (enabled = true) =>
   useQuery({ queryKey: keys.memeFormats, queryFn: () => api.get<MemeFormatOut[]>('/api/meme-formats'), staleTime: Infinity, enabled })
 
+const EMPTY_OPENING_CATALOG: OpeningCatalogOut = { styles: [], suggested_by_type: {} }
+
+/** Every way a post can open, and which styles suit each article type; it never changes while the app runs. */
+export function useOpeningStyles() {
+  const query = useQuery({ queryKey: keys.openingStyles, queryFn: () => api.get<OpeningCatalogOut>('/api/opening-styles'), staleTime: Infinity })
+  return { ...query, data: query.data?.styles ? query.data : EMPTY_OPENING_CATALOG }
+}
+
 // -- formulas ------------------------------------------------------------------
 
 /** Every article type, opener, body and closer style; it never changes while the app runs. */
@@ -448,13 +458,32 @@ export function useFormulaMutations() {
   }
 }
 
+/** What a redraw should make: a meme format or stored pitch, or an opening style or stored opening pitch. */
+export interface RedrawPicks {
+  memeFormat?: string
+  memeConcept?: number
+  openingStyle?: string
+  openingConcept?: number
+}
+
 export function useImageMutations(projectId: number) {
   const qc = useQueryClient()
   const refresh = () => qc.invalidateQueries({ queryKey: keys.project(projectId) })
   return {
     redraw: useMutation({
-      mutationFn: ({ id, rethink, memeFormat, memeConcept }: { id: number; rethink: boolean; memeFormat?: string; memeConcept?: number }) =>
-        api.post<JobOut>(`/api/images/${id}/redraw`, { rethink, meme_format: memeFormat ?? null, meme_concept: memeConcept ?? null }),
+      mutationFn: ({ id, rethink, ...picks }: { id: number; rethink: boolean } & RedrawPicks) =>
+        api.post<JobOut>(`/api/images/${id}/redraw`, {
+          rethink,
+          meme_format: picks.memeFormat ?? null,
+          meme_concept: picks.memeConcept ?? null,
+          opening_style: picks.openingStyle ?? null,
+          opening_concept: picks.openingConcept ?? null,
+        }),
+    }),
+    /** Retype a code-drawn opening image's words; it is laid out again at once, without asking Claude. */
+    openingWords: useMutation({
+      mutationFn: ({ id, words }: { id: number; words: Record<string, string> }) => api.put<ImageOut>(`/api/images/${id}/opening-words`, { words }),
+      onSuccess: refresh,
     }),
     /** Retype a meme's words; it is redrawn at once with the same art, without asking Claude. */
     memeWords: useMutation({

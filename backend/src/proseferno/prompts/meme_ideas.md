@@ -1,4 +1,4 @@
-Pitch the closing meme for this post.
+$position_guide
 
 Post title: $title
 What the planner wanted from the joke: $joke

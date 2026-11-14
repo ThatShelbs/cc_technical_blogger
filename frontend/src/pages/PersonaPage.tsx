@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { errorText } from '../api/client'
-import { usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
+import { useOpeningStyles, usePersona, usePersonaMutations, useSampleMutations, useSamples } from '../api/hooks'
 import type { PersonaOut, PersonaUpdate } from '../api/types.gen'
 import { EvolutionPanel } from '../components/EvolutionPanel'
 import { FormulaFields } from '../components/FormulaFields'
@@ -105,6 +105,7 @@ function defaultsFrom(persona: PersonaOut) {
     default_include_code: persona.default_include_code as IncludeCode,
     default_platform: persona.default_platform as Platform,
     default_formula: buildFormula(formulaFrom(persona.default_formula)),
+    default_opening_style: persona.default_opening_style,
     voice_profile_words: persona.voice_profile_words,
     voice_sample_max_words: persona.voice_sample_max_words,
     voice_sample_min_words: persona.voice_sample_min_words,
@@ -180,6 +181,7 @@ function LessonsCard({ persona }: { persona: PersonaOut }) {
 
 function SettingsTab({ persona }: { persona: PersonaOut }) {
   const { update, remove } = usePersonaMutations()
+  const { data: openingCatalog } = useOpeningStyles()
   const navigate = useNavigate()
   const [draft, setDraft] = useState(() => defaultsFrom(persona))
   const set = (patch: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...patch }))
@@ -305,6 +307,22 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
           humor={draft.default_humor}
           idPrefix="p-"
         />
+        <div className="space-y-3 border-t border-line pt-4">
+          <div>
+            <h3 className="font-bold">Opening image</h3>
+            <p className="text-sm text-muted">How new posts open. Auto lets the panel pick the most clickable idea for each post.</p>
+          </div>
+          <Field label="Style" htmlFor="p-opening">
+            <Select id="p-opening" value={draft.default_opening_style} onChange={(e) => set({ default_opening_style: e.target.value })}>
+              <option value="auto">Auto: the panel picks</option>
+              {openingCatalog.styles.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
       </Card>
 
       <Card className="h-fit space-y-5">

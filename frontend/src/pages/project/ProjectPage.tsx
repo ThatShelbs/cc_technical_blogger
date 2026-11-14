@@ -183,6 +183,12 @@ function DialsSummary({ project, onEdit, disabled }: { project: ProjectOut; onEd
         <span className="text-muted">Formality:</span> {d.formality} · <span className="text-muted">Depth:</span> {d.technical_depth} ·{' '}
         <span className="text-muted">Skim:</span> {d.skimmability}
       </p>
+      {d.opening_label && (
+        <p>
+          <span className="text-muted">Opening image:</span> {d.opening_label}
+          {d.opening_note ? ` · "${d.opening_note}"` : ''}
+        </p>
+      )}
       {d.formula_label && (
         <p>
           <span className="text-muted">Formula:</span> {d.formula_label}

@@ -9,6 +9,7 @@ import { BrandKitFields } from '../components/BrandKitFields'
 import { emptyBrandKit, isEmptyBrandKit } from '../lib/brandKit'
 import { DialsFields } from '../components/DialsFields'
 import { FormulaFields } from '../components/FormulaFields'
+import { OpeningFields } from '../components/OpeningFields'
 import { Button, Card, Field, Notice, PageHeader, Select, Textarea } from '../components/ui'
 import { cx } from '../lib/cx'
 
@@ -138,6 +139,22 @@ export function NewProjectPage() {
               humor={humor}
             />
           </div>
+          <div className="space-y-3 border-t border-line pt-4">
+            <div>
+              <h3 className="font-bold">Opening image</h3>
+              <p className="text-sm text-muted">The first thing readers see, and the post&rsquo;s thumbnail.</p>
+            </div>
+            <OpeningFields
+              style={dials.openingStyle}
+              note={dials.openingNote}
+              onChange={set}
+              defaultStyle={persona?.default_opening_style}
+              formula={dials.formula}
+              formulaDefaults={persona?.default_formula}
+              brief={prompt}
+              humor={humor}
+            />
+          </div>
           <button
             type="button"
             className="flex w-full items-center justify-between border-t border-line pt-4 font-bold"
@@ -150,8 +167,8 @@ export function NewProjectPage() {
           {!custom ? (
             <p className="text-sm text-muted">
               Using {persona ? `${persona.name}'s` : 'your'} defaults: about {targetWords.toLocaleString()} words,{' '}
-              {imageCount ? `${imageCount} images` : 'about as many images as you use'} (hero first, meme last), humor {humor}/10, style dials as you write,
-              topic and article type detected automatically.
+              {imageCount ? `${imageCount} images` : 'about as many images as you use'} (an opening image first, a meme last), humor {humor}/10, style dials as
+              you write, topic and article type detected automatically.
               {changed && ' Some settings are customized for this post.'}
             </p>
           ) : (

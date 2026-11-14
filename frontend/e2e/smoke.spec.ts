@@ -51,6 +51,10 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByLabel('Opener', { exact: true })).toHaveValue('contrarian')
   await page.getByLabel('Opener', { exact: true }).selectOption({ label: 'Joke: the confession' })
   await shot(page, 'formula')
+  // Opening image: Auto names the styles that suit the post; pick one for this post
+  await expect(page.getByText(/Pitches ideas across .*Versus split/)).toBeVisible()
+  await page.locator('#opening-style').selectOption({ label: 'Versus split · suits this post' })
+  await expect(page.getByText('Two columns: before and after, myth and reality, the old way and the new.')).toBeVisible()
   await page.getByRole('button', { name: /Write my post/ }).click()
   await expect(page.getByText('Writing your post')).toBeVisible()
 
@@ -60,6 +64,20 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.locator('figure img')).toHaveCount(4)
   await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()
   await shot(page, 'editor-day')
+
+  // The opening image: the panel's pitches, each scored by four judges, with the words retypeable
+  const opening = page.locator('figure').filter({ hasText: 'Opening image · Versus split' })
+  await expect(opening).toBeVisible()
+  await opening.getByRole('button', { name: 'Ideas' }).click()
+  const ideas = page.getByRole('dialog', { name: 'Opening image ideas' })
+  await expect(ideas.getByRole('listitem')).toHaveCount(4)
+  await expect(ideas.getByText('Panel pick')).toBeVisible()
+  await expect(ideas.getByText('Art director').first()).toBeVisible()
+  await ideas.getByRole('button', { name: 'Close', exact: true }).click()
+  await opening.getByRole('button', { name: 'Words' }).click()
+  await page.getByLabel('Headline').fill('Stop slicing your data')
+  await page.getByRole('button', { name: 'Save words' }).click()
+  await expect(page.getByRole('dialog', { name: "Edit the opening image's words" })).toHaveCount(0)
 
   // References: five sources, quotes and resources worked into the post, each one redrawable
   await expect(page.getByRole('heading', { name: 'References' })).toBeVisible()

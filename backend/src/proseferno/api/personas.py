@@ -31,6 +31,7 @@ from proseferno.api.schemas import (
 from proseferno.db import Persona, PersonaEvolution, Sample, VoiceProfile, utcnow
 from proseferno.evolution import EVOLUTION_JOBS
 from proseferno.example import ExampleError, remove_example, seed_example
+from proseferno.images.opening.styles import clean_style
 from proseferno.ingest import SUPPORTED_EXTENSIONS, UnsupportedFormatError, fetch_url, parse_file
 from proseferno.personas import add_sample, delete_persona_data
 from proseferno.sample_content import SAMPLE_AUTHOR, sample_posts
@@ -165,6 +166,8 @@ def update_persona(persona_id: int, body: PersonaUpdate, session: SessionDep, se
             continue
         if key == "default_formula":
             value = clean_formula(value)
+        if key == "default_opening_style":
+            value = clean_style(value)
         setattr(persona, key, value.strip() if isinstance(value, str) else value)
     persona.updated_at = utcnow()
     session.add(persona)
