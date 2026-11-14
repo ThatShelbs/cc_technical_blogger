@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
-from sqlmodel import Session, col, delete, select
+from sqlmodel import Session, col, select
 
+from proseferno.abtest.service import ABTestError, current_test, delete_project_data, start_ab_test
 from proseferno.api.deps import ServicesDep, SessionDep, image_or_404, persona_or_404, project_or_404
 from proseferno.api.evolution import evolution_out
 from proseferno.api.schemas import (
+    ABTestSummary,
     CopyHtmlOut,
     GenerateIn,
     ImageEditIn,
@@ -81,7 +82,7 @@ from proseferno.writer import (
     word_count,
 )
 from proseferno.writer.pipeline import measure
-from proseferno.writer.references import delete_references, in_post, project_references
+from proseferno.writer.references import in_post, project_references
 from proseferno.writer.social import write_linkedin_post
 
 router = APIRouter(prefix="/api")
@@ -269,11 +270,13 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
         )
         for i, entry in enumerate(project.revisions or [])
     ]
+    test = current_test(session, project.id)
     evolutions = session.exec(
         select(PersonaEvolution).where(PersonaEvolution.project_id == project.id).order_by(col(PersonaEvolution.created_at))
     ).all()
     return ProjectOut(
-        **project.model_dump(exclude={"revisions", "baseline_markdown", "baseline_title"}),
+        **project.model_dump(exclude={"revisions", "baseline_markdown", "baseline_title", "ab_test_id", "variant"}),
+        ab_test=ABTestSummary(id=test.id, status=test.status, error=test.error) if test is not None and test.id is not None else None,
         has_baseline=bool(project.baseline_markdown),
         edit_rate=edit_rate(project.baseline_markdown, project.markdown) if project.baseline_markdown else None,
         evolutions=[evolution_out(e) for e in evolutions],
@@ -289,6 +292,13 @@ def project_out(session: Session, project: Project, services: Services) -> Proje
 def _check_idle(services: Services, project_id: int) -> None:
     if services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS):
         raise HTTPException(409, "Claude is still working on this post. Wait for it to finish.")
+
+
+def _check_no_open_test(session: Session, project_id: int) -> None:
+    """While an A/B test is open the post is not refined: the author picks a winner (or discards the test) first."""
+    test = current_test(session, project_id)
+    if test is not None and test.status != "decided":
+        raise HTTPException(409, "This post has an A/B test in progress. Pick a winner or discard the test first.")
 
 
 def _writable_persona(session: Session, persona_id: int) -> Persona:
@@ -325,7 +335,8 @@ async def start_generation(services: Services, project_id: int) -> str:
 
 @router.get("/projects", response_model=list[ProjectSummary])
 def list_projects(session: SessionDep) -> list[ProjectSummary]:
-    projects = session.exec(select(Project).order_by(col(Project.updated_at).desc())).all()
+    # The two hidden posts of an A/B test are not posts of their own.
+    projects = session.exec(select(Project).where(col(Project.variant).is_(None)).order_by(col(Project.updated_at).desc())).all()
     names = {p.id: p.name for p in session.exec(select(Persona))}
     out = []
     for project in projects:
@@ -338,6 +349,7 @@ def list_projects(session: SessionDep) -> list[ProjectSummary]:
                 ),
                 persona_name=names.get(project.persona_id, ""),
                 thumbnail_url=image_url(hero) if hero else None,
+                ab_status=test.status if (test := current_test(session, project.id)) else None,
             )
         )
     return out
@@ -366,7 +378,14 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
     session.commit()
     session.refresh(project)
     assert project.id is not None
-    job_id = await start_generation(services, project.id) if body.generate else None
+    job_id: str | None = None
+    if body.generate and body.mode == "ab":
+        try:
+            job_id = (await start_ab_test(services, project.id)).id
+        except ABTestError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    elif body.generate:
+        job_id = await start_generation(services, project.id)
     session.refresh(project)
     return ProjectCreated(project=project_out(session, project, services), job_id=job_id)
 
@@ -413,18 +432,16 @@ async def update_project(project_id: int, body: ProjectUpdate, session: SessionD
 
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, session: SessionDep, services: ServicesDep) -> None:
-    project = project_or_404(session, project_id)
-    session.exec(delete(ProjectImage).where(col(ProjectImage.project_id) == project_id))  # type: ignore[call-overload]
-    delete_references(session, [project_id])
-    session.delete(project)
+    project_or_404(session, project_id)
+    delete_project_data(session, services.storage, project_id)
     session.commit()
-    shutil.rmtree(services.storage.project_dir(project_id), ignore_errors=True)
 
 
 @router.post("/projects/{project_id}/generate", response_model=JobOut, status_code=202)
 async def generate(project_id: int, session: SessionDep, services: ServicesDep, body: GenerateIn | None = None) -> JobOut:
     """Write the whole post again; with a body, first apply a new brief, dials or persona."""
     project = project_or_404(session, project_id)
+    _check_no_open_test(session, project_id)
     body = body or GenerateIn()
     persona_id = body.persona_id if body.persona_id is not None else project.persona_id
     _writable_persona(session, persona_id)
@@ -448,6 +465,7 @@ async def tweak(project_id: int, body: TweakIn, session: SessionDep, services: S
     project = project_or_404(session, project_id)
     if not project.markdown:
         raise HTTPException(409, "Generate the post before tweaking it.")
+    _check_no_open_test(session, project_id)
     _writable_persona(session, project.persona_id)
     _check_idle(services, project_id)
     job = await services.jobs.start(
@@ -494,6 +512,7 @@ def restore_revision(project_id: int, index: int, session: SessionDep, services:
 @router.post("/projects/{project_id}/rewrite", response_model=ProjectOut)
 async def rewrite(project_id: int, body: RewriteIn, session: SessionDep, services: ServicesDep) -> ProjectOut:
     project_or_404(session, project_id)
+    _check_no_open_test(session, project_id)
     try:
         await rewrite_passage(
             llm=services.llm,

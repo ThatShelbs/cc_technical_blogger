@@ -13,6 +13,7 @@ removing one never breaks an old post.
 
 from __future__ import annotations
 
+import random
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -769,6 +770,33 @@ def resolve_formula(chosen: Mapping[str, Any], default: Mapping[str, Any] | None
         note = chosen.get(field)
         values[field] = str(note if note is not None else default.get(field) or "").strip()[:NOTE_MAX]
     return ResolvedFormula(**values)
+
+
+def part_label(part: str, value: str) -> str:
+    """The picker's name for a style id ("Your usual" for ``auto``)."""
+    option = _PARTS[part].get(value)
+    return option.label if option else "Your usual"
+
+
+def shuffle_part(part: str, current: str, article_type: str = AUTO, *, humor: int = 5, rng: random.Random | None = None) -> str | None:
+    """Another style for one part: one that suits the article type and is never the current one.
+
+    The same rule as ``shufflePart`` in ``frontend/src/lib/formula.ts`` (change both together): with no article
+    type, openers and closers come from the whole catalog and the body is left alone; at humor 0-2 a shuffle never
+    lands on a joke opener. Returns None when there is nothing to draw.
+    """
+    rng = rng or random.Random()
+    options = _PARTS[part]
+    kind = _TYPES.get(article_type)
+    if kind is not None:
+        suited: list[str] = {"opener": kind.openers, "body": kind.bodies, "closer": kind.closers}[part]
+        pool = [options[i] for i in suited if i in options]
+    else:
+        pool = [] if part == "body" else list(options.values())
+    if part == "opener" and humor <= 2:
+        pool = [o for o in pool if o.group != "Joke"]
+    fresh = [o for o in pool if o.id != current] or pool
+    return rng.choice(fresh).id if fresh else None
 
 
 def formula_label(formula: ResolvedFormula) -> str:

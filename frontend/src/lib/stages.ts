@@ -24,6 +24,7 @@ export const SAUCE_OUTCOMES: Outcome[] = ['good', 'viral']
 export const KIND_LABEL: Record<string, string> = {
   edits: 'From your edits',
   secret_sauce: 'Secret sauce',
+  ab_test: 'A/B test winner',
 }
 
 export const TARGET_LABEL: Record<string, string> = {

@@ -14,6 +14,7 @@ Rules:
 - Keep facts and code correct. Avoid the AI-writing tells listed in the voice profile in anything you write.
 - `summary` tells the author in one or two plain sentences what you changed.
 
+$other_post
 Images in the post:
 $images
 

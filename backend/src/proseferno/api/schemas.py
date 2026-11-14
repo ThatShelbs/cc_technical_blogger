@@ -407,6 +407,8 @@ class ProjectCreate(BaseModel):
     dials: Dials = Field(default_factory=lambda: Dials())
     brand_kit: BrandKit | None = None
     generate: bool = True
+    # "ab" writes the post twice for a blind A/B test (see abtest.service) instead of once.
+    mode: Literal["standard", "ab"] = "standard"
 
 
 class BrandKit(BaseModel):
@@ -691,8 +693,85 @@ class ProjectSummary(BaseModel):
     stage: str
     outcome: str | None
     thumbnail_url: str | None
+    # Status of an A/B test that still needs the author (generating | voting | deciding | error | decided).
+    ab_status: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+ABPart = Literal["title", "opener", "closer", "hero", "meme", "image_style"]
+
+
+class ABTestSummary(BaseModel):
+    """The A/B test that currently needs the author's attention on a post."""
+
+    id: int
+    # generating | voting | deciding | error | decided (decided = the "adopt what won?" question is still open)
+    status: str
+    error: str | None
+
+
+class ABVariantOut(BaseModel):
+    """One of the two posts of an open test, by position only (left = Post 1)."""
+
+    side: Literal["left", "right"]
+    title: str
+    subtitle: str
+    markdown: str
+    word_count: int
+    status: str
+    error: str | None
+    images: list[ImageOut]
+
+
+class ABTweakOut(BaseModel):
+    id: str
+    # Settings | Formula | Examples | Voice | Principles | Title | Images
+    group: str
+    label: str
+    before: str
+    after: str
+    # Pre-ticked in the adopt dialog: part of what the author chose.
+    suggested: bool
+
+
+class ABTestOut(BaseModel):
+    id: int
+    project_id: int
+    persona_id: int
+    status: str
+    error: str | None
+    # The two posts, until a winner is picked.
+    left: ABVariantOut | None
+    right: ABVariantOut | None
+    # Everything below is revealed only once the test is decided.
+    winner: Literal["control", "challenger"] | None
+    winner_side: Literal["left", "right"] | None
+    taken: list[str]
+    tweaks: list[ABTweakOut]
+    # Tweak ids adopted into the persona; None = not answered yet.
+    adopted: list[str] | None
+    evolution_id: int | None
+    created_at: datetime
+    decided_at: datetime | None
+
+
+class ABDecideIn(BaseModel):
+    winner: Literal["left", "right"]
+    # Parts to take from the other post.
+    take: list[ABPart] = Field(default_factory=list)
+    # Free-text blending instructions, applied as a tweak that can see the other post.
+    notes: str = Field("", max_length=4000)
+
+
+class ABAdoptIn(BaseModel):
+    tweak_ids: list[str] = Field(default_factory=list)
+
+
+class ABAdoptOut(BaseModel):
+    ab_test: ABTestOut
+    # Set when voice changes are being worked into a new voice profile version.
+    job: JobOut | None
 
 
 class ProjectOut(BaseModel):
@@ -727,6 +806,7 @@ class ProjectOut(BaseModel):
     # Share of the generated text the author changed so far (None without a baseline).
     edit_rate: float | None
     evolutions: list[EvolutionOut]
+    ab_test: ABTestSummary | None = None
     created_at: datetime
     updated_at: datetime
 

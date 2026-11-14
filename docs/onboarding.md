@@ -106,6 +106,7 @@ npm run e2e          # Playwright, against the real backend in demo mode
 | An article type, opener, body or closer style (formulas) | `writer/formulas.py` (the catalog; the UI reads it from the API) | See [formulas.md](formulas.md); `uv run pytest tests/unit/test_formulas.py tests/api/test_formulas.py`. |
 | Which references a post gets, and how they are checked | `prompts/reference_*.md`, `writer/references.py` | See [references.md](references.md); `uv run pytest tests/unit/test_references.py tests/api/test_references.py`. |
 | How the persona learns from published posts | `prompts/evolve_*.md`, `secret_sauce.md`, `evolution/service.py` | See [evolution.md](evolution.md); `uv run pytest tests/unit/test_evolution.py tests/api/test_evolution.py`. |
+| What an A/B test's challenger changes, or how a winner is blended | `abtest/perturb.py`, `abtest/blend.py`, `abtest/service.py` | See [ab-testing.md](ab-testing.md); `uv run pytest tests/unit/test_abtest.py tests/api/test_ab_tests.py`. |
 | What images look like | `prompts/image_system.md`, `image_spec.md`, `images/service.py` | See [images.md](images.md). |
 | How a post opens (opening image styles, the judging panel, templates) | `images/opening/` (`styles.py` is the catalog), `prompts/opening_*.md` | See [opening-images.md](opening-images.md); `uv run pytest tests/unit/test_opening.py tests/api/test_opening.py`; `uv run python scripts/opening_gallery.py`. |
 | A screen | `frontend/src/pages/` | Check day and night mode. |
