@@ -19,6 +19,11 @@ $callbacks
 AI-writing tells found by an automated scan (fix every one in your instructions unless the author genuinely writes that way):
 $ai_tells
 
+Lead-ins that promise an example with nothing after it (the post must show every example it introduces; tell the reviser to add the missing code block, table, quote or list right after each one, or to point it at an image placeholder, and never to delete the lead-in):
+$missing_examples
+
+Fenced code blocks are fine even when the author's own posts show code as screenshots: this app cannot paste screenshots, so code blocks are how code appears. Never ask for one to be removed for that reason.
+
 <draft>
 $draft
 </draft>

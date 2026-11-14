@@ -128,8 +128,8 @@ export function NewProjectPage() {
           {!custom ? (
             <p className="text-sm text-muted">
               Using {persona ? `${persona.name}'s` : 'your'} defaults: about {targetWords.toLocaleString()} words,{' '}
-              {imageCount ? `${imageCount} images` : 'an image every ~350 words'} (hero first, meme last), humor {humor}/10, style dials as you write, topic and
-              article type detected automatically.
+              {imageCount ? `${imageCount} images` : 'about as many images as you use'} (hero first, meme last), humor {humor}/10, style dials as you write,
+              topic and article type detected automatically.
               {changed && ' Some settings are customized for this post.'}
             </p>
           ) : (

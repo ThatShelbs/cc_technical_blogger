@@ -25,6 +25,7 @@ from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
+from proseferno.writer.examples import add_example_slots, format_missing_examples
 from proseferno.writer.links import LinkChecker, NoLinkChecker
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
@@ -121,6 +122,8 @@ _EMPHASIS_LINE_RE = re.compile(r"^\s*(\*[^*].*[^*]\*|_[^_].*[^_]_|\*\*.+\*\*)\s*
 def _is_caption(line: str, *, allow_emphasis: bool) -> bool:
     if not line.strip() or len(line.split()) > 30 or line.lstrip().startswith(("#", "```", "{{")):
         return False
+    if line.rstrip(" *_").endswith(":"):
+        return False  # a lead-in ("**Memes:** ... Here is one of the early ones:"), not a caption
     return bool(_CAPTION_RE.search(line)) or (allow_emphasis and bool(_EMPHASIS_LINE_RE.match(line)))
 
 
@@ -315,6 +318,8 @@ async def write_post(
         on_delta=stream_delta,
         usage=reporter.add_usage,
     )
+    # A placeholder the writer added for an example becomes a real slot instead of being dropped.
+    draft, slots = add_example_slots(draft, slots, fill_dangling=False)
     draft = ensure_placeholders(draft, slots)
     measured = measure(draft, voice_profile.baseline_stylometrics)
     if on_draft:
@@ -335,6 +340,7 @@ async def write_post(
                     fidelity=json.dumps(measured, indent=1),
                     ai_tells=scan(draft, profile).tells_text(),
                     callbacks=format_callbacks(plan),
+                    missing_examples=format_missing_examples(draft),
                     **settings_text,
                 ),
                 schema=Critique,
@@ -354,11 +360,22 @@ async def write_post(
                 on_delta=stream_delta,
                 usage=reporter.add_usage,
             )
+            draft, slots = add_example_slots(draft, slots, fill_dangling=False)
             draft = ensure_placeholders(draft, slots)
             measured = measure(draft, voice_profile.baseline_stylometrics)
     except LLMError as exc:
         # The first draft is already good enough to keep; a failed editing pass should not lose it.
         log.warning("Editing pass failed; keeping the current draft: %s", exc)
+        await reporter.emit("draft_reset", {})
+        await reporter.emit("draft_delta", {"text": draft})
+
+    # Anything the post still introduces without showing becomes an image, drawn with the others.
+    draft, slots = add_example_slots(draft, slots)
+    draft = ensure_placeholders(draft, slots)
+    if slots != plan.image_slots:
+        plan = plan.model_copy(update={"image_slots": slots})
+        measured = measure(draft, voice_profile.baseline_stylometrics)
+        await reporter.emit("plan", plan.model_dump())
         await reporter.emit("draft_reset", {})
         await reporter.emit("draft_delta", {"text": draft})
 
@@ -408,7 +425,13 @@ async def _generate(
 
     assert project.id is not None
     project_id = project.id
-    dials = resolve(Dials(**(project.dials or {})), persona, project.prompt, default_revisions=settings.revision_passes)
+    dials = resolve(
+        Dials(**(project.dials or {})),
+        persona,
+        project.prompt,
+        default_revisions=settings.revision_passes,
+        words_per_image=(voice_profile.baseline_stylometrics or {}).get("words_per_image"),
+    )
 
     async def add_references(draft: str, plan: ArticlePlan, system: list[SystemBlock]) -> str:
         markdown, woven = await references.weave_references(
@@ -458,6 +481,8 @@ async def _generate(
         engine,
         project.id,
         markdown=draft,
+        # The plan again: examples found while editing may have added image slots.
+        plan={**plan.model_dump(), "title_options": merge_titles(project.pinned_titles or [], plan.title_options)},
         title=title or plan.chosen_title,
         subtitle=subtitle or plan.subtitle,
         critique=post.critique.model_dump() if post.critique else None,

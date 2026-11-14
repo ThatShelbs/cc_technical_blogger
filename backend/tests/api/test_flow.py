@@ -639,3 +639,24 @@ def test_an_image_that_cannot_be_drawn_gets_one_more_try(client: TestClient, sam
     assert len(diagrams) == 2 and "must be an <svg> document" in diagrams[1]["prompt"]
     # Each drawing is told what the rest of the set shows.
     assert "The other images in this post" in diagrams[0]["prompt"] and "- hero `hero`:" in diagrams[0]["prompt"]
+
+
+def test_examples_a_post_introduces_are_drawn(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from proseferno import demo
+
+    draft = demo.DRAFT.replace("\n## ", "\nHere is what the settings page looks like:\n\n## ", 1)
+    monkeypatch.setattr(demo, "DRAFT", draft)
+    project = ready_post(client, sample_docx)
+
+    shot = next(i for i in project["images"] if i["kind"] == "screenshot")
+    assert (
+        shot["status"] == "ready" and shot["provider"] == "claude-svg" and shot["purpose"] == "Here is what the settings page looks like:"
+    )
+    assert f"{{{{image:{shot['slot_id']}}}}}" in project["markdown"]
+    assert shot["slot_id"] in [s["slot_id"] for s in project["plan"]["image_slots"]]
+    call = next(c for c in fake_llm.calls if c["task"] == "screenshot image design")
+    assert "settings page looks like" in call["prompt"]
+
+    # A drawn screenshot can be edited like any other drawing; the author can still replace it.
+    job = client.post(f"/api/images/{shot['id']}/edit", json={"instruction": "Dark theme"}).json()
+    assert job["status"] == "succeeded", job

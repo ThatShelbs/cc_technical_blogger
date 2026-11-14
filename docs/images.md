@@ -1,6 +1,6 @@
 # Images
 
-Every post gets images that add value for the reader. The plan decides how many (about one per 350 words by default, at least two, or the persona's default) and what each is for.
+Every post gets images that add value for the reader. The plan decides how many (by default as often as the author uses images in their own posts, measured in the voice profile's baseline, never more than one per 150 words; one per 350 words when there is no measurement; at least two, at most twelve; or the persona's default) and what each is for. Every example the post introduces ("Here is the file:") gets its image or code block; see [Examples the post introduces](#examples-the-post-introduces).
 
 Claude draws every image itself: vector art as SVG and data visualizations as Vega-Lite specs. There is no third-party image model and nothing to configure.
 
@@ -11,10 +11,19 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **icon** | One concept icon, or a row of 2-4, anchoring a list of steps or principles | Claude SVG |
 | **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
 | **chart** | Data visualization (real numbers from the post, or labeled illustrative data) | Claude Vega-Lite spec with inline data |
-| **screenshot** | A real UI/console screenshot would help | Placeholder card; replace it with your screenshot |
+| **screenshot** | The post shows what a screen looks like (an app page, settings, a chat, an editor, a terminal) | Claude SVG: a faithful mock of that screen with the post's real content; **Replace** it with a real capture if you have one |
 | **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Proseferno owns layout and type ([below](#closing-memes)) |
 
 Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the hero (as wide as 5:2), so the hero keeps its subject in the middle band.
+
+## Examples the post introduces
+
+Authors lead into examples ("Here is the top of the file:", "This is what it looks like:"). A post must never point at something that is not there, so (`writer/examples.py`):
+
+- The plan gives every visual example a slot, and the writer and reviser are told that the lead-in is followed right away by its example: a placeholder for a screen or visual, a fenced code block for code, prompts, file excerpts and terminal output (even when the author's own posts show those as screenshots, which the app cannot paste).
+- The editor gets every lead-in with nothing after it (`find_dangling_leadins`: a paragraph that ends in a colon and promises to show something, followed by prose or a section heading) and tells the reviser to add what is missing.
+- A placeholder the writer made up right after a lead-in becomes a real slot instead of being dropped.
+- Whatever is still missing after editing becomes a new image slot right after its lead-in (`add_example_slots`; usually a drawn *screenshot*), briefed with the lead-in and the text around it, so it is drawn with the post's other images. The text is not changed. At most eight images are added this way.
 
 ## Design and rendering
 
@@ -62,7 +71,7 @@ To review every format, run `uv run python scripts/meme_gallery.py` (canned buil
 
 ## Brand kit (per post)
 
-Each post has its own image brand kit (`Project.brand_kit`): an image style, a palette of up to eight colors, a font for text in images, and a recurring motif. Set it under *Customize* when you start a post, or later in the **Image brand kit** card next to the post, where **Save and redraw images** gives every drawn image the new look (`POST /api/projects/{id}/images/redraw`; uploads and screenshots stay). Empty fields fall back to the persona's visual style and the inferno palette.
+Each post has its own image brand kit (`Project.brand_kit`): an image style, a palette of up to eight colors, a font for text in images, and a recurring motif. Set it under *Customize* when you start a post, or later in the **Image brand kit** card next to the post, where **Save and redraw images** gives every drawn image the new look (`POST /api/projects/{id}/images/redraw`; uploads stay). Empty fields fall back to the persona's visual style and the inferno palette.
 
 ## Credits
 

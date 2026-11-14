@@ -248,8 +248,14 @@ def classify_topic(text: str) -> str:
     return best if scores[best] > 0 else "Data Science"
 
 
-def auto_image_count(target_words: int) -> int:
-    return max(2, min(12, round(target_words / 350)))
+DEFAULT_WORDS_PER_IMAGE = 350
+MIN_WORDS_PER_IMAGE = 150
+
+
+def auto_image_count(target_words: int, words_per_image: float | None = None) -> int:
+    """About as many images as the author uses (their measured words per image), else one per ~350 words."""
+    rate = max(MIN_WORDS_PER_IMAGE, words_per_image) if words_per_image else DEFAULT_WORDS_PER_IMAGE
+    return max(2, min(12, round(target_words / rate)))
 
 
 def auto_reference_count(target_words: int) -> int:
@@ -266,7 +272,8 @@ def style_guide(values: dict[str, int]) -> str:
     return "\n".join(f"- {label} {values[key]}/10: {_guide(guides, values[key])}" for key, (label, guides) in STYLE_DIALS.items())
 
 
-def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: int) -> ResolvedDials:
+def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: int, words_per_image: float | None = None) -> ResolvedDials:
+    """``words_per_image`` is the author's measured image cadence (the voice profile's baseline), for the automatic image count."""
     humor = dials.humor if dials.humor is not None else persona.default_humor
     education: Education = dials.education or persona.default_education  # type: ignore[assignment]
     if education not in EDUCATION_GUIDE:
@@ -294,7 +301,7 @@ def resolve(dials: Dials, persona: Persona, prompt: str, *, default_revisions: i
         formula_label=formula_label(formula),
         formula_guide=formula_guide(formula),
         target_words=target_words,
-        image_count=dials.image_count or persona.default_image_count or auto_image_count(target_words),
+        image_count=dials.image_count or persona.default_image_count or auto_image_count(target_words, words_per_image),
         reference_count=next(
             n for n in (dials.reference_count, persona.default_reference_count, auto_reference_count(target_words)) if n is not None
         ),

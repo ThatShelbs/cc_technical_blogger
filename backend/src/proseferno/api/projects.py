@@ -166,8 +166,15 @@ def project_images(session: Session, project_id: int) -> list[ProjectImage]:
 def project_out(session: Session, project: Project, services: Services) -> ProjectOut:
     assert project.id is not None
     persona = session.get(Persona, project.persona_id)
+    profile = current_voice_profile(session, project.persona_id) if persona else None
     resolved = (
-        resolve(Dials(**(project.dials or {})), persona, project.prompt, default_revisions=services.settings.revision_passes).model_dump()
+        resolve(
+            Dials(**(project.dials or {})),
+            persona,
+            project.prompt,
+            default_revisions=services.settings.revision_passes,
+            words_per_image=(profile.baseline_stylometrics or {}).get("words_per_image") if profile else None,
+        ).model_dump()
         if persona
         else {}
     )
@@ -563,15 +570,13 @@ def meme_formats() -> list[MemeFormatOut]:
 
 @router.post("/projects/{project_id}/images/redraw", response_model=JobOut, status_code=202)
 async def redraw_all_images(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
-    """Redraw every image Claude drew (e.g. after changing the brand kit); uploads and screenshots stay."""
+    """Redraw every image Claude drew (e.g. after changing the brand kit); uploads and old placeholders stay."""
     project = project_or_404(session, project_id)
     persona = Persona.model_validate(persona_or_404(session, project.persona_id).model_dump())
     brand_kit = dict(project.brand_kit or {})
     voice_profile = current_voice_profile(session, project.persona_id)
     markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
-    image_ids = [
-        i.id for i in project_images(session, project_id) if i.id is not None and i.kind != "screenshot" and i.provider != "upload"
-    ]
+    image_ids = [i.id for i in project_images(session, project_id) if i.id is not None and i.provider not in ("upload", "placeholder")]
     if not image_ids:
         raise HTTPException(409, "This post has no drawn images to redraw.")
 
@@ -608,7 +613,7 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
 async def edit_image(image_id: int, body: ImageEditIn, session: SessionDep, services: ServicesDep) -> JobOut:
     """Change one image as the author describes ("make the arrows orange"), keeping the rest of it."""
     image = image_or_404(session, image_id)
-    if image.kind == "screenshot" or image.provider in ("upload", "placeholder") or not image.spec:
+    if image.provider in ("upload", "placeholder") or not image.spec:
         raise HTTPException(422, "Only images Claude drew can be edited by instruction. Redraw or upload this one instead.")
     return await _image_job(services, session, image_id, instruction=body.instruction)
 
