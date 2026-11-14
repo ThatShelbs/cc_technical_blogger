@@ -22,6 +22,7 @@ import type {
   PersonaCreate,
   PersonaDuplicateIn,
   PersonaEvolutionOut,
+  PersonaInsightsOut,
   PersonaOut,
   PersonaUpdate,
   ProjectCreate,
@@ -57,6 +58,7 @@ export const keys = {
   formulaCatalog: ['formula-catalog'] as const,
   formulas: ['formulas'] as const,
   evolution: (personaId: number) => ['personas', personaId, 'evolution'] as const,
+  insights: (personaId: number) => ['personas', personaId, 'insights'] as const,
   baselineDiff: (projectId: number) => ['projects', projectId, 'baseline-diff'] as const,
 }
 
@@ -330,6 +332,17 @@ export const usePersonaEvolution = (personaId: number) =>
     queryFn: () => api.get<PersonaEvolutionOut>(`/api/personas/${personaId}/evolution`),
     refetchInterval: (query) => (query.state.data?.evolutions.some((e) => e.state === 'analyzing') ? 2000 : false),
   })
+
+/** The persona's Insights page: the voice digest plus charts measured from samples and posts. */
+export const usePersonaInsights = (personaId: number) =>
+  useQuery({
+    queryKey: keys.insights(personaId),
+    queryFn: () => api.get<PersonaInsightsOut>(`/api/personas/${personaId}/insights`),
+    staleTime: 0,
+  })
+
+/** Rebuild the digest for the voice profile in use; follow the returned job with `useJob`. */
+export const useRefreshInsights = (personaId: number) => useMutation({ mutationFn: () => api.post<JobOut>(`/api/personas/${personaId}/insights/refresh`) })
 
 /** The generated text against the current text, word by word. */
 export const useBaselineDiff = (projectId: number, enabled: boolean) =>

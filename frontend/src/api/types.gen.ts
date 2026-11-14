@@ -68,6 +68,12 @@ export interface CopyHtmlOut {
   html: string;
 }
 
+export interface CountItem {
+  id: string;
+  label: string;
+  count: number;
+}
+
 export interface Dials {
   article_type?: string | null;
   opener?: string | null;
@@ -151,11 +157,31 @@ export interface EvolveIn {
   kind: "edits" | "secret_sauce";
 }
 
+export interface FingerprintOut {
+  reference_label: string;
+  reference_kind: "influences" | "typical";
+  rows: FingerprintRow[];
+}
+
+export interface FingerprintRow {
+  key: string;
+  label: string;
+  you: number;
+  reference: number | null;
+  unit: string;
+}
+
 export interface FormulaCatalogOut {
   article_types: ArticleType[];
   openers: FormulaOption[];
   bodies: FormulaOption[];
   closers: FormulaOption[];
+}
+
+export interface FormulaFlowOut {
+  posts: number;
+  nodes: FormulaNode[];
+  links: FormulaLink[];
 }
 
 export interface FormulaIn {
@@ -168,6 +194,18 @@ export interface FormulaIn {
   closer_note?: string | null;
   name: string;
   description?: string;
+}
+
+export interface FormulaLink {
+  source: string;
+  target: string;
+  value: number;
+}
+
+export interface FormulaNode {
+  id: string;
+  stage: "article_type" | "opener" | "body" | "closer";
+  label: string;
 }
 
 export interface FormulaOption {
@@ -255,6 +293,30 @@ export interface ImageUpdate {
   prompt?: string | null;
 }
 
+export interface InsightsDigestOut {
+  headline: string;
+  tone: string[];
+  signature_phrases: string[];
+  steer_clear: string[];
+  voice_mix: VoiceMixSlice[];
+  sentences_sampled: number;
+  sentences_labeled: number;
+  image_habits: string[];
+  caption_example: string;
+  generated_at: string;
+  version: number;
+  stale: boolean;
+}
+
+export interface InsightsOverview {
+  persona_name: string;
+  own_samples: number;
+  influence_samples: number;
+  own_words: number;
+  voice_profile_version: number | null;
+  updated_at: string | null;
+}
+
 export interface JobOut {
   id: string;
   kind: string;
@@ -267,6 +329,13 @@ export interface JobOut {
   error: string | null;
   usage: Record<string, unknown>;
   created_at: string;
+}
+
+export interface LessonItem {
+  kind: string;
+  old: string;
+  new: string;
+  count: number;
 }
 
 export interface LinkedInPostOut {
@@ -335,6 +404,16 @@ export interface PersonaEvolutionOut {
   evolutions: EvolutionOut[];
   edit_rates: EditRatePoint[];
   playbook: PlaybookEntry[];
+}
+
+export interface PersonaInsightsOut {
+  overview: InsightsOverview;
+  digest: InsightsDigestOut | null;
+  fingerprint: FingerprintOut | null;
+  openers: CountItem[];
+  phrases: CountItem[];
+  formula: FormulaFlowOut;
+  track_record: TrackRecordOut;
 }
 
 export interface PersonaOut {
@@ -409,6 +488,18 @@ export interface PlaybookEntry {
   title?: string;
   outcome?: string | null;
   added_at?: string;
+}
+
+export interface PostPoint {
+  project_id: number;
+  title: string;
+  created_at: string;
+  stage: string;
+  outcome: string | null;
+  words: number;
+  authenticity: number | null;
+  voice_match: number | null;
+  critique: number | null;
 }
 
 export interface ProjectCreate {
@@ -612,6 +703,20 @@ export interface SettingsOut {
   demo: boolean;
 }
 
+export interface TrackRecordOut {
+  posts: number;
+  published: number;
+  words: number;
+  images: number;
+  references: number;
+  stages: CountItem[];
+  outcomes: CountItem[];
+  points: PostPoint[];
+  meme_formats: CountItem[];
+  lessons: LessonItem[];
+  playbook: number;
+}
+
 export interface TweakIn {
   feedback: string;
 }
@@ -624,6 +729,13 @@ export interface UploadResult {
 export interface UrlImportIn {
   url: string;
   kind?: "own" | "influence";
+}
+
+export interface VoiceMixSlice {
+  name: string;
+  description: string;
+  count: number;
+  share: number;
 }
 
 export interface VoiceProfileEdit {

@@ -208,6 +208,39 @@ DEMO_TITLES = [
 ]
 
 
+# A believable voice mix for the waffle chart: categories repeat in this order over the sampled sentences.
+_DEMO_MIX = ["Chatty", "Data", "Chatty", "Jokes", "Chatty", "How-to", "Data", "Chatty", "Jokes", "Data"]
+
+
+def _voice_insights_payload(prompt: str) -> dict[str, Any]:
+    section = prompt.split("Numbered sentences", 1)[-1].split("## Output", 1)[0]
+    count = len(re.findall(r"^\d+\. ", section, flags=re.MULTILINE))
+    return {
+        "headline": "Mostly chatty, backed up by data.",
+        "tone": [
+            "Casual, self-deprecating, a little nerdy",
+            "Short punchy sentences, then a quip",
+            "Talks straight to you, the reader",
+            "Owns mistakes out loud, then moves on",
+        ],
+        "signature_phrases": ["Here is a confession", "Everyone peeks", "the smallest", "quietly", "Not a real phrase"],
+        "steer_clear": ["Hype words: leverage, unlock, game-changer", "Long throat-clearing intros"],
+        "mix_categories": [
+            {"name": "Chatty", "description": "Talks to the reader like a peer"},
+            {"name": "Data", "description": "Numbers, results and evidence"},
+            {"name": "Jokes", "description": "Asides and punchlines"},
+            {"name": "How-to", "description": "Steps the reader can follow"},
+        ],
+        "sentence_categories": [{"index": i, "category": _DEMO_MIX[(i - 1) % len(_DEMO_MIX)]} for i in range(1, count + 1)],
+        "image_habits": [
+            "About one image every few hundred words",
+            "Charts right after a colon lead-in",
+            "Close with one joke image",
+        ],
+        "caption_example": "Source: X; Author: Name; Made with Tool",
+    }
+
+
 def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
     if name == "SampleAnalysis":
         return {
@@ -327,6 +360,8 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             "What chart do you wish would disappear from slide decks?\n\nFull article in the comments.",
             "hashtags": ["DataVisualization", "Analytics", "data viz"],
         }
+    if name == "VoiceInsights":
+        return _voice_insights_payload(prompt)
     if name == "Judgement":
         return {"reasoning": "Passage A has the author's wry asides.", "authentic": "A", "confidence": 3, "similarity": 7}
     if name == "EvolutionPlan":

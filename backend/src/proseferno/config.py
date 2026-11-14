@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     # The meme writers' room: pitching and judging five jokes is worth more thought than drawing one.
     effort_meme_ideas: Effort = "high"
     effort_detect: Effort = "low"
+    effort_insights: Effort = "low"
     # Planning, researching and weaving references (sources, quotes, social posts, resources) into a post.
     effort_references: Effort = "medium"
     # Learning from published posts: what the author's edits and their hits say about the persona.

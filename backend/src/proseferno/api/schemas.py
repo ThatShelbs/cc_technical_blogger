@@ -668,3 +668,122 @@ class LinkedInPostOut(BaseModel):
     text: str
     characters: int
     written_by: Literal["claude", "template"]
+
+
+# -- persona insights ---------------------------------------------------------------
+
+
+class InsightsOverview(BaseModel):
+    persona_name: str
+    own_samples: int
+    influence_samples: int
+    own_words: int
+    voice_profile_version: int | None
+    updated_at: datetime | None
+
+
+class VoiceMixSlice(BaseModel):
+    name: str
+    description: str
+    count: int
+    # Percent of the labeled sentences.
+    share: float
+
+
+class InsightsDigestOut(BaseModel):
+    headline: str
+    tone: list[str]
+    signature_phrases: list[str]
+    steer_clear: list[str]
+    voice_mix: list[VoiceMixSlice]
+    sentences_sampled: int
+    sentences_labeled: int
+    image_habits: list[str]
+    caption_example: str
+    generated_at: str
+    # The voice profile version the digest was made from.
+    version: int
+    # True when it was made from another version than the one in use (refresh to update it).
+    stale: bool
+
+
+class FingerprintRow(BaseModel):
+    key: str
+    label: str
+    you: float
+    reference: float | None
+    unit: str
+
+
+class FingerprintOut(BaseModel):
+    reference_label: str
+    # "influences" = measured from the persona's influence samples; "typical" = rough built-in values.
+    reference_kind: Literal["influences", "typical"]
+    rows: list[FingerprintRow]
+
+
+class CountItem(BaseModel):
+    id: str
+    label: str
+    count: int
+
+
+class FormulaNode(BaseModel):
+    id: str
+    stage: Literal["article_type", "opener", "body", "closer"]
+    label: str
+
+
+class FormulaLink(BaseModel):
+    source: str
+    target: str
+    value: int
+
+
+class FormulaFlowOut(BaseModel):
+    posts: int
+    nodes: list[FormulaNode]
+    links: list[FormulaLink]
+
+
+class PostPoint(BaseModel):
+    project_id: int
+    title: str
+    created_at: datetime
+    stage: str
+    outcome: str | None
+    words: int
+    authenticity: float | None
+    voice_match: float | None
+    critique: float | None
+
+
+class LessonItem(BaseModel):
+    kind: str
+    old: str
+    new: str
+    count: int
+
+
+class TrackRecordOut(BaseModel):
+    posts: int
+    published: int
+    words: int
+    images: int
+    references: int
+    stages: list[CountItem]
+    outcomes: list[CountItem]
+    points: list[PostPoint]
+    meme_formats: list[CountItem]
+    lessons: list[LessonItem]
+    playbook: int
+
+
+class PersonaInsightsOut(BaseModel):
+    overview: InsightsOverview
+    digest: InsightsDigestOut | None
+    fingerprint: FingerprintOut | None
+    openers: list[CountItem]
+    phrases: list[CountItem]
+    formula: FormulaFlowOut
+    track_record: TrackRecordOut

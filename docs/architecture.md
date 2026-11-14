@@ -130,6 +130,7 @@ The first real persona becomes the active one even when the example is on (`api/
 | Weave references in | structured output (`ReferenceEdits`) | medium |
 | Pitch closing memes | structured output (`MemeIdeas`) | high |
 | Draw a meme's art (formats with art only) | structured output (`MemeBuild`) | medium |
+| Sum up a voice profile for Insights | structured output (`VoiceInsights`) | low |
 | Learn from a published post's edits | structured output (`EvolutionPlan`) | medium |
 | Find a hit's secret sauce | structured output (`SecretSauce`) | medium |
 | Apply approved voice profile changes | structured output (`ProfileEdits`) | medium |

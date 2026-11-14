@@ -122,6 +122,7 @@ Everything stays on your computer in the `data/` folder: samples, voice profiles
 - [Formulas: article types, openers, bodies and closers](docs/formulas.md)
 - [References: sources, quotes, posts and resources](docs/references.md)
 - [Persona evolution: stages, outcomes and the playbook](docs/evolution.md)
+- [Persona insights: the voice digest and charts](docs/insights.md)
 - [AI-generation detection](docs/ai-detection.md)
 - [Exporting](docs/exporting.md)
 - [Configuration](docs/configuration.md)

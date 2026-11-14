@@ -141,6 +141,17 @@ export function ProgressBar({ value, label }: { value: number; label?: string })
   )
 }
 
+/** One headline number with its label. */
+export function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="text-lg font-bold tabular-nums">{value}</p>
+      {hint && <p className="text-xs text-muted">{hint}</p>}
+    </div>
+  )
+}
+
 export function EmptyState({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed border-line px-6 py-12 text-center">

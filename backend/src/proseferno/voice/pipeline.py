@@ -21,6 +21,7 @@ from proseferno.jobs import JobContext
 from proseferno.llm import LLM, SystemBlock
 from proseferno.prompts import raw, render
 from proseferno.storage import Storage
+from proseferno.voice.insights import try_build_insights
 from proseferno.voice.lessons import format_lessons
 from proseferno.voice.playbook import approved_changes, format_playbook
 from proseferno.voice.schemas import SampleAnalysis
@@ -234,6 +235,18 @@ async def generate_voice_profile(
     )
     markdown = markdown.strip() + "\n"
 
+    # 4. The Insights page digest (optional: a failure leaves it empty, never the profile).
+    await ctx.progress(0.95, "Summarizing your voice for Insights")
+    insights = await try_build_insights(
+        llm,
+        settings,
+        persona_name=persona.display_name or persona.name,
+        profile_markdown=markdown,
+        baseline=baseline,
+        own_samples=own,
+        usage=ctx.add_usage,
+    )
+
     with Session(engine) as session:
         version = (previous.version + 1) if previous else 1
         voice_profile = VoiceProfile(
@@ -244,6 +257,7 @@ async def generate_voice_profile(
             best_practices=best_practices or None,
             sample_ids=[s.id for s in samples if s.id is not None],
             baseline_stylometrics=baseline,
+            insights=insights,
             model=settings.model,
         )
         session.add(voice_profile)
