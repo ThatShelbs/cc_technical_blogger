@@ -91,6 +91,8 @@ class VoiceProfile(SQLModel, table=True):
     best_practices: str | None = Field(default=None, sa_column=Column(Text))
     sample_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))
     baseline_stylometrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # The Insights page digest (see voice.insights); None for edited, evolved and older versions.
+    insights: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     model: str = ""
     edited_by_user: bool = False
     created_at: datetime = Field(default_factory=utcnow)

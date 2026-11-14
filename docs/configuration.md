@@ -33,7 +33,7 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 | `PROSEFERNO_MODEL` | Claude model | `claude-opus-5-5` |
 | `PROSEFERNO_USE_FALLBACKS` | Server-side refusal fallback | `true` |
 | `PROSEFERNO_REVISION_PASSES` | Editing passes per post | `1` |
-| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `DETECT`, `REFERENCES`, `EVOLVE` | see `config.py` |
+| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE` | see `config.py` |
 | `PROSEFERNO_REFERENCE_MAX_SEARCHES` | Web searches per reference | `3` |
 | `PROSEFERNO_CHECK_REFERENCE_LINKS` | Fetch each reference URL once and drop the ones that are gone | `true` |
 | `PROSEFERNO_DEMO` | Demo mode (canned responses) | `false` |

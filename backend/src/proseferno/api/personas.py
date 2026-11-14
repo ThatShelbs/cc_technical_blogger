@@ -37,6 +37,7 @@ from proseferno.sample_content import SAMPLE_AUTHOR, sample_posts
 from proseferno.services import Services
 from proseferno.storage import safe_filename
 from proseferno.voice import current_voice_profile, generate_voice_profile, latest_voice_profile, unpin, voice_profile_version
+from proseferno.voice.insights import INSIGHTS_JOB
 from proseferno.writer.formulas import clean as clean_formula
 
 router = APIRouter(prefix="/api")
@@ -58,8 +59,8 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         select(VoiceProfile).where(VoiceProfile.persona_id == persona.id).order_by(col(VoiceProfile.version).desc())
     ).all()
     current = current_voice_profile(session, persona.id)
-    # Evolution jobs are followed from their proposal, not as a voice profile job.
-    active = [j for j in services.jobs.active_for(persona_id=persona.id) if j.kind not in EVOLUTION_JOBS]
+    # Evolution and Insights jobs are followed where they started, not as a voice profile job.
+    active = [j for j in services.jobs.active_for(persona_id=persona.id) if j.kind not in (*EVOLUTION_JOBS, INSIGHTS_JOB)]
     pending = session.exec(
         select(func.count())
         .select_from(PersonaEvolution)

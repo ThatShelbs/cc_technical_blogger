@@ -1,21 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
+import { expect, test } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { shot } from './screenshots'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SAMPLE = path.resolve(here, 'fixtures/sample-post.md')
-const SCREENSHOTS = path.resolve(here, '../../docs/screenshots')
-// UPDATE_SCREENSHOTS=1 refreshes the README screenshots in docs/screenshots.
-const capture = process.env.UPDATE_SCREENSHOTS === '1'
-
-async function shot(page: Page, name: string) {
-  if (capture) await page.screenshot({ path: path.join(SCREENSHOTS, `${name}.png`) })
-}
-
-test.beforeAll(() => {
-  if (capture) mkdirSync(SCREENSHOTS, { recursive: true })
-})
 
 test('first run: persona, writing sample, voice profile, post, editor, export, themes', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('proseferno-theme', 'light'))

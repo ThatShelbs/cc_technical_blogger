@@ -13,10 +13,11 @@ import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, 
 import { cx } from '../lib/cx'
 import { buildFormula, formulaFrom } from '../lib/formula'
 import { autoReferenceCount } from '../lib/references'
+import { InsightsTab } from './persona/InsightsTab'
 import { PLATFORMS, STYLE_DIALS, autoImageCount, styleLabel, type Education, type IncludeCode, type Platform } from './dials'
 
-type Tab = 'samples' | 'voice' | 'evolution' | 'settings'
-const TABS: Tab[] = ['samples', 'voice', 'evolution', 'settings']
+type Tab = 'samples' | 'voice' | 'insights' | 'evolution' | 'settings'
+const TABS: Tab[] = ['samples', 'voice', 'insights', 'evolution', 'settings']
 
 function SamplesTab({ personaId }: { personaId: number }) {
   const { data: samples, isLoading } = useSamples(personaId)
@@ -503,9 +504,11 @@ export function PersonaPage() {
   const id = Number(useParams().id)
   const { data: persona, isLoading, error } = usePersona(id)
   const { activate } = usePersonaMutations()
-  const [params] = useSearchParams()
+  // The tab lives in the URL (?tab=insights), so a reload keeps it and it can be linked.
+  const [params, setParams] = useSearchParams()
   const linked = params.get('tab') as Tab | null
-  const [tab, setTab] = useState<Tab>(linked && TABS.includes(linked) ? linked : 'samples')
+  const tab: Tab = linked && TABS.includes(linked) ? linked : 'samples'
+  const setTab = (next: Tab) => setParams(next === 'samples' ? {} : { tab: next }, { replace: true })
   const [duplicating, setDuplicating] = useState(false)
 
   if (isLoading) return <Spinner />
@@ -514,6 +517,7 @@ export function PersonaPage() {
   const tabs: [Tab, string][] = [
     ['samples', 'Writing samples'],
     ['voice', 'Voice profile'],
+    ['insights', 'Insights'],
     ['evolution', persona.pending_evolutions ? `Evolution (${persona.pending_evolutions})` : 'Evolution'],
     ['settings', 'Settings & defaults'],
   ]
@@ -555,6 +559,7 @@ export function PersonaPage() {
       </div>
       {tab === 'samples' && <SamplesTab personaId={persona.id} />}
       {tab === 'voice' && <VoiceProfilePanel personaId={persona.id} />}
+      {tab === 'insights' && <InsightsTab personaId={persona.id} onOpenTab={setTab} />}
       {tab === 'evolution' && <EvolutionPanel personaId={persona.id} />}
       {tab === 'settings' && <SettingsTab key={`${persona.id}-${persona.name}`} persona={persona} />}
       {duplicating && <DuplicatePersonaDialog persona={persona} open onClose={() => setDuplicating(false)} />}
