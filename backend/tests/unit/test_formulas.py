@@ -94,7 +94,16 @@ def test_formula_guide_names_every_chosen_part() -> None:
 
     # The guide reaches the planner, the writer and the editor.
     settings = prompt_settings(resolved)
-    extra = {"prompt": "p", "plan": "{}", "placeholders": "", "draft": "d", "fidelity": "{}", "ai_tells": "", "callbacks": ""}
+    extra = {
+        "prompt": "p",
+        "plan": "{}",
+        "placeholders": "",
+        "draft": "d",
+        "fidelity": "{}",
+        "ai_tells": "",
+        "callbacks": "",
+        "missing_examples": "",
+    }
     for template in ("plan", "draft", "critique"):
         assert "Opener: Joke: the confession." in render(template, **settings, **extra)
 

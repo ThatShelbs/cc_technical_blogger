@@ -4,6 +4,10 @@ All notable changes to Proseferno are documented here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Posts no longer point at examples that are not there.** "Here is the top of the file:" followed by nothing is gone. The default image count now follows how often you use images (measured from your writing), screenshots are drawn by Claude as a mock of the screen the post describes (use **Replace** for the real one), code the author would show as a screenshot is written as a code block, the editor is shown every lead-in with nothing after it, and anything still missing after editing becomes a drawn image right where the text promised it.
+
 ### Added
 
 - **Formulas: choose or build the shape of a post.** A formula is an article type (deep narrative, top N countdown, how-to, tutorial, X vs. Y comparison, explainer, case study or build walkthrough, hands-on, lessons learned, opinion, tool review or update), an opener (five joke styles, personal anecdote, cold open, result first, controversial idea, myth, surprising number, bold promise, straight to the point, the problem, a question, what just changed), a body structure (18, from narrative arc and countdown to step by step, criterion by criterion and experiment report) and a closer (12, from full circle and one-line kicker to verdict, next step and prediction). Each menu lists the styles that suit the article type first; *Use the classic formula* fills all three; every part also takes your own instructions. Save formulas under a name, reuse them on any post, and set a default formula per persona. Parts left automatic are written as your voice profile describes, the editor checks the draft against the formula, and the closing meme always follows the closer. See `docs/formulas.md`.

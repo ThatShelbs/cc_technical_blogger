@@ -32,7 +32,7 @@ from proseferno.images.memes import (
     plan_callbacks,
     voice_section,
 )
-from proseferno.images.render import add_meme_text, placeholder_png, svg_to_png, vega_to_png
+from proseferno.images.render import add_meme_text, svg_to_png, vega_to_png
 from proseferno.images.specs import ChartSpec, SvgMemeSpec, SvgSpec
 from proseferno.llm import LLM, LLMError, SystemBlock
 from proseferno.llm.base import UsageSink
@@ -42,7 +42,7 @@ from proseferno.storage import Storage
 log = logging.getLogger(__name__)
 
 # Pixel width each SVG kind is rasterized at (height follows the SVG's viewBox).
-RENDER_WIDTH = {"hero": 1600, "illustration": 1600, "diagram": 1600, "icon": 768, "meme": 1080}
+RENDER_WIDTH = {"hero": 1600, "illustration": 1600, "diagram": 1600, "screenshot": 1600, "icon": 768, "meme": 1080}
 STALE_PENDING = "Generation stopped before this image was made. Click Redraw to create it."
 
 
@@ -174,7 +174,7 @@ class ImageService:
                     meme_concept=meme_concept,
                     usage=usage,
                 )
-            updates["status"] = "placeholder" if image.kind == "screenshot" else "ready"
+            updates["status"] = "ready"
             updates["error"] = None
         except (ImageProviderError, LLMError) as exc:
             updates = {"status": "error", "error": str(exc)}
@@ -265,9 +265,6 @@ class ImageService:
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         kind = image.kind
-        if kind == "screenshot":
-            png, w, h = placeholder_png(image.purpose or image.prompt)
-            return self._result(image, png, w, h, "placeholder", persona, alt=image.purpose, caption=image.caption or image.purpose)
         if kind == "meme":
             with Session(self.engine) as session:
                 project = session.get(Project, image.project_id)
@@ -336,7 +333,7 @@ class ImageService:
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         """Change the current design as the author asks, keeping everything else about it."""
-        if image.kind == "screenshot" or image.provider in ("upload", "placeholder") or not image.spec:
+        if image.provider in ("upload", "placeholder") or not image.spec:
             raise ImageProviderError("Only images Claude drew can be edited by instruction. Redraw or upload this one instead.")
         if image.kind == "meme" and load_state(image.spec):
             meme = await self.memes.edit(image.spec, instruction, self._art_direction(brand_kit, persona, ""), usage=usage)

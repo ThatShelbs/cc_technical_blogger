@@ -8,4 +8,6 @@ $critique
 $draft
 </draft>
 
+Never delete the code, table, quote, list or image that a lead-in introduces ("Here is the file:"). If the editor says a lead-in has nothing after it, add what it promises right after it (a fenced code block for code, prompts, file excerpts and terminal output). Use only the placeholders already in the draft.
+
 Return only the complete revised post in Markdown.

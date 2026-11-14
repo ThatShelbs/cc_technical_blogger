@@ -28,8 +28,8 @@ Image slot rules (every image is drawn by Claude as SVG or a Vega-Lite chart, so
   - "chart" for anything quantitative (a data visualization with realistic or real numbers);
   - "illustration" for a conceptual editorial image or visual metaphor that sets up a section;
   - "icon" for a set of 2-4 concept icons that anchors a list of steps, principles or options;
-  - "screenshot" when a real platform screenshot (UI, console, settings page) would help; the author replaces the placeholder.
-  Spread them through the post where they serve the text. Give them ids "img2", "img3", and so on.
+  - "screenshot" when the post shows what a screen looks like (an app page, a settings or console page, a chat, an editor or terminal): it is drawn as a faithful mock of that screen, and the author can swap in a real capture.
+  Spread them through the post where they serve the text. Plan a slot for every visual example the post will show ("here is what it looks like"); code, prompts and file excerpts go in the text as code blocks instead. Give them ids "img2", "img3", and so on.
 
 Callbacks (threads the post comes back to, so it feels written by a person with a point rather than a list of sections):
 - Plan one to three. A **key concept** is the idea the reader should leave with; set it up early, bring it back in later sections where it does new work (applied, extended, or tested), and land it in the closing.

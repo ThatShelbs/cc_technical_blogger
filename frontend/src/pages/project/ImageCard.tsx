@@ -123,6 +123,9 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
       {image.kind === 'screenshot' && image.status === 'placeholder' && (
         <p className="mt-2 text-center text-xs text-muted">Replace this placeholder with a real screenshot: {image.purpose}</p>
       )}
+      {image.kind === 'screenshot' && image.provider === 'claude-svg' && (
+        <p className="mt-2 text-center text-xs text-muted">Claude drew this mock screen. Use Replace if you have the real screenshot.</p>
+      )}
 
       <div className="mt-3 flex flex-wrap justify-center gap-2" aria-label={`Actions for ${KIND_LABEL[image.kind] ?? 'image'}`}>
         {editable && (
