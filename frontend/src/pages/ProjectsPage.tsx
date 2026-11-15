@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Eye, FileText, PenLine, Trash2 } from 'lucide-react'
+import { CheckCircle2, Circle, Eye, FileText, Lightbulb, PenLine, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 
@@ -71,7 +71,16 @@ export function ProjectsPage() {
       <PageHeader
         title="Posts"
         subtitle="One project per article. Give Proseferno a prompt or outline and it writes the post in your voice."
-        actions={newPost}
+        actions={
+          <>
+            <Link to="/ideas">
+              <Button variant="secondary" icon={<Lightbulb className="size-4" />}>
+                Find an idea
+              </Button>
+            </Link>
+            {newPost}
+          </>
+        }
       />
       <SetupChecklist />
       {isLoading && <Spinner />}

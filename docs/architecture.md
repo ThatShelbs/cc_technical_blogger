@@ -39,8 +39,8 @@ flowchart TB
 | Module | Responsibility |
 | --- | --- |
 | `config.py` | Settings with smart defaults; `PROSEFERNO_*` env vars or `.env` override them. |
-| `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs). Tests and demo mode inject fakes here. |
-| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `ProjectReference`, `PersonaEvolution`, `Formula`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
+| `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs, the link checker and the Idea Lab feed collector). Tests and demo mode inject fakes here. |
+| `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `ProjectReference`, `PersonaEvolution`, `Formula`, `IdeaSignal`, `IdeaTrend`, `IdeaSession`, `Idea`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
 | `jobs.py` | Runs long work as asyncio tasks, persists status, and keeps an in-memory event log per job that `/api/jobs/{id}/events` streams as Server-Sent Events (with sequence ids, so reconnects resume cleanly). |
 | `llm/` | The `LLM` protocol; `RoutingLLM`, which sends each call to the connection chosen in Settings; `ClaudeLLM` for the Anthropic API (adaptive thinking, per-task effort, structured outputs, streaming, refusal fallbacks, prompt caching, retries); `ClaudeCodeLLM` for a Claude subscription, which runs the user's own `claude -p` with JSON output; and credential resolution. |
 | `ingest/` | Parsers, Medium clean-up and stylometrics. |
@@ -48,6 +48,7 @@ flowchart TB
 | `writer/` | Dials (persona defaults + per-post overrides), plan → draft → critique → revise, section regeneration (`section.py`: rewrite, compact, expand, add source or quote, custom brief), feedback tweaks (`tweak.py`), text version history (`revisions.py`), LinkedIn feed post. |
 | `abtest/` | A/B Test Mode: builds the challenger's random tweaks (`perturb.py`), splices parts of one post into the other (`blend.py`), and runs, decides, discards and adopts tests (`service.py`; see [A/B testing](ab-testing.md)). |
 | `evolution/` | Persona evolution: compares a published post with its generated baseline, reads hits for their secret sauce, and applies approved changes as a new voice profile version and playbook entries (see [evolution](evolution.md)). |
+| `idealab/` | Idea Lab: the source catalog (`catalog.json`, `sources.py`), feed collectors (`collect.py`), web search scouts and the trend digest (`research.py`), the portfolio snapshot (`portfolio.py`), idea writing, duplicate removal and ranking (`ideate.py`), and the jobs (`service.py`; see [Idea Lab](idea-lab.md)). |
 | `authenticity/` | AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, combined into a 0-100 "reads as human" score. |
 | `images/` | Image design by Claude (SVG and Vega-Lite only), sanitizing renderers, placeholders, credits, redraw history. `images/memes/`: the meme format catalog, the meme generator (pitch, then art where the format has any), the bundled fonts and the composer that owns meme layout and type. |
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
@@ -71,6 +72,7 @@ backend/                           FastAPI + uv (Python 3.13)
     authenticity/  AI-generation detection: calibrated scan + Claude judge
     abtest/     A/B Test Mode: challenger tweaks, blending, deciding and adopting
     evolution/  Learn from published posts: edits vs. the generated baseline, secret sauce, playbook
+    idealab/    Idea Lab: source catalog, feed collectors, research scouts, portfolio snapshot, ideas and ranking
     images/     Claude image design, SVG/Vega-Lite renderers, memes, credits
     export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles
     llm/        Claude client, sign-in resolution
@@ -79,7 +81,7 @@ backend/                           FastAPI + uv (Python 3.13)
   tests/        pytest (fake Claude)
   evals/        Voice-fidelity and AI-detection evals (real API, opt-in)
 frontend/                          React 19 + Vite + Tailwind CSS 4
-  src/pages/    Posts, new post, editor, personas, settings, setup guide
+  src/pages/    Posts, Idea Lab, new post, editor, personas, settings, setup guide
   e2e/          Playwright tests (demo mode)
 packaging/                         Windows app + installer build (PyInstaller, Inno Setup)
 assets/brand/                      Logo and palette
@@ -136,6 +138,10 @@ The first real persona becomes the active one even when the example is on (`api/
 | Learn from a published post's edits | structured output (`EvolutionPlan`) | medium |
 | Find a hit's secret sauce | structured output (`SecretSauce`) | medium |
 | Apply approved voice profile changes | structured output (`ProfileEdits`) | medium |
+| Idea Lab scout (one per beat) | `web_search` server tool | medium |
+| Group research into trends | structured output (`TrendDigest`) | medium |
+| Write ideas (ten per call) | structured output (`IdeaBatch`) | high |
+| Score and theme ideas | structured output (`IdeaRanking`) | medium |
 
 Structured outputs are streamed too (`messages.stream(output_format=...)`): the SDK refuses non-streaming requests whose `max_tokens` could run past 10 minutes, and image designs ask for 24k tokens.
 
@@ -146,7 +152,7 @@ All calls use `claude-opus-5-5` by default with adaptive thinking and the server
 ## Frontend
 
 - `src/api/`: fetch client, TanStack Query hooks, generated types, and `useJob` (SSE job stream with a pure reducer).
-- `src/pages/`: Posts, New post, Post editor (`project/`), Personas, Persona detail, Settings, Welcome (setup guide).
+- `src/pages/`: Posts, Idea Lab (`ideas/`), New post, Post editor (`project/`), Personas, Persona detail, Settings, Welcome (setup guide).
 - `src/components/`: app shell, UI primitives, article renderer, connection cards, sample uploader, voice profile panel.
 - `src/theme/`: day/night/system theme with tokens defined in `src/index.css`.
 

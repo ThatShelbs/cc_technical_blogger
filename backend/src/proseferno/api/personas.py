@@ -31,6 +31,7 @@ from proseferno.api.schemas import (
 from proseferno.db import Persona, PersonaEvolution, Sample, VoiceProfile, utcnow
 from proseferno.evolution import EVOLUTION_JOBS
 from proseferno.example import ExampleError, remove_example, seed_example
+from proseferno.idealab import IDEA_JOBS
 from proseferno.images.opening.styles import clean_style
 from proseferno.ingest import SUPPORTED_EXTENSIONS, UnsupportedFormatError, fetch_url, parse_file
 from proseferno.personas import add_sample, delete_persona_data
@@ -60,8 +61,8 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         select(VoiceProfile).where(VoiceProfile.persona_id == persona.id).order_by(col(VoiceProfile.version).desc())
     ).all()
     current = current_voice_profile(session, persona.id)
-    # Evolution and Insights jobs are followed where they started, not as a voice profile job.
-    active = [j for j in services.jobs.active_for(persona_id=persona.id) if j.kind not in (*EVOLUTION_JOBS, INSIGHTS_JOB)]
+    # Evolution, Insights and Idea Lab jobs are followed where they started, not as a voice profile job.
+    active = [j for j in services.jobs.active_for(persona_id=persona.id) if j.kind not in (*EVOLUTION_JOBS, *IDEA_JOBS, INSIGHTS_JOB)]
     pending = session.exec(
         select(func.count())
         .select_from(PersonaEvolution)

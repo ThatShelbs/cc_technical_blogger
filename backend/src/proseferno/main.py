@@ -14,11 +14,12 @@ from sqlmodel import Session, select
 
 from proseferno import __version__
 from proseferno.abtest.service import fail_interrupted
-from proseferno.api import ab_tests, evolution, formulas, insights, jobs, personas, projects, references, system
+from proseferno.api import ab_tests, evolution, formulas, idea_lab, insights, jobs, personas, projects, references, system
 from proseferno.config import Settings, get_settings
 from proseferno.db import Persona
 from proseferno.evolution import fail_analyzing
 from proseferno.example import ExampleError, seed_example
+from proseferno.idealab import fail_interrupted as fail_interrupted_brainstorms
 from proseferno.services import Services, build_services
 from proseferno.writer.references import fail_pending as fail_pending_references
 
@@ -43,13 +44,14 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         fail_pending_references(services.engine)
         fail_analyzing(services.engine)
         fail_interrupted(services.engine)
+        fail_interrupted_brainstorms(services.engine)
         await _seed_demo(settings, services)
         yield
         await services.jobs.shutdown()
 
     app = FastAPI(title="Proseferno", version=__version__, lifespan=lifespan)
     app.state.services = services
-    for module in (system, personas, insights, projects, ab_tests, references, formulas, evolution, jobs):
+    for module in (system, personas, insights, projects, ab_tests, references, formulas, evolution, idea_lab, jobs):
         app.include_router(module.router)
     _mount_frontend(app, settings.frontend_dist)
     return app

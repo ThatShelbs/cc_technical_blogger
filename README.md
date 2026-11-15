@@ -35,6 +35,7 @@ It is specialized for technical writing about data science, Python, data visuali
 - **Voice profile.** A versioned `voice_profile.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing. Regenerate or edit it any time.
 - **Optional web research** on current best practices for titles, storytelling, skimmable structure, humor, insight, credibility and teaching.
 - **Personas.** Create several (different names, different voices); exactly one is on at a time. Switch personas and pin any earlier voice profile version from the sidebar, name versions, rename personas, or branch a version into a new, separately named persona.
+- **Idea Lab: know what to write next.** Live research reads free public feeds (vendor blogs, papers, new repositories, Hacker News, Stack Exchange, publications and newsletters, industry news) and sends out Claude web search scouts for launches, what notable practitioners are claiming, what other writers are all publishing, and what each industry is building. Brainstorm 10, 25 or 50 ideas from that research and from your own portfolio (what to build on, where to branch out), each with a title, brief, outline and the links it came from. Order them by AI suggestion, theme or source, keep sending searches to dig deeper, then write any idea, or A/B test it, in one click.
 - **One prompt per post.** Type a sentence or a bullet outline. Everything else has smart defaults from the persona: length, image count, humor, education level, storytelling, opinion strength, formality, technical depth, skimmability, code, topic, audience, platform. Open *Customize* to change any of them for one post.
 - **Formulas.** Choose the shape of each post, or build your own: 11 article types (deep narrative, top N countdown, how-to, tutorial, X vs. Y, explainer, case study, hands-on, lessons learned, opinion, tool review), 16 openers (five kinds of joke, story, bold and serious ones), 18 body structures and 12 closers, plus your own instructions for any part. You do not have to pick: the article type is read from your brief, and *Shuffle the formula* draws a fresh opener, body and closer that suit it. Save combinations under a name and set one as a persona's default. Anything left automatic is written the way you usually write it, and the closing meme always follows.
 - **Voice-fidelity loop.** Plan → streamed draft → an editor critiques the draft against your voice profile and example posts → revision. You see a measured style score and the editor's scores. Edit the title, pin the options you like, and ask Claude for new ones.
@@ -77,7 +78,7 @@ Then follow the five-step setup guide in the app:
 4. **Your writing**: drop in three or more of your posts. If you keep them in a `my_writing_examples/` folder in the repo, the app offers to import them in one click (that folder is git-ignored). No posts yet? Click **Use 3 sample posts** to try the whole flow first.
 5. **Voice profile**: generate it and read it. Edit anything that is off.
 
-Then click **New post**, describe the post, and watch it being written.
+Then click **New post**, describe the post, and watch it being written. Not sure what to write? Open **Idea Lab** and brainstorm.
 
 ## Costs and accounts
 
@@ -113,13 +114,14 @@ Details: [docs/voice-pipeline.md](docs/voice-pipeline.md). To measure voice qual
 
 ## Privacy
 
-Everything stays on your computer in the `data/` folder: samples, voice profiles, posts, images, exports. API keys go into your operating system's keychain (Windows Credential Manager, macOS Keychain, Secret Service), never into files. Content is sent only to Claude, and only when you generate something. Images are drawn by Claude and rendered on your computer.
+Everything stays on your computer in the `data/` folder: samples, voice profiles, posts, images, exports. API keys go into your operating system's keychain (Windows Credential Manager, macOS Keychain, Secret Service), never into files. Content is sent only to Claude, and only when you generate something. Images are drawn by Claude and rendered on your computer. Idea Lab also reads public feeds (plain requests with no key and nothing about you in them); you choose which in its Sources tab.
 
 ## Documentation
 
 - [Onboarding: start here](docs/onboarding.md)
 - [Architecture and repository layout](docs/architecture.md)
 - [Voice pipeline and evaluation](docs/voice-pipeline.md)
+- [Idea Lab: live research and ranked ideas](docs/idea-lab.md)
 - [Images](docs/images.md)
 - [Opening images: styles, the judging panel and facts](docs/opening-images.md)
 - [Formulas: article types, openers, bodies and closers](docs/formulas.md)

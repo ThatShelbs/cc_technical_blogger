@@ -409,6 +409,8 @@ class ProjectCreate(BaseModel):
     generate: bool = True
     # "ab" writes the post twice for a blind A/B test (see abtest.service) instead of once.
     mode: Literal["standard", "ab"] = "standard"
+    # The Idea Lab idea this post is written from: the post takes its title and the idea is marked as used.
+    idea_id: int | None = None
 
 
 class BrandKit(BaseModel):
@@ -889,6 +891,186 @@ class FingerprintOut(BaseModel):
     rows: list[FingerprintRow]
 
 
+# -- idea lab ---------------------------------------------------------------------------
+
+IdeaMode = Literal["light", "medium", "heavy"]
+IdeaState = Literal["new", "saved", "dismissed", "used"]
+IdeaExtra = Literal["reader_questions", "counter_take"]
+
+
+def _default_extras() -> list[IdeaExtra]:
+    return ["reader_questions", "counter_take"]
+
+
+ResearchDepth = Literal["quick", "standard", "deep"]
+
+
+class IdeaLink(BaseModel):
+    url: str
+    title: str
+
+
+class IdeaTrendOut(BaseModel):
+    id: int
+    # launch | claim | industry_pattern | creator_wave | question
+    kind: str
+    label: str
+    summary: str
+    heat: int
+    industries: list[str]
+    evidence: list[IdeaLink]
+    first_seen: datetime
+    last_seen: datetime
+
+
+class IdeaSourceOut(BaseModel):
+    id: str
+    name: str
+    group: str
+    group_label: str
+    url: str
+    enabled: bool
+    builtin: bool
+    # How it answered at the last refresh; None = not read yet.
+    ok: bool | None = None
+    count: int = 0
+    error: str = ""
+    checked_at: str | None = None
+
+
+class IdeaSourcesOut(BaseModel):
+    sources: list[IdeaSourceOut]
+    # Places with no open feed, covered by web search.
+    search_only: list[str]
+    voices: list[str]
+    industries: list[str]
+
+
+class IdeaCustomSourceIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    url: str = Field(min_length=8, max_length=500)
+
+
+class IdeaSourcesIn(BaseModel):
+    """The whole source setup as the author wants it; anything left out stays as it is."""
+
+    # Ids of sources switched off (built-in or the author's own).
+    disabled: list[str] | None = None
+    custom: list[IdeaCustomSourceIn] | None = Field(None, max_length=40)
+    voices: list[str] | None = Field(None, max_length=40)
+    industries: list[str] | None = Field(None, max_length=40)
+    # Put every source, the watchlist and the industries back as shipped.
+    reset: bool = False
+
+
+class IdeaSearchOut(BaseModel):
+    query: str
+    at: str
+    trends: int
+
+
+class IdeaLabOut(BaseModel):
+    signals: int
+    trends: list[IdeaTrendOut]
+    last_refresh: str | None
+    # True when the research is recent enough for a brainstorm to reuse it.
+    fresh: bool
+    scouts_failed: list[str]
+    searches: list[IdeaSearchOut]
+    active_job_id: str | None
+
+
+class IdeaResearchIn(BaseModel):
+    # The author's own search to add to the research; empty = refresh everything.
+    query: str = Field("", max_length=300)
+    depth: ResearchDepth = "standard"
+
+
+class IdeaSessionIn(BaseModel):
+    persona_id: int | None = None
+    mode: IdeaMode = "light"
+    focus: str = Field("", max_length=1000)
+    sparks: str = Field("", max_length=6000)
+    # Extra source approaches to include: reader_questions | counter_take (sparks is included when sparks are given).
+    extras: list[IdeaExtra] = Field(default_factory=_default_extras)
+    # True = research first, False = use what is on file, None = research only when it is more than a day old.
+    refresh_research: bool | None = None
+    depth: ResearchDepth = "standard"
+
+
+class IdeaOut(BaseModel):
+    id: int
+    session_id: int
+    persona_id: int
+    approach: str
+    approach_label: str
+    theme: str
+    title: str
+    brief: str
+    angle: str
+    outline: list[str]
+    why_now: str
+    shelf_life: str
+    tags: list[str]
+    evidence: list[IdeaLink]
+    article_type: str
+    builds_on: str
+    scores: dict[str, Any]
+    score: float
+    rank: int
+    state: IdeaState
+    project_id: int | None
+    # The idea as a brief for the writer (what "Customize first" opens with).
+    prompt: str
+    created_at: datetime
+
+
+class IdeaSessionSummary(BaseModel):
+    id: int
+    persona_id: int
+    persona_name: str
+    mode: str
+    status: str
+    ideas: int
+    error: str | None
+    created_at: datetime
+
+
+class IdeaSessionOut(IdeaSessionSummary):
+    mix: dict[str, int]
+    focus: str
+    sparks: str
+    notes: list[str]
+    job_id: str | None
+    items: list[IdeaOut]
+
+
+class IdeaSessionCreated(BaseModel):
+    session: IdeaSessionOut
+    job_id: str
+
+
+class IdeaUpdate(BaseModel):
+    state: Literal["new", "saved", "dismissed"] | None = None
+    title: str | None = Field(None, min_length=3, max_length=200)
+    brief: str | None = Field(None, max_length=2000)
+    angle: str | None = Field(None, max_length=1000)
+    outline: list[str] | None = Field(None, max_length=12)
+
+
+class IdeaSourceCount(BaseModel):
+    id: str
+    label: str
+    count: int
+    # How many of those posts were rated Good or Viral.
+    wins: int
+
+
+class IdeaWriteIn(BaseModel):
+    persona_id: int | None = None
+    mode: Literal["standard", "ab"] = "standard"
+
+
 class CountItem(BaseModel):
     id: str
     label: str
@@ -944,6 +1126,8 @@ class TrackRecordOut(BaseModel):
     meme_formats: list[CountItem]
     lessons: list[LessonItem]
     playbook: int
+    # Posts written from Idea Lab ideas, by the idea's source approach, with how many of them did well.
+    idea_sources: list[IdeaSourceCount] = Field(default_factory=list)
 
 
 class PersonaInsightsOut(BaseModel):

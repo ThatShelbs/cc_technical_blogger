@@ -319,6 +319,167 @@ export interface Health {
   demo?: boolean;
 }
 
+export interface IdeaCustomSourceIn {
+  name: string;
+  url: string;
+}
+
+export interface IdeaLabOut {
+  signals: number;
+  trends: IdeaTrendOut[];
+  last_refresh: string | null;
+  fresh: boolean;
+  scouts_failed: string[];
+  searches: IdeaSearchOut[];
+  active_job_id: string | null;
+}
+
+export interface IdeaLink {
+  url: string;
+  title: string;
+}
+
+export interface IdeaOut {
+  id: number;
+  session_id: number;
+  persona_id: number;
+  approach: string;
+  approach_label: string;
+  theme: string;
+  title: string;
+  brief: string;
+  angle: string;
+  outline: string[];
+  why_now: string;
+  shelf_life: string;
+  tags: string[];
+  evidence: IdeaLink[];
+  article_type: string;
+  builds_on: string;
+  scores: Record<string, unknown>;
+  score: number;
+  rank: number;
+  state: "new" | "saved" | "dismissed" | "used";
+  project_id: number | null;
+  prompt: string;
+  created_at: string;
+}
+
+export interface IdeaResearchIn {
+  query?: string;
+  depth?: "quick" | "standard" | "deep";
+}
+
+export interface IdeaSearchOut {
+  query: string;
+  at: string;
+  trends: number;
+}
+
+export interface IdeaSessionCreated {
+  session: IdeaSessionOut;
+  job_id: string;
+}
+
+export interface IdeaSessionIn {
+  persona_id?: number | null;
+  mode?: "light" | "medium" | "heavy";
+  focus?: string;
+  sparks?: string;
+  extras?: ("reader_questions" | "counter_take")[];
+  refresh_research?: boolean | null;
+  depth?: "quick" | "standard" | "deep";
+}
+
+export interface IdeaSessionOut {
+  id: number;
+  persona_id: number;
+  persona_name: string;
+  mode: string;
+  status: string;
+  ideas: number;
+  error: string | null;
+  created_at: string;
+  mix: Record<string, number>;
+  focus: string;
+  sparks: string;
+  notes: string[];
+  job_id: string | null;
+  items: IdeaOut[];
+}
+
+export interface IdeaSessionSummary {
+  id: number;
+  persona_id: number;
+  persona_name: string;
+  mode: string;
+  status: string;
+  ideas: number;
+  error: string | null;
+  created_at: string;
+}
+
+export interface IdeaSourceCount {
+  id: string;
+  label: string;
+  count: number;
+  wins: number;
+}
+
+export interface IdeaSourceOut {
+  id: string;
+  name: string;
+  group: string;
+  group_label: string;
+  url: string;
+  enabled: boolean;
+  builtin: boolean;
+  ok?: boolean | null;
+  count?: number;
+  error?: string;
+  checked_at?: string | null;
+}
+
+export interface IdeaSourcesIn {
+  disabled?: string[] | null;
+  custom?: IdeaCustomSourceIn[] | null;
+  voices?: string[] | null;
+  industries?: string[] | null;
+  reset?: boolean;
+}
+
+export interface IdeaSourcesOut {
+  sources: IdeaSourceOut[];
+  search_only: string[];
+  voices: string[];
+  industries: string[];
+}
+
+export interface IdeaTrendOut {
+  id: number;
+  kind: string;
+  label: string;
+  summary: string;
+  heat: number;
+  industries: string[];
+  evidence: IdeaLink[];
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface IdeaUpdate {
+  state?: "new" | "saved" | "dismissed" | null;
+  title?: string | null;
+  brief?: string | null;
+  angle?: string | null;
+  outline?: string[] | null;
+}
+
+export interface IdeaWriteIn {
+  persona_id?: number | null;
+  mode?: "standard" | "ab";
+}
+
 export interface ImageEditIn {
   instruction: string;
 }
@@ -639,6 +800,7 @@ export interface ProjectCreate {
   brand_kit?: BrandKit | null;
   generate?: boolean;
   mode?: "standard" | "ab";
+  idea_id?: number | null;
 }
 
 export interface ProjectCreated {
@@ -850,6 +1012,7 @@ export interface TrackRecordOut {
   meme_formats: CountItem[];
   lessons: LessonItem[];
   playbook: number;
+  idea_sources?: IdeaSourceCount[];
 }
 
 export interface TweakIn {

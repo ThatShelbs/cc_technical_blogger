@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import { usePersonas } from './api/hooks'
 import { AppShell } from './components/AppShell'
 import { Spinner } from './components/ui'
+import { IdeaLabPage } from './pages/ideas/IdeaLabPage'
 import { NewProjectPage } from './pages/NewProjectPage'
 import { PersonaPage } from './pages/PersonaPage'
 import { PersonasPage } from './pages/PersonasPage'
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/welcome" element={<WelcomePage />} />
         <Route path="/projects/new" element={<NewProjectPage />} />
         <Route path="/projects/:id" element={<ProjectPage />} />
+        <Route path="/ideas" element={<IdeaLabPage />} />
         <Route path="/personas" element={<PersonasPage />} />
         <Route path="/personas/:id" element={<PersonaPage />} />
         <Route path="/settings" element={<SettingsPage />} />

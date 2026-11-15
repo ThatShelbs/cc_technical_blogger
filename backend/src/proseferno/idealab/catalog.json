@@ -1,0 +1,63 @@
+{
+  "sources": [
+    {"id": "openai_news", "name": "OpenAI News", "group": "vendor", "kind": "rss", "url": "https://openai.com/news/rss.xml"},
+    {"id": "google_ai", "name": "Google AI Blog", "group": "vendor", "kind": "rss", "url": "https://blog.google/technology/ai/rss/"},
+    {"id": "google_research", "name": "Google Research Blog", "group": "vendor", "kind": "rss", "url": "https://research.google/blog/rss/"},
+    {"id": "aws_ml", "name": "AWS Machine Learning Blog", "group": "vendor", "kind": "rss", "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
+    {"id": "databricks", "name": "Databricks Blog", "group": "vendor", "kind": "rss", "url": "https://www.databricks.com/feed"},
+    {"id": "huggingface_blog", "name": "Hugging Face Blog", "group": "vendor", "kind": "rss", "url": "https://huggingface.co/blog/feed.xml"},
+
+    {"id": "hf_daily_papers", "name": "Hugging Face Daily Papers", "group": "research", "kind": "hf_papers", "url": "https://huggingface.co/api/daily_papers?limit=30"},
+    {"id": "hf_trending_models", "name": "Hugging Face Trending Models", "group": "research", "kind": "hf_models", "url": "https://huggingface.co/api/models?sort=trendingScore&limit=20"},
+    {"id": "arxiv_ml", "name": "arXiv: machine learning and AI", "group": "research", "kind": "rss", "enabled": false, "url": "https://export.arxiv.org/api/query?search_query=cat:cs.LG+OR+cat:cs.AI+OR+cat:stat.ML&sortBy=submittedDate&sortOrder=descending&max_results=30"},
+
+    {"id": "github_llm", "name": "GitHub: new LLM repositories", "group": "code", "kind": "github", "url": "https://api.github.com/search/repositories?q=topic:llm+created:>{since_date}&sort=stars&order=desc&per_page=20"},
+    {"id": "github_ml", "name": "GitHub: new machine learning repositories", "group": "code", "kind": "github", "url": "https://api.github.com/search/repositories?q=topic:machine-learning+created:>{since_date}&sort=stars&order=desc&per_page=20"},
+    {"id": "github_agents", "name": "GitHub: new AI agent repositories", "group": "code", "kind": "github", "url": "https://api.github.com/search/repositories?q=topic:ai-agents+created:>{since_date}&sort=stars&order=desc&per_page=20"},
+
+    {"id": "hn_ai", "name": "Hacker News: AI", "group": "community", "kind": "hn", "url": "https://hn.algolia.com/api/v1/search?tags=story&query=AI&numericFilters=created_at_i>{since_ts},points>80&hitsPerPage=30"},
+    {"id": "hn_llm", "name": "Hacker News: LLM", "group": "community", "kind": "hn", "url": "https://hn.algolia.com/api/v1/search?tags=story&query=LLM&numericFilters=created_at_i>{since_ts},points>50&hitsPerPage=30"},
+    {"id": "hn_ml", "name": "Hacker News: machine learning", "group": "community", "kind": "hn", "url": "https://hn.algolia.com/api/v1/search?tags=story&query=machine%20learning&numericFilters=created_at_i>{since_ts},points>40&hitsPerPage=20"},
+    {"id": "hn_data", "name": "Hacker News: data science and analytics", "group": "community", "kind": "hn", "url": "https://hn.algolia.com/api/v1/search?tags=story&query=data%20science&numericFilters=created_at_i>{since_ts},points>30&hitsPerPage=20"},
+    {"id": "lobsters_ai", "name": "Lobsters: AI", "group": "community", "kind": "rss", "url": "https://lobste.rs/t/ai.rss"},
+    {"id": "se_datascience", "name": "Data Science Stack Exchange: hot questions", "group": "community", "kind": "stackexchange", "url": "https://api.stackexchange.com/2.3/questions?order=desc&sort=hot&site=datascience&pagesize=20"},
+    {"id": "se_stats", "name": "Cross Validated: hot questions", "group": "community", "kind": "stackexchange", "url": "https://api.stackexchange.com/2.3/questions?order=desc&sort=hot&site=stats&pagesize=20"},
+
+    {"id": "tds", "name": "Towards Data Science", "group": "creator", "kind": "rss", "url": "https://towardsdatascience.com/feed"},
+    {"id": "medium_data_science", "name": "Medium: data science", "group": "creator", "kind": "rss", "url": "https://medium.com/feed/tag/data-science"},
+    {"id": "medium_machine_learning", "name": "Medium: machine learning", "group": "creator", "kind": "rss", "url": "https://medium.com/feed/tag/machine-learning"},
+    {"id": "medium_ai", "name": "Medium: artificial intelligence", "group": "creator", "kind": "rss", "url": "https://medium.com/feed/tag/artificial-intelligence"},
+    {"id": "medium_analytics", "name": "Medium: data analytics", "group": "creator", "kind": "rss", "url": "https://medium.com/feed/tag/data-analytics"},
+    {"id": "medium_dsc", "name": "Medium: Data Science Collective", "group": "creator", "kind": "rss", "url": "https://medium.com/feed/data-science-collective"},
+    {"id": "simon_willison", "name": "Simon Willison's Weblog", "group": "creator", "kind": "rss", "url": "https://simonwillison.net/atom/everything/"},
+    {"id": "import_ai", "name": "Import AI", "group": "creator", "kind": "rss", "url": "https://importai.substack.com/feed"},
+    {"id": "latent_space", "name": "Latent Space", "group": "creator", "kind": "rss", "url": "https://www.latent.space/feed"},
+    {"id": "ahead_of_ai", "name": "Ahead of AI", "group": "creator", "kind": "rss", "url": "https://magazine.sebastianraschka.com/feed"},
+    {"id": "one_useful_thing", "name": "One Useful Thing", "group": "creator", "kind": "rss", "url": "https://www.oneusefulthing.org/feed"},
+    {"id": "interconnects", "name": "Interconnects", "group": "creator", "kind": "rss", "url": "https://www.interconnects.ai/feed"},
+    {"id": "eugene_yan", "name": "Eugene Yan", "group": "creator", "kind": "rss", "url": "https://eugeneyan.com/rss/"}
+  ],
+  "search_only": [
+    "Anthropic news and release notes",
+    "Snowflake blog and release notes",
+    "Microsoft AI blog",
+    "DEV Community posts tagged machine learning, AI and data science",
+    "Reddit: r/MachineLearning, r/datascience, r/LocalLLaMA, r/dataengineering, r/BusinessIntelligence, r/analytics",
+    "LinkedIn and X posts by people on the watchlist"
+  ],
+  "voices": [
+    "Andrej Karpathy",
+    "Andrew Ng",
+    "Bojan Tunguz",
+    "Cassie Kozyrkov",
+    "Chip Huyen",
+    "Ethan Mollick",
+    "Eugene Yan",
+    "Hamel Husain",
+    "Jeremy Howard",
+    "Sebastian Raschka",
+    "Simon Willison",
+    "Vicki Boykis"
+  ],
+  "industries": ["Healthcare", "Insurance", "Financial services", "Retail", "Technology"]
+}

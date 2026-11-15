@@ -6,7 +6,18 @@ import shutil
 
 from sqlmodel import Session, col, delete, select
 
-from proseferno.db import ABTest, Persona, PersonaEvolution, Project, ProjectImage, ProjectReference, Sample, VoiceProfile
+from proseferno.db import (
+    ABTest,
+    Idea,
+    IdeaSession,
+    Persona,
+    PersonaEvolution,
+    Project,
+    ProjectImage,
+    ProjectReference,
+    Sample,
+    VoiceProfile,
+)
 from proseferno.ingest import ParsedDocument
 from proseferno.ingest.stylometrics import compute
 from proseferno.storage import Storage
@@ -47,6 +58,9 @@ def delete_persona_data(session: Session, storage: Storage, persona: Persona) ->
         session.exec(delete(ProjectReference).where(col(ProjectReference.project_id).in_(project_ids)))  # type: ignore[call-overload]
         session.exec(delete(Project).where(col(Project.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(ABTest).where(col(ABTest.persona_id) == persona_id))  # type: ignore[call-overload]
+    # Idea Lab brainstorms made for this persona (the shared research base stays).
+    session.exec(delete(Idea).where(col(Idea.persona_id) == persona_id))  # type: ignore[call-overload]
+    session.exec(delete(IdeaSession).where(col(IdeaSession.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(Sample).where(col(Sample.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(PersonaEvolution).where(col(PersonaEvolution.persona_id) == persona_id))  # type: ignore[call-overload]
     session.exec(delete(VoiceProfile).where(col(VoiceProfile.persona_id) == persona_id))  # type: ignore[call-overload]
