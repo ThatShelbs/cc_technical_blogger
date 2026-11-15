@@ -93,6 +93,19 @@ test('idea lab: brainstorm ten ideas, order them three ways, add a search, and w
   await expect(page.getByRole('button', { name: 'Outline & write' })).toHaveCount(9)
   await page.getByRole('button', { name: 'Written (1)' }).click()
   await expect(page.getByRole('link', { name: 'Open the post' })).toBeVisible()
+
+  // Save another idea; it lands in the saved bank next to the one now being written.
+  await page.getByRole('button', { name: 'To consider (9)' }).click()
+  await page.getByRole('button', { name: /^Save / }).first().click()
+  await page.getByRole('tab', { name: 'Saved bank' }).click()
+  await expect(page.getByRole('button', { name: 'To write (1)' })).toBeVisible()
+  await page.getByRole('button', { name: 'Add your own idea' }).click()
+  await page.getByLabel('Title').fill('What our first churn model got wrong')
+  await page.getByRole('button', { name: 'Add to the bank' }).click()
+  await expect(page.getByRole('button', { name: 'What our first churn model got wrong', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'In progress (1)' }).click()
+  await expect(page.getByText('Generated', { exact: true })).toBeVisible()
+  await shot(page, 'idea-bank', { fullPage: true })
 })
 
 test('with no files of your own: remove the example, use the sample posts, write a post', async ({ page }) => {

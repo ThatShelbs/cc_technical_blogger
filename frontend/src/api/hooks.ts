@@ -20,6 +20,7 @@ import type {
   FormulaOut,
   GenerateIn,
   Health,
+  IdeaCreate,
   IdeaLabOut,
   IdeaOut,
   IdeaResearchIn,
@@ -86,6 +87,7 @@ export const keys = {
   ideaSessions: ['idea-sessions'] as const,
   ideaSession: (id: number) => ['idea-sessions', id] as const,
   idea: (id: number) => ['ideas', id] as const,
+  ideaBank: (personaId: number) => ['idea-bank', personaId] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -488,19 +490,39 @@ export const useIdeaSession = (id: number | null | undefined) =>
 export const useIdea = (id: number | null | undefined) =>
   useQuery({ queryKey: keys.idea(id ?? 0), queryFn: () => api.get<IdeaOut>(`/api/ideas/${id}`), enabled: !!id, retry: false })
 
+/** The saved bank: ideas kept (and dismissed) across every brainstorm, newest first. */
+export const useIdeaBank = (personaId: number | null | undefined) =>
+  useQuery({
+    queryKey: keys.ideaBank(personaId ?? 0),
+    queryFn: () => {
+      const params = new URLSearchParams([
+        ['state', 'saved'],
+        ['state', 'used'],
+        ['state', 'dismissed'],
+      ])
+      if (personaId) params.set('persona_id', String(personaId))
+      return api.get<IdeaOut[]>(`/api/ideas?${params}`)
+    },
+  })
+
 export function useIdeaLabMutations() {
   const qc = useQueryClient()
   const refreshLab = () => {
     void qc.invalidateQueries({ queryKey: keys.ideaLab })
     void qc.invalidateQueries({ queryKey: keys.ideaSources })
   }
-  const refreshSessions = () => qc.invalidateQueries({ queryKey: keys.ideaSessions })
-  /** Put a changed idea into its cached session so the board updates at once. */
+  const refreshBank = () => qc.invalidateQueries({ queryKey: ['idea-bank'] })
+  const refreshSessions = () => {
+    void refreshBank()
+    return qc.invalidateQueries({ queryKey: keys.ideaSessions })
+  }
+  /** Put a changed idea into its cached session so the board updates at once; the bank reloads. */
   const setIdea = (idea: IdeaOut) => {
     qc.setQueryData(keys.idea(idea.id), idea)
     qc.setQueryData<IdeaSessionOut>(keys.ideaSession(idea.session_id), (session) =>
       session ? { ...session, items: session.items.map((item) => (item.id === idea.id ? idea : item)) } : session,
     )
+    void refreshBank()
   }
   return {
     refreshLab,
@@ -524,6 +546,11 @@ export function useIdeaLabMutations() {
       mutationFn: ({ id, body }: { id: number; body: IdeaUpdate }) => api.patch<IdeaOut>(`/api/ideas/${id}`, body),
       onSuccess: setIdea,
     }),
+    /** Add an idea of the author's own straight to the bank. */
+    createIdea: useMutation({
+      mutationFn: (body: IdeaCreate) => api.post<IdeaOut>('/api/ideas', body),
+      onSuccess: setIdea,
+    }),
     /** Start a post (or an A/B test) from the idea. */
     writeIdea: useMutation({
       mutationFn: ({ id, body }: { id: number; body: IdeaWriteIn }) => api.post<ProjectCreated>(`/api/ideas/${id}/write`, body),
@@ -532,6 +559,7 @@ export function useIdeaLabMutations() {
         void qc.invalidateQueries({ queryKey: keys.projects })
         void qc.invalidateQueries({ queryKey: keys.idea(id) })
         void qc.invalidateQueries({ queryKey: ['idea-sessions'] })
+        void refreshBank()
       },
     }),
   }

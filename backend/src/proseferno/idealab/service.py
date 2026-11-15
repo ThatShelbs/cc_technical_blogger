@@ -25,6 +25,8 @@ BRAINSTORM_JOB = "idea_brainstorm"
 IDEA_JOBS: tuple[str, ...] = ("idea_research", BRAINSTORM_JOB)
 PROFILE_CHARS = 5000
 FEEDBACK_IDEAS = 40
+# How many earlier ideas (newest first) a brainstorm checks its titles against.
+KNOWN_IDEAS = 1000
 
 
 class IdeaLabError(RuntimeError):
@@ -46,13 +48,15 @@ def author_context(session: Session, persona: Persona) -> str:
     return "\n\n".join(parts)
 
 
-def _feedback(session: Session, persona_id: int) -> tuple[list[str], list[str]]:
+def _feedback(session: Session, persona_id: int) -> tuple[list[str], list[str], list[str]]:
+    """Saved or written, dismissed, and every other idea on file: none of them may come back in a new brainstorm."""
     rows = session.exec(
-        select(Idea).where(Idea.persona_id == persona_id, col(Idea.state).in_(["saved", "used", "dismissed"])).order_by(col(Idea.id).desc())
+        select(Idea.title, Idea.state).where(Idea.persona_id == persona_id).order_by(col(Idea.id).desc()).limit(KNOWN_IDEAS)
     ).all()
-    liked = [r.title for r in rows if r.state in ("saved", "used")][:FEEDBACK_IDEAS]
-    passed = [r.title for r in rows if r.state == "dismissed"][:FEEDBACK_IDEAS]
-    return liked, passed
+    liked = [title for title, state in rows if state in ("saved", "used")]
+    passed = [title for title, state in rows if state == "dismissed"]
+    earlier = [title for title, state in rows if state == "new"]
+    return liked[:FEEDBACK_IDEAS], passed[:FEEDBACK_IDEAS], earlier
 
 
 async def run_brainstorm(
@@ -100,7 +104,7 @@ async def run_brainstorm(
             for trend in trends:
                 session.expunge(trend)
             portfolio = snapshot(session, persona_id)
-            liked, passed = _feedback(session, persona_id)
+            liked, passed, earlier = _feedback(session, persona_id)
             context = IdeaContext(
                 author=author_context(session, persona),
                 portfolio=portfolio,
@@ -109,6 +113,7 @@ async def run_brainstorm(
                 sparks=row.sparks,
                 liked=liked,
                 passed=passed,
+                earlier=earlier,
             )
             mix, mix_notes = plan_mix(mode, extras, availability(trends, portfolio, row.sparks))
             notes += mix_notes

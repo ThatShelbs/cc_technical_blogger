@@ -1,7 +1,7 @@
 """Learn from published posts: analyze them into proposals, and apply the ones the author approves.
 
 ``change_stage`` moves a post through draft -> ready -> published and says which analyses are due:
-publishing compares the generated baseline with the published text (``edits``); a Good traction or Viral
+publishing compares the generated baseline with the published text (``edits``); a Medium hit or Big hit
 outcome reads the post for what made it work (``secret_sauce``). Each analysis is a ``PersonaEvolution`` row
 the author reviews. Applying it adds playbook entries and, for profile changes, saves a new voice profile version.
 """

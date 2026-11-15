@@ -33,6 +33,8 @@ EXTRAS: tuple[str, ...] = ("reader_questions", "counter_take", "sparks")
 APPROACHES: tuple[str, ...] = CORE + EXTRAS
 # Emerging / Builder / Expander for each mode.
 CORE_MIX: dict[str, tuple[int, int, int]] = {"light": (5, 3, 2), "medium": (12, 7, 6), "heavy": (24, 13, 13)}
+# Earlier brainstorm titles named in each prompt; code checks against all of them anyway.
+EARLIER_IN_PROMPT = 40
 
 APPROACH_LABELS: dict[str, str] = {
     "emerging": "Live and Emerging",
@@ -41,6 +43,8 @@ APPROACH_LABELS: dict[str, str] = {
     "reader_questions": "Reader Questions",
     "counter_take": "Counter-take",
     "sparks": "Your Sparks",
+    # Added by hand to the bank, not by a brainstorm.
+    "own": "Your own idea",
 }
 
 GUIDES: dict[str, str] = {
@@ -266,15 +270,28 @@ class IdeaContext:
     sparks: str = ""
     liked: list[str] = field(default_factory=list)
     passed: list[str] = field(default_factory=list)
+    # Every other idea already on file for the author (earlier brainstorms, the saved bank), newest first.
+    earlier: list[str] = field(default_factory=list)
+
+    def known(self) -> list[str]:
+        """Titles no new idea may repeat: the portfolio and every idea already on file."""
+        return self.portfolio.titles() + self.liked + self.passed + self.earlier
 
     def feedback(self) -> str:
         lines = []
         if self.liked:
-            lines.append("Kept or written: " + "; ".join(f'"{t}"' for t in self.liked[:15]))
+            lines.append(
+                "Saved or written (more like these, but never the same idea again): " + "; ".join(f'"{t}"' for t in self.liked[:15])
+            )
         if self.passed:
             lines.append(
                 "Passed on (do not propose these again, and take the hint about what they do not want): "
                 + "; ".join(f'"{t}"' for t in self.passed[:15])
+            )
+        if self.earlier:
+            lines.append(
+                "Already proposed in earlier brainstorms (do not repeat these or close variants): "
+                + "; ".join(f'"{t}"' for t in self.earlier[:EARLIER_IN_PROMPT])
             )
         return "\n".join(lines) or "_Nothing yet._"
 
@@ -420,7 +437,7 @@ async def brainstorm(
         if ctx:
             await ctx.progress(span[0] + (span[1] - span[0]) * fraction, message)
 
-    against = context.portfolio.titles() + context.liked + context.passed
+    against = context.known()
     total = sum(mix.values())
     await report(0.02, f"Writing {total} ideas")
     done = 0

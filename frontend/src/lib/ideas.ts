@@ -31,7 +31,72 @@ export const APPROACHES: { id: string; label: string; hint: string }[] = [
   { id: 'reader_questions', label: 'Reader Questions', hint: 'What practitioners keep asking.' },
   { id: 'counter_take', label: 'Counter-take', hint: 'Where you would push back on a popular claim.' },
   { id: 'sparks', label: 'Your Sparks', hint: 'Your own notes, developed into posts.' },
+  { id: 'own', label: 'Your own idea', hint: 'Added by you to the saved bank.' },
 ]
+
+export type IdeaStage = IdeaOut['stage']
+type Tone = 'neutral' | 'accent' | 'success' | 'danger' | 'flame'
+
+/** The idea lifecycle in order (mirrors `idealab/lifecycle.py`). The last four are a published post's outcome. */
+export const STAGES: { id: IdeaStage; label: string; tone: Tone; hint: string }[] = [
+  { id: 'prospective', label: 'Prospective', tone: 'neutral', hint: 'Fresh from a brainstorm.' },
+  { id: 'serious', label: 'Serious', tone: 'accent', hint: 'Saved to the bank: you mean to write it.' },
+  { id: 'generated', label: 'Generated', tone: 'accent', hint: 'Written as a post, still a draft.' },
+  { id: 'ready', label: 'Ready', tone: 'accent', hint: 'The post is ready to publish.' },
+  { id: 'published', label: 'Published', tone: 'success', hint: 'The post is out.' },
+  { id: 'too_early', label: 'Too early', tone: 'success', hint: 'Published; no verdict yet.' },
+  { id: 'small_hit', label: 'Small hit', tone: 'success', hint: 'Published: a few reads and reactions.' },
+  { id: 'medium_hit', label: 'Medium hit', tone: 'success', hint: 'Published and did well.' },
+  { id: 'big_hit', label: 'Big hit', tone: 'flame', hint: 'Published and took off.' },
+  { id: 'dismissed', label: 'Dismissed', tone: 'neutral', hint: 'Passed on; never suggested again.' },
+]
+
+export const stageOf = (id: string) => STAGES.find((s) => s.id === id) ?? STAGES[0]
+
+/** The main steps shown as a progress line; every outcome counts as the last step. */
+export const LIFECYCLE_STEPS: { id: string; label: string }[] = [
+  { id: 'prospective', label: 'Prospective' },
+  { id: 'serious', label: 'Serious' },
+  { id: 'generated', label: 'Generated' },
+  { id: 'ready', label: 'Ready' },
+  { id: 'published', label: 'Published' },
+]
+
+/** Index of the stage on the progress line (outcomes = published); -1 for dismissed. */
+export function stepIndex(stage: IdeaStage): number {
+  if (stage === 'dismissed') return -1
+  const at = LIFECYCLE_STEPS.findIndex((s) => s.id === stage)
+  return at === -1 ? LIFECYCLE_STEPS.length - 1 : at
+}
+
+export type BankFilter = 'serious' | 'in_progress' | 'published' | 'all' | 'dismissed'
+
+const BANK_STAGES: Record<BankFilter, IdeaStage[] | null> = {
+  serious: ['serious'],
+  in_progress: ['generated', 'ready'],
+  published: ['published', 'too_early', 'small_hit', 'medium_hit', 'big_hit'],
+  all: null,
+  dismissed: ['dismissed'],
+}
+
+export const BANK_FILTERS: { id: BankFilter; label: string }[] = [
+  { id: 'serious', label: 'To write' },
+  { id: 'in_progress', label: 'In progress' },
+  { id: 'published', label: 'Published' },
+  { id: 'all', label: 'All kept' },
+  { id: 'dismissed', label: 'Dismissed' },
+]
+
+/** The bank in one view, searched by title, brief, note and theme. "All kept" leaves out dismissed ideas. */
+export function filterBank(ideas: IdeaOut[], filter: BankFilter, search = ''): IdeaOut[] {
+  const stages = BANK_STAGES[filter]
+  const words = search.toLowerCase().split(/\s+/).filter(Boolean)
+  return ideas.filter((idea) => {
+    if (stages ? !stages.includes(idea.stage) : idea.stage === 'dismissed') return false
+    const text = `${idea.title} ${idea.brief} ${idea.note} ${idea.theme}`.toLowerCase()
+    return words.every((w) => text.includes(w))
+  })
+}
 
 export const SHELF_LIFE: Record<string, string> = { this_week: 'Write this week', this_month: 'This month', evergreen: 'Evergreen' }
 

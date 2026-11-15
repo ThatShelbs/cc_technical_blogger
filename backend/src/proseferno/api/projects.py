@@ -379,7 +379,7 @@ def list_projects(session: SessionDep) -> list[ProjectSummary]:
         out.append(
             ProjectSummary(
                 **project.model_dump(
-                    include={"id", "persona_id", "title", "prompt", "status", "stage", "outcome", "created_at", "updated_at"}
+                    include={"id", "persona_id", "title", "prompt", "status", "stage", "outcome", "idea_id", "created_at", "updated_at"}
                 ),
                 persona_name=names.get(project.persona_id, ""),
                 thumbnail_url=image_url(hero) if hero else None,
