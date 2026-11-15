@@ -253,7 +253,7 @@ def _labels_in(prompt: str, kinds: tuple[str, ...]) -> list[str]:
 def demo_batch(prompt: str) -> dict[str, Any]:
     approach = m.group(1) if (m := re.search(r"^Approach: (\w+)", prompt, re.MULTILINE)) else "emerging"
     count = int(m.group(1)) if (m := re.search(r"Write exactly (\d+) ideas", prompt)) else 5
-    taken = prompt.split("# Titles already proposed", 1)[-1].split("# Article types", 1)[0].lower()
+    taken = prompt.split("# Ideas already on file", 1)[-1].split("# Article types", 1)[0].lower()
     labels = _labels_in(prompt, ())
     posts = re.findall(r'^- "(.+?)" \(', prompt, re.MULTILINE)
     templates = _TEMPLATES.get(approach, _TEMPLATES["emerging"])

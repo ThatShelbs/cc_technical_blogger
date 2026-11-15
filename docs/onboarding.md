@@ -126,7 +126,7 @@ npm run e2e          # Playwright, against the real backend in demo mode
 - **Project**: one post. Its **brief** is the sentence or outline you gave it.
 - **Tweak, rewrite, regenerate**: the three ways to revise a post. A tweak is a list of small edits, never a full rewrite.
 - **Revisions**: the last ten text versions, for Undo. Images keep their own history.
-- **Stage and outcome**: where a post is (Draft, Ready, Published) and how a published one did (Too early, Small traction, Good traction, Viral).
+- **Stage and outcome**: where a post is (Draft, Ready, Published) and how a published one did (Too early, Small hit, Medium hit, Big hit).
 - **Baseline**: the text exactly as Proseferno last generated it. Publishing compares your final text with it.
 - **Evolution**: proposals learned from published posts (from your edits, or a hit's secret sauce). You review and apply them.
 - **Playbook**: moves from your best-received posts, fed to every writer call.

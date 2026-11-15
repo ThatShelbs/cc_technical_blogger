@@ -30,7 +30,10 @@ const idea = (rank: number, approach: string, label: string, theme: string, extr
   score: 10 - rank,
   rank,
   state: 'new',
+  stage: 'prospective',
+  stage_label: 'Prospective',
   project_id: null,
+  note: '',
   prompt: `Idea number ${rank}\n\nOutline:\n- First point`,
   created_at: '2026-11-15T10:00:00',
   ...extra,
@@ -56,6 +59,18 @@ const SESSION: IdeaSessionOut = {
     idea(3, 'emerging', 'Live and Emerging', 'Leadership'),
   ],
 }
+
+const BANK: IdeaOut[] = [
+  idea(4, 'builder', 'Portfolio Builder', 'Leadership', { state: 'saved', stage: 'serious', stage_label: 'Serious', note: 'Ask the team first' }),
+  idea(5, 'emerging', 'Live and Emerging', 'Agents', {
+    state: 'used',
+    stage: 'medium_hit',
+    stage_label: 'Medium hit',
+    project_id: 31,
+    project_title: 'The written post',
+  }),
+  idea(6, 'emerging', 'Live and Emerging', 'Agents', { state: 'dismissed', stage: 'dismissed', stage_label: 'Dismissed' }),
+]
 
 const LAB: IdeaLabOut = {
   signals: 40,
@@ -125,6 +140,9 @@ function setup(path = '/ideas', overrides: { sessions?: unknown; session?: IdeaS
     if (url === '/api/idea-lab/sources') return json(SOURCES)
     if (url === '/api/idea-lab/sessions' && method === 'GET') return json(overrides.sessions ?? [{ ...SESSION, items: undefined }])
     if (url === '/api/idea-lab/sessions/5') return json(overrides.session ?? SESSION)
+    if (url.startsWith('/api/ideas?')) return json(BANK)
+    if (url === '/api/ideas' && method === 'POST')
+      return json(idea(9, 'own', 'Your own idea', '', { state: 'saved', stage: 'serious', stage_label: 'Serious' }))
     if (url.startsWith('/api/ideas/') && method === 'PATCH') return json({ ...SESSION.items[0], state: 'saved' })
     if (url === '/api/ideas/1/write') return json({ project: { id: 77 }, job_id: 'job-9' })
     return json({})
@@ -225,6 +243,42 @@ describe('IdeaLabPage', () => {
     expect(screen.getByLabelText('Watchlist')).toHaveValue('Ada Lovelace')
     await userEvent.click(screen.getByRole('switch', { name: 'Read A publication' }))
     await waitFor(() => expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ disabled: ['old', 'tds'] }))
+  })
+
+  it('keeps saved ideas in the bank and follows them through the lifecycle', async () => {
+    const calls = setup('/ideas?tab=bank')
+    // "To write" first: the saved idea with its note.
+    expect(await screen.findByRole('button', { name: 'Idea number 4' })).toBeInTheDocument()
+    expect(screen.getByText('Ask the team first')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Idea number 5' })).not.toBeInTheDocument()
+    expect(calls.find((c) => c.url.startsWith('/api/ideas?'))?.url).toBe('/api/ideas?state=saved&state=used&state=dismissed&persona_id=1')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Published (1)' }))
+    expect(screen.getByText('Medium hit')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Idea number 5' }))
+    expect(screen.getByRole('list', { name: 'Lifecycle: Medium hit' })).toHaveTextContent('Published · Medium hit')
+    expect(screen.getByText(/The written post/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Dismissed (1)' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Bring back Idea number 6' }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ state: 'new' }))
+  })
+
+  it('adds an idea of your own to the bank', async () => {
+    const calls = setup('/ideas?tab=bank')
+    await userEvent.click(await screen.findByRole('button', { name: 'Add your own idea' }))
+    await userEvent.type(screen.getByLabelText('Title'), 'Why our dashboards died')
+    await userEvent.type(screen.getByLabelText('Outline'), 'one{enter}{enter}two')
+    await userEvent.click(screen.getByRole('button', { name: 'Add to the bank' }))
+    await waitFor(() => expect(calls.find((c) => c.url === '/api/ideas' && c.method === 'POST')).toBeTruthy())
+    expect(calls.find((c) => c.url === '/api/ideas' && c.method === 'POST')?.body).toEqual({
+      persona_id: 1,
+      title: 'Why our dashboards died',
+      brief: '',
+      note: '',
+      outline: ['one', 'two'],
+    })
   })
 
   it('invites a first brainstorm when there are none', async () => {

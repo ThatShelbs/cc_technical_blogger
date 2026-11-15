@@ -235,9 +235,11 @@ class Idea(SQLModel, table=True):
     score: float = 0.0
     # 1 = the best idea of its session.
     rank: int = 0
-    # new | saved | dismissed | used
+    # new | saved | dismissed | used (the lifecycle stage shown to the author is derived: see idealab.lifecycle)
     state: str = "new"
     project_id: int | None = None
+    # The author's own note on the idea (what they would add, who to ask, ...).
+    note: str = Field(default="", sa_column=Column(Text, default=""))
     created_at: datetime = Field(default_factory=utcnow)
 
 

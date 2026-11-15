@@ -194,12 +194,79 @@ def test_sources_can_be_changed_and_reset(client: TestClient) -> None:
 def test_deleting_a_brainstorm_keeps_what_the_author_decided(client: TestClient) -> None:
     pid = _persona(client)
     session = _brainstorm(client, persona_id=pid, mode="light")
-    kept = session["items"][0]
-    client.patch(f"/api/ideas/{kept['id']}", json={"state": "dismissed"})
+    dismissed, saved = session["items"][0], session["items"][1]
+    client.patch(f"/api/ideas/{dismissed['id']}", json={"state": "dismissed"})
+    client.patch(f"/api/ideas/{saved['id']}", json={"state": "saved"})
     assert client.delete(f"/api/idea-lab/sessions/{session['id']}").status_code == 204
     assert client.get("/api/idea-lab/sessions").json() == []
-    assert client.get(f"/api/ideas/{kept['id']}").status_code == 200
-    assert client.get(f"/api/ideas/{session['items'][1]['id']}").status_code == 404
+    assert client.get(f"/api/ideas/{dismissed['id']}").status_code == 200
+    # Saved ideas outlive their brainstorm in the bank.
+    assert [i["id"] for i in client.get("/api/ideas").json()] == [saved["id"]]
+    # Unsaved ones stay on file, out of sight, so they are not proposed again.
+    hidden = {i["title"].lower() for i in session["items"][2:]}
+    assert client.get(f"/api/ideas/{session['items'][2]['id']}").json()["stage"] == "prospective"
+    again = _brainstorm(client, persona_id=pid, mode="light")
+    assert not hidden & {i["title"].lower() for i in again["items"]}
+
+
+def test_new_brainstorms_do_not_repeat_earlier_ideas(client: TestClient) -> None:
+    pid = _persona(client)
+    first = {i["title"].lower() for i in _brainstorm(client, persona_id=pid, mode="light")["items"]}
+    second = _brainstorm(client, persona_id=pid, mode="light")
+    # Nothing was saved or dismissed, and still no idea from the first brainstorm comes back.
+    assert second["items"] and not first & {i["title"].lower() for i in second["items"]}
+
+
+def test_the_lifecycle_follows_the_post(client: TestClient) -> None:
+    pid = _persona(client)
+    idea = _brainstorm(client, persona_id=pid, mode="light")["items"][0]
+    assert (idea["stage"], idea["stage_label"]) == ("prospective", "Prospective")
+    assert client.patch(f"/api/ideas/{idea['id']}", json={"state": "saved"}).json()["stage"] == "serious"
+    project = client.post(f"/api/ideas/{idea['id']}/write", json={}).json()["project"]
+    assert project["idea_id"] == idea["id"]
+    after = client.get(f"/api/ideas/{idea['id']}").json()
+    assert after["stage"] == "generated" and after["project_title"] == project["title"]
+    steps = [
+        ({"stage": "ready"}, "ready"),
+        # Publishing starts the outcome at "too early to tell".
+        ({"stage": "published"}, "too_early"),
+        ({"outcome": "small"}, "small_hit"),
+        ({"outcome": "good"}, "medium_hit"),
+        ({"outcome": "viral"}, "big_hit"),
+    ]
+    for body, stage in steps:
+        client.patch(f"/api/projects/{project['id']}", json=body)
+        assert client.get(f"/api/ideas/{idea['id']}").json()["stage"] == stage
+    bank = client.get("/api/ideas", params={"persona_id": pid}).json()
+    assert [(i["id"], i["stage_label"]) for i in bank] == [(idea["id"], "Big hit")]
+    summary = next(p for p in client.get("/api/projects").json() if p["id"] == project["id"])
+    assert summary["idea_id"] == idea["id"]
+
+
+def test_dismiss_restore_and_note(client: TestClient) -> None:
+    pid = _persona(client)
+    idea = _brainstorm(client, persona_id=pid, mode="light")["items"][0]
+    assert client.patch(f"/api/ideas/{idea['id']}", json={"state": "dismissed"}).json()["stage"] == "dismissed"
+    assert [i["id"] for i in client.get("/api/ideas", params={"state": "dismissed"}).json()] == [idea["id"]]
+    restored = client.patch(f"/api/ideas/{idea['id']}", json={"state": "new", "note": "  ask the platform team  "}).json()
+    assert restored["stage"] == "prospective" and restored["note"] == "ask the platform team"
+
+
+def test_add_your_own_idea_to_the_bank(client: TestClient) -> None:
+    assert client.post("/api/ideas", json={"title": "No persona yet"}).status_code == 422
+    pid = _persona(client)
+    created = client.post("/api/ideas", json={"title": "  Why our  dashboards died ", "outline": ["a", "", "b"], "note": "mine"})
+    assert created.status_code == 201
+    idea = created.json()
+    assert idea["title"] == "Why our dashboards died" and idea["outline"] == ["a", "b"]
+    assert idea["stage"] == "serious" and idea["approach_label"] == "Your own idea" and idea["persona_id"] == pid
+    # It lives in the bank, not in the brainstorm list, and a brainstorm will not propose it again.
+    assert client.get("/api/idea-lab/sessions").json() == []
+    assert [i["id"] for i in client.get("/api/ideas").json()] == [idea["id"]]
+    second = client.post("/api/ideas", json={"title": "Another one of mine", "persona_id": pid}).json()
+    assert second["session_id"] == idea["session_id"]
+    written = client.post(f"/api/ideas/{idea['id']}/write", json={}).json()["project"]
+    assert written["prompt"].startswith("Why our dashboards died")
 
 
 def test_deleting_a_persona_removes_its_brainstorms(client: TestClient) -> None:

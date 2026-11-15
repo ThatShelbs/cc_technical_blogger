@@ -16,7 +16,7 @@ $portfolio
 
 $focus
 
-# Ideas the author kept or passed on before
+# Ideas already on file (saved, written, passed on, or proposed before; never repeat one)
 
 $feedback
 

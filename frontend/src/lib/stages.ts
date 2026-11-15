@@ -12,9 +12,9 @@ export const STAGES: { id: Stage; label: string; tone: Tone }[] = [
 
 export const OUTCOMES: { id: Outcome; label: string; tone: Tone; hint: string }[] = [
   { id: 'too_early', label: 'Too early', tone: 'neutral', hint: 'Just went out; no verdict yet.' },
-  { id: 'small', label: 'Small traction', tone: 'neutral', hint: 'A few reads and reactions.' },
-  { id: 'good', label: 'Good traction', tone: 'success', hint: 'Did well: learn what made it work.' },
-  { id: 'viral', label: 'Viral', tone: 'flame', hint: 'A hit: learn what made it work.' },
+  { id: 'small', label: 'Small hit', tone: 'neutral', hint: 'A few reads and reactions.' },
+  { id: 'good', label: 'Medium hit', tone: 'success', hint: 'Did well: learn what made it work.' },
+  { id: 'viral', label: 'Big hit', tone: 'flame', hint: 'A hit: learn what made it work.' },
 ]
 
 /** Outcomes that are read for their secret sauce. */

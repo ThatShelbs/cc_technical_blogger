@@ -3,7 +3,7 @@
 A persona should get better with every post you publish. Proseferno learns from two things:
 
 1. **What you changed before publishing.** When you mark a post **Published**, the text you shipped is compared with the text Proseferno generated. Your edits become a few small proposed changes to the persona, so the next post needs fewer edits.
-2. **What worked.** When you rate a published post **Good traction** or **Viral**, Claude works out its *secret sauce*: the moves readers probably responded to. These go into the persona's **playbook**, so it keeps writing posts like it.
+2. **What worked.** When you rate a published post **Medium hit** or **Big hit**, Claude works out its *secret sauce*: the moves readers probably responded to. These go into the persona's **playbook**, so it keeps writing posts like it.
 
 Nothing changes until you review a proposal and apply it.
 
@@ -24,9 +24,9 @@ A published post also has an **outcome**:
 | Outcome | What happens |
 | --- | --- |
 | Too early | The default when you publish. No verdict yet. |
-| Small traction | Recorded only. |
-| Good traction | Starts a secret-sauce analysis. |
-| Viral | Starts a secret-sauce analysis. If the post was already rated Good traction and its proposal was not applied yet, the post is read again as a hit. |
+| Small hit | Recorded only. |
+| Medium hit | Starts a secret-sauce analysis. |
+| Big hit | Starts a secret-sauce analysis. If the post was already rated Medium hit and its proposal was not applied yet, the post is read again as a hit. |
 
 Choosing an outcome publishes the post. Moving it back to Draft or Ready clears the outcome. The Posts page shows each post's stage and outcome and filters by stage.
 
@@ -57,7 +57,7 @@ This complements [learning from your edits](voice-pipeline.md#learning-from-your
 
 ## Secret sauce
 
-A Good traction or Viral rating starts a secret-sauce analysis (`SecretSauce`, `prompts/secret_sauce.md`). Claude gets:
+A Medium hit or Big hit rating starts a secret-sauce analysis (`SecretSauce`, `prompts/secret_sauce.md`). Claude gets:
 
 - the final post
 - its outcome

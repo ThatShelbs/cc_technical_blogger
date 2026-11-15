@@ -7,6 +7,7 @@ import { useIdeaLabMutations } from '../../api/hooks'
 import type { IdeaOut, PersonaOut } from '../../api/types.gen'
 import { Badge, Button, Dialog, Field, Input, Notice, Select, Textarea } from '../../components/ui'
 import { SCORES, scoreOf, SHELF_LIFE } from '../../lib/ideas'
+import { LifecycleLine, StageBadge } from './IdeaCard'
 
 function ScoreBars({ idea }: { idea: IdeaOut }) {
   const note = typeof idea.scores?.note === 'string' ? idea.scores.note : ''
@@ -67,6 +68,32 @@ function EditIdea({ idea, onDone }: { idea: IdeaOut; onDone: () => void }) {
   )
 }
 
+/** The author's own note on the idea; kept through every stage, even once it is a post. */
+function NoteField({ idea }: { idea: IdeaOut }) {
+  const { updateIdea } = useIdeaLabMutations()
+  const [draft, setDraft] = useState<{ id: number; text: string } | null>(null)
+  const text = draft?.id === idea.id ? draft.text : idea.note
+  const changed = text.trim() !== idea.note
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        updateIdea.mutate({ id: idea.id, body: { note: text } }, { onSuccess: () => setDraft(null) })
+      }}
+    >
+      <Field label="Your note" htmlFor="idea-note" hint="Only for you: what you would add, who to ask, what to check.">
+        <Textarea id="idea-note" rows={2} maxLength={2000} value={text} onChange={(e) => setDraft({ id: idea.id, text: e.target.value })} />
+      </Field>
+      {changed && (
+        <Button type="submit" size="sm" variant="secondary" loading={updateIdea.isPending}>
+          Save note
+        </Button>
+      )}
+    </form>
+  )
+}
+
 export function IdeaDialog({ idea, personas, onClose }: { idea: IdeaOut | null; personas: PersonaOut[]; onClose: () => void }) {
   const navigate = useNavigate()
   const { writeIdea, updateIdea } = useIdeaLabMutations()
@@ -84,6 +111,7 @@ export function IdeaDialog({ idea, personas, onClose }: { idea: IdeaOut | null; 
   const writers = personas.filter((p) => p.voice_profile_version)
   const chosen = writers.find((p) => p.id === (personaId ?? idea.persona_id)) ?? writers.find((p) => p.is_active) ?? writers[0]
   const used = idea.state === 'used'
+  const own = idea.approach === 'own'
   const write = (mode: 'standard' | 'ab') =>
     writeIdea.mutate(
       { id: idea.id, body: { persona_id: chosen?.id, mode } },
@@ -97,11 +125,13 @@ export function IdeaDialog({ idea, personas, onClose }: { idea: IdeaOut | null; 
         <EditIdea idea={idea} onDone={() => setEditingId(null)} />
       ) : (
         <div className="space-y-5">
+          <LifecycleLine idea={idea} />
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge tone="flame">#{idea.rank}</Badge>
+            {own ? null : <Badge tone="flame">#{idea.rank}</Badge>}
+            <StageBadge idea={idea} />
             <Badge tone="accent">{idea.approach_label}</Badge>
-            <Badge>{idea.theme}</Badge>
-            <Badge>{SHELF_LIFE[idea.shelf_life] ?? idea.shelf_life}</Badge>
+            {idea.theme && <Badge>{idea.theme}</Badge>}
+            {!own && <Badge>{SHELF_LIFE[idea.shelf_life] ?? idea.shelf_life}</Badge>}
             {idea.tags.map((tag) => (
               <Badge key={tag}>{tag}</Badge>
             ))}
@@ -153,20 +183,26 @@ export function IdeaDialog({ idea, personas, onClose }: { idea: IdeaOut | null; 
                 </div>
               )}
             </div>
-            <div>
-              <h3 className="mb-1.5 font-bold">Why it ranks #{idea.rank}</h3>
-              <ScoreBars idea={idea} />
+            <div className="space-y-4">
+              {!own && (
+                <div>
+                  <h3 className="mb-1.5 font-bold">Why it ranks #{idea.rank}</h3>
+                  <ScoreBars idea={idea} />
+                </div>
+              )}
+              <NoteField idea={idea} />
             </div>
           </div>
 
           {used ? (
             <Notice tone="success">
-              This idea is already a post.{' '}
+              This idea is a post{idea.project_title ? <> : &ldquo;{idea.project_title}&rdquo;</> : null} ({idea.stage_label}).{' '}
               {idea.project_id && (
                 <Link to={`/projects/${idea.project_id}`} className="font-semibold underline">
                   Open the post
                 </Link>
-              )}
+              )}{' '}
+              Mark the post Ready or Published, and rate how it did, on the post itself; this idea follows along.
             </Notice>
           ) : (
             <div className="space-y-3 border-t border-line pt-4">
