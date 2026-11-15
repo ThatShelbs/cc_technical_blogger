@@ -3,7 +3,7 @@ Plan a new post from the author's brief.
 <brief>
 $prompt
 </brief>
-
+$author_material
 Settings:
 - Topic area: $topic
 - Audience: $audience

@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 from proseferno import __version__
 from proseferno.abtest.service import fail_interrupted
 from proseferno.api import ab_tests, evolution, formulas, idea_lab, insights, jobs, personas, projects, references, system
+from proseferno.authenticity import local_detector
 from proseferno.config import Settings, get_settings
 from proseferno.db import Persona
 from proseferno.evolution import fail_analyzing
@@ -48,6 +49,8 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         await _seed_demo(settings, services)
         yield
         await services.jobs.shutdown()
+        # The detector models' worker process (if it was started) ends with the app.
+        local_detector.shutdown()
 
     app = FastAPI(title="Proseferno", version=__version__, lifespan=lifespan)
     app.state.services = services

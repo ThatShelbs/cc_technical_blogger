@@ -106,6 +106,7 @@ function defaultsFrom(persona: PersonaOut) {
     default_platform: persona.default_platform as Platform,
     default_formula: buildFormula(formulaFrom(persona.default_formula)),
     default_opening_style: persona.default_opening_style,
+    default_interview: persona.default_interview,
     voice_profile_words: persona.voice_profile_words,
     voice_sample_max_words: persona.voice_sample_max_words,
     voice_sample_min_words: persona.voice_sample_min_words,
@@ -322,6 +323,13 @@ function SettingsTab({ persona }: { persona: PersonaOut }) {
               ))}
             </Select>
           </Field>
+        </div>
+        <div className="flex items-center justify-between gap-4 border-t border-line pt-4">
+          <div>
+            <h3 className="font-bold">Interview me first</h3>
+            <p className="text-sm text-muted">Start new posts with 3-5 questions about your stories and opinions. You can still skip them.</p>
+          </div>
+          <Switch checked={!!draft.default_interview} label="Interview me first" onChange={(value) => set({ default_interview: value })} />
         </div>
       </Card>
 

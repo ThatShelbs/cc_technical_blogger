@@ -18,6 +18,7 @@ from pathlib import Path
 
 import keyring
 
+from proseferno.authenticity.local_detector import status as detector_status
 from proseferno.config import REPO_ROOT, Settings
 from proseferno.llm.auth import ClaudeAuth
 from proseferno.llm.claude_code import find_claude
@@ -180,6 +181,16 @@ def run_checks(
             code is not None,
             "Claude Code found; the Claude subscription connection is available." if code else "Claude Code is not installed.",
             "Only needed to use your Claude Pro/Max plan: https://code.claude.com/docs/en/setup",
+        )
+    )
+
+    detector = detector_status(settings)
+    checks.append(
+        Check(
+            "AI-detector models (optional)",
+            bool(detector["ready"]),
+            str(detector["detail"]),
+            "Turn on 'Real AI-detector models' in Settings for a one-time download." if detector["available"] else "",
         )
     )
 

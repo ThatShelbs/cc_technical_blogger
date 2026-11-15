@@ -1,9 +1,9 @@
 import { useState } from 'react'
 
 import { errorText } from '../api/client'
-import { useSettings, useUpdateSettings } from '../api/hooks'
+import { useDetector, useSettings, useSetupDetector, useUpdateSettings } from '../api/hooks'
 import { ClaudeConnect, ImagesCard } from '../components/Connections'
-import { Button, Card, Field, Input, Notice, PageHeader, Select, Switch } from '../components/ui'
+import { Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, Switch } from '../components/ui'
 import { cx } from '../lib/cx'
 import { useTheme, type ThemeMode } from '../theme/useTheme'
 
@@ -116,6 +116,80 @@ function AdvancedCard() {
   )
 }
 
+/** Real AI-text detector models, run on this computer, and the humanize pass they drive. */
+function HumanizeCard() {
+  const { data: settings } = useSettings()
+  const { data: detector } = useDetector()
+  const update = useUpdateSettings()
+  const setup = useSetupDetector()
+  const [confirming, setConfirming] = useState(false)
+  if (!settings || !detector) return null
+  const installing = detector.job?.status === 'queued' || detector.job?.status === 'running'
+  return (
+    <Card className="space-y-5">
+      <div>
+        <h2 className="text-lg font-bold">Humanizing</h2>
+        <p className="text-sm text-muted">
+          After the editor&apos;s pass, Proseferno checks each post against your own writing and rewrites only the passages that read as machine-made.
+        </p>
+      </div>
+      <Field
+        label="Humanize rounds"
+        hint="Each round rewrites the flagged passages and keeps the new version only if it reads more like you. 0 turns it off."
+        htmlFor="humanize-rounds"
+      >
+        <Select id="humanize-rounds" value={settings.humanize_rounds} onChange={(e) => update.mutate({ humanize_rounds: Number(e.target.value) })}>
+          <option value={0}>Off</option>
+          <option value={1}>1 round (default)</option>
+          <option value={2}>2 rounds</option>
+        </Select>
+      </Field>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold">Real AI-detector models</p>
+            <p className="text-sm text-muted">
+              Two open-source detectors (Fast-DetectGPT and a trained AI-text classifier) score every post against your own posts. They run on this computer;
+              nothing is sent anywhere.
+            </p>
+          </div>
+          {detector.ready && (
+            <Switch checked={settings.deep_check} label="Real AI-detector models" onChange={(value) => update.mutate({ deep_check: value })} />
+          )}
+        </div>
+        <p className="text-sm">{detector.detail}</p>
+        {installing && (
+          <Notice tone="info">{detector.job?.message || 'Setting up'}… This can take a while on the first run; you can keep using the app.</Notice>
+        )}
+        {detector.available && !detector.ready && !installing && (
+          <Button size="sm" variant="secondary" onClick={() => setConfirming(true)}>
+            Set up the detector models
+          </Button>
+        )}
+        {detector.job?.status === 'failed' && <Notice tone="error">{detector.job.error}</Notice>}
+        {setup.error && <Notice tone="error">{errorText(setup.error)}</Notice>}
+      </div>
+      <Dialog open={confirming} onClose={() => setConfirming(false)} title="Download the detector models?">
+        <div className="space-y-3 text-sm">
+          <p>
+            This installs PyTorch and downloads two small open models from Hugging Face: about 1.3 GB, once. They are stored in your data folder and run on your
+            CPU.
+          </p>
+          <p className="text-muted">A detector on your computer is not the one a platform uses, but it reads the same machine texture.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirming(false)}>
+              Not now
+            </Button>
+            <Button loading={setup.isPending} onClick={() => setup.mutate(undefined, { onSettled: () => setConfirming(false) })}>
+              Download and turn on
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </Card>
+  )
+}
+
 export function SettingsPage() {
   return (
     <>
@@ -124,6 +198,7 @@ export function SettingsPage() {
         <div className="space-y-6">
           <ClaudeConnect />
           <ImagesCard />
+          <HumanizeCard />
         </div>
         <div className="space-y-6">
           <AppearanceCard />

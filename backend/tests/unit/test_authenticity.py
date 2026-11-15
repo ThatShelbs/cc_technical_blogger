@@ -69,8 +69,9 @@ def test_report_combines_scan_and_judge() -> None:
     result = scan(HUMAN, AuthorProfile())
     judgement = AIDetectionJudgement(human_score=40, verdict="Meh.", human_signals=[], ai_signals=["Uniform"], flagged_passages=[])
     combined = report(result, judgement)
-    assert combined["judge_score"] == 40
-    assert combined["score"] == round(0.6 * 40 + 0.4 * result.score)
+    assert combined["judge_score"] == 40 and combined["judge_kind"] == "judge"
+    # Only the judge and the scan ran, so their weights (30 and 15) are shared out between them.
+    assert combined["score"] == round((30 * 40 + 15 * result.score) / 45)
     assert report(result, None, judge_error="offline")["score"] == result.score
     assert band(95) == ("human", "Reads as authentic human writing")
     assert band(10)[0] == "likely_ai"

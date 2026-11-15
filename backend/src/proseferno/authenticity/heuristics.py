@@ -12,9 +12,13 @@ import re
 import statistics
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from proseferno.ingest.stylometrics import split_sentences
+
+if TYPE_CHECKING:
+    from proseferno.authenticity.passages import Passage
+    from proseferno.authenticity.texture import Texture
 
 # Vocabulary and stock phrases that are far more common in model output than in human technical blogs.
 AI_VOCABULARY = [
@@ -173,6 +177,11 @@ class AuthorProfile:
     sentence_cv: float | None = None
     em_dash_per_1k: float | None = None
     contractions_per_1k: float | None = None
+    # The author's own posts, their paragraphs tagged by role (authenticity.passages) and their texture
+    # (authenticity.texture): what the twin test, the texture report and the detector models compare a post with.
+    texts: list[str] = field(default_factory=list)
+    passages: list[Passage] = field(default_factory=list)
+    texture: Texture | None = None
 
 
 @dataclass

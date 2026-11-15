@@ -12,6 +12,7 @@ import type {
   AuthTestOut,
   BaselineDiffOut,
   CopyHtmlOut,
+  DetectorStatusOut,
   EnrichIn,
   EvolutionOut,
   FormulaCatalogOut,
@@ -31,6 +32,7 @@ import type {
   IdeaUpdate,
   IdeaWriteIn,
   ImageOut,
+  InterviewAnswer,
   MemeFormatOut,
   OpeningCatalogOut,
   JobOut,
@@ -61,6 +63,7 @@ export const keys = {
   health: ['health'] as const,
   auth: ['auth'] as const,
   settings: ['settings'] as const,
+  detector: ['detector'] as const,
   personas: ['personas'] as const,
   persona: (id: number) => ['personas', id] as const,
   samples: (personaId: number) => ['personas', personaId, 'samples'] as const,
@@ -123,6 +126,26 @@ export function useUpdateSettings() {
       qc.setQueryData(keys.settings, data)
       // The sign-in status depends on which connection is chosen.
       if (body.claude_connection) void qc.invalidateQueries({ queryKey: keys.auth })
+    },
+  })
+}
+
+/** The local AI-detector models; polls while their one-time setup runs. */
+export function useDetector() {
+  return useQuery({
+    queryKey: keys.detector,
+    queryFn: () => api.get<DetectorStatusOut>('/api/detector'),
+    refetchInterval: (query) => (['queued', 'running'].includes(query.state.data?.job?.status ?? '') ? 3000 : false),
+  })
+}
+
+export function useSetupDetector() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post<DetectorStatusOut>('/api/detector/setup'),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.detector, data)
+      void qc.invalidateQueries({ queryKey: keys.settings })
     },
   })
 }
@@ -334,6 +357,13 @@ export function useProjectMutations(projectId?: number) {
     /** Replace the title options; the current and pinned titles are kept. */
     regenerateTitles: useMutation({
       mutationFn: () => api.post<ProjectOut>(`/api/projects/${projectId}/titles`),
+      onSuccess: setProject,
+    }),
+    /** Ask 3-5 interview questions for this post (replaces earlier ones). Follow the job with `useJob`. */
+    interview: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/interview`) }),
+    /** Save interview answers without writing the post yet. */
+    saveInterview: useMutation({
+      mutationFn: (answers: InterviewAnswer[]) => api.put<ProjectOut>(`/api/projects/${projectId}/interview`, { answers }),
       onSuccess: setProject,
     }),
     /** Re-run the AI-generation detection report on the current text. */

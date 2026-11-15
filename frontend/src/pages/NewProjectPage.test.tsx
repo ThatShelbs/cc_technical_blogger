@@ -205,6 +205,7 @@ describe('NewProjectPage', () => {
       dials: {},
       persona_id: 1,
       mode: 'standard',
+      interview: false,
     })
   })
 

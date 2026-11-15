@@ -3,12 +3,13 @@ import { useState } from 'react'
 
 import { errorText } from '../../api/client'
 import { usePersonas, useABTestMutations, useProjectMutations } from '../../api/hooks'
-import type { JobOut, ProjectOut } from '../../api/types.gen'
+import type { InterviewAnswer, JobOut, ProjectOut } from '../../api/types.gen'
 import { DialsFields } from '../../components/DialsFields'
 import { FormulaFields } from '../../components/FormulaFields'
 import { OpeningFields } from '../../components/OpeningFields'
 import { Button, Dialog, Field, Notice, Select, Textarea } from '../../components/ui'
 import { planOutline } from '../../lib/outline'
+import { InterviewFields } from './InterviewCard'
 import { PLATFORMS, buildDials, dialsToState, emptyDials, shownDials, type DialsState, type Platform } from '../dials'
 
 /** Edit the brief, persona and settings that wrote this post, then regenerate it. Nothing is saved until then. */
@@ -32,13 +33,14 @@ export function PostSettingsDialog({
 }
 
 function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: (job: JobOut) => void }) {
-  const { generate } = useProjectMutations(project.id)
+  const { generate, interview } = useProjectMutations(project.id)
   const { start: startAB } = useABTestMutations(project.id)
   const { data: personas = [] } = usePersonas()
   const [prompt, setPrompt] = useState(project.prompt)
   const [personaId, setPersonaId] = useState(project.persona_id)
   const [dials, setDials] = useState<DialsState>(() => dialsToState(project.dials))
   const [showPlan, setShowPlan] = useState(false)
+  const [answers, setAnswers] = useState<InterviewAnswer[]>(project.interview ?? [])
   const set = (patch: Partial<DialsState>) => setDials((d) => ({ ...d, ...patch }))
 
   const persona = personas.find((p) => p.id === personaId)
@@ -55,6 +57,7 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
       prompt: prompt.trim(),
       persona_id: personaId,
       dials: { ...buildDials(dials), ...(passes !== undefined ? { revision_passes: Number(passes) } : {}) },
+      ...(answers.length ? { interview: answers } : {}),
     }
   }
   const submit = () => generate.mutate(body(), { onSuccess: onStarted })
@@ -77,6 +80,27 @@ function SettingsForm({ project, onStarted }: { project: ProjectOut; onStarted: 
               Revert to original brief
             </Button>
           )}
+          <div className="space-y-3 rounded-lg border border-line p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="font-bold">Interview (optional)</h3>
+                <p className="text-sm text-muted">
+                  {answers.length ? 'Your answers are worked into the post close to your own words.' : 'Have Claude ask you 3-5 questions about this post.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                loading={interview.isPending}
+                onClick={() => interview.mutate(undefined, { onSuccess: onStarted })}
+              >
+                {answers.length ? 'Ask new questions' : 'Interview me'}
+              </Button>
+            </div>
+            {answers.length > 0 && <InterviewFields answers={answers} onChange={setAnswers} idPrefix="settings-" />}
+            {interview.error && <Notice tone="error">{errorText(interview.error)}</Notice>}
+          </div>
           {outline && (
             <div className="rounded-lg border border-line">
               <button

@@ -43,6 +43,8 @@ class Persona(SQLModel, table=True):
     default_formula: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
     # How new posts open (see images.opening.styles): a style id, or "auto" = the panel picks from the styles that suit the post.
     default_opening_style: str = "auto"
+    # Interview the author (3-5 questions for the brief) before writing each new post; off = write straight away.
+    default_interview: bool = False
     # Voice profile version used for new posts; None = always the latest.
     pinned_voice_profile_version: int | None = None
     # One line that keeps a post's generated images looking like a set.
@@ -141,6 +143,8 @@ class Project(SQLModel, table=True):
     variant: str | None = None
     # The Idea Lab idea this post was written from (see idealab), if any.
     idea_id: int | None = None
+    # The optional interview (see writer.interview): [{question, answer}]; answered ones are woven into the post.
+    interview: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 

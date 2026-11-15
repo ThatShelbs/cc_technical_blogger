@@ -138,6 +138,15 @@ export interface CountItem {
   count: number;
 }
 
+export interface DetectorStatusOut {
+  available: boolean;
+  ready: boolean;
+  enabled: boolean;
+  models: Record<string, string>;
+  detail: string;
+  job?: JobOut | null;
+}
+
 export interface Dials {
   article_type?: string | null;
   opener?: string | null;
@@ -311,6 +320,7 @@ export interface GenerateIn {
   prompt?: string | null;
   dials?: Dials | null;
   persona_id?: number | null;
+  interview?: InterviewAnswer[] | null;
 }
 
 export interface Health {
@@ -545,6 +555,15 @@ export interface InsightsOverview {
   updated_at: string | null;
 }
 
+export interface InterviewAnswer {
+  question: string;
+  answer?: string;
+}
+
+export interface InterviewIn {
+  answers: InterviewAnswer[];
+}
+
 export interface JobOut {
   id: string;
   kind: string;
@@ -726,6 +745,7 @@ export interface PersonaOut {
   default_platform: string;
   default_formula: FormulaParts;
   default_opening_style: string;
+  default_interview: boolean;
   visual_style: string;
   credit_template: string;
   voice_profile_words: number;
@@ -761,6 +781,7 @@ export interface PersonaUpdate {
   default_platform?: "medium" | "substack" | "linkedin" | "x" | "gumroad" | "markdown" | null;
   default_formula?: FormulaParts | null;
   default_opening_style?: string | null;
+  default_interview?: boolean | null;
   name?: string | null;
   display_name?: string | null;
   research_enabled?: boolean | null;
@@ -801,6 +822,7 @@ export interface ProjectCreate {
   generate?: boolean;
   mode?: "standard" | "ab";
   idea_id?: number | null;
+  interview?: boolean;
 }
 
 export interface ProjectCreated {
@@ -822,6 +844,7 @@ export interface ProjectOut {
   critique: Record<string, unknown> | null;
   fidelity: Record<string, unknown> | null;
   authenticity: Record<string, unknown> | null;
+  interview: InterviewAnswer[];
   social: Record<string, unknown> | null;
   pinned_titles: string[];
   brand_kit: BrandKit;
@@ -923,7 +946,7 @@ export interface RevisionOut {
 export interface RewriteIn {
   selection: string;
   instruction?: string;
-  action?: "custom" | "rewrite" | "compact" | "expand" | "add_source" | "add_quote";
+  action?: "custom" | "rewrite" | "compact" | "expand" | "add_source" | "add_quote" | "humanize";
 }
 
 export interface SampleDetail {
@@ -981,6 +1004,8 @@ export interface SettingsIn {
   use_fallbacks?: boolean | null;
   revision_passes?: number | null;
   ai_detection?: boolean | null;
+  deep_check?: boolean | null;
+  humanize_rounds?: number | null;
   reference_max_searches?: number | null;
   check_reference_links?: boolean | null;
 }
@@ -991,6 +1016,8 @@ export interface SettingsOut {
   use_fallbacks: boolean;
   revision_passes: number;
   ai_detection: boolean;
+  deep_check: boolean;
+  humanize_rounds: number;
   reference_max_searches: number;
   check_reference_links: boolean;
   image_tool_label: string;

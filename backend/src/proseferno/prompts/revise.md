@@ -1,4 +1,4 @@
-Revise the draft so it reads unmistakably like the author, applying the editor's notes. Keep what works, fix every issue, keep the facts and technical content correct, and keep every image placeholder line (`{{image:...}}`) exactly as written and in a sensible position. Do not add captions, credits or source lines next to the placeholders; images get their own.
+Revise the draft so it reads unmistakably like the author, applying the editor's notes. Where the notes ask for specifics, invent them the way the author would (a moment, a number, a named tool, the mistake) rather than explaining in general terms. Keep what works, fix every issue, keep the facts and technical content correct, and keep every image placeholder line (`{{image:...}}`) exactly as written and in a sensible position. Do not add captions, credits or source lines next to the placeholders; images get their own.
 
 <editor_notes>
 $critique

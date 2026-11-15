@@ -20,6 +20,7 @@ import { BrandKitCard } from './BrandKitCard'
 import { EvolutionCard } from './EvolutionCard'
 import { ExportDialog } from './ExportDialog'
 import { GenerationView } from './GenerationView'
+import { InterviewCard } from './InterviewCard'
 import { ImageCard } from './ImageCard'
 import { ReferenceLink, ReferencesCard } from './ReferencesCard'
 import { useReferenceActions } from './useReferenceActions'
@@ -33,6 +34,7 @@ const FAILED_TITLE: Record<string, string> = {
   enrich_post: 'Could not add references',
   redraw_reference: 'Could not redraw that reference',
   add_image: 'Could not add the image',
+  interview: 'Could not write the interview questions',
 }
 
 const SCORE_LABELS: [keyof Critique, string][] = [
@@ -432,7 +434,7 @@ export function ProjectPage() {
   const qc = useQueryClient()
   const { data: project, isLoading, error } = useProject(id)
   const { data: allPersonas } = usePersonas()
-  const { generate } = useProjectMutations(id)
+  const { generate, interview } = useProjectMutations(id)
   const { start: startAB } = useABTestMutations(id, undefined)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // The last finished job, kept after the URL is cleared so its outcome can be shown.
@@ -463,12 +465,14 @@ export function ProjectPage() {
   const tweaking = running && jobKind === 'tweak_post'
   const referencing = running && REFERENCE_JOBS.includes(jobKind)
   const addingImage = running && jobKind === 'add_image'
+  const interviewing = running && jobKind === 'interview'
   const follow = (j: JobOut) => {
     setFinished(null)
     setParams({ job: j.id, kind: j.kind }, { replace: true })
   }
   const regenerate = () => generate.mutate(undefined, { onSuccess: follow })
   const runABTest = () => startAB.mutate(undefined, { onSuccess: follow })
+  const askQuestions = () => interview.mutate(undefined, { onSuccess: follow })
   const failed = finished?.state.status === 'failed' ? finished : null
 
   let banner: ReactNode = null
@@ -484,6 +488,19 @@ export function ProjectPage() {
     banner = (
       <Notice tone="warn" title="Your blend note could not be applied">
         {String(finished.state.result.notes_error)} Try it again with “Tweak with feedback”.
+      </Notice>
+    )
+  } else if (interviewing) {
+    banner = (
+      <Card className="space-y-2">
+        <p className="text-sm font-semibold">Thinking of a few questions for you…</p>
+        <ProgressBar value={job.progress} label="Interview progress" />
+      </Card>
+    )
+  } else if (finished?.kind === 'interview' && finished.state.status === 'succeeded' && project.markdown) {
+    banner = (
+      <Notice tone="success" title="Your questions are ready">
+        Open “Edit brief &amp; settings” to answer them, then regenerate the post.
       </Notice>
     )
   } else if (tweaking || referencing || addingImage) {
@@ -576,6 +593,10 @@ export function ProjectPage() {
         banner
       ) : abOpen && abTest && !abDeciding ? (
         <ABCompare projectId={project.id} testId={abTest.id} onStarted={follow} />
+      ) : interviewing && !project.markdown ? (
+        banner
+      ) : !project.markdown && (project.interview ?? []).length > 0 && project.status !== 'generating' ? (
+        <InterviewCard key={(project.interview ?? []).map((q) => q.question).join('|')} project={project} onStarted={follow} />
       ) : project.markdown ? (
         <Editor
           project={project}
@@ -585,7 +606,7 @@ export function ProjectPage() {
               {banner}
             </>
           }
-          busy={tweaking || referencing || addingImage || abDeciding}
+          busy={tweaking || referencing || addingImage || abDeciding || interviewing}
           onRegenerate={regenerate}
           onABTest={runABTest}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -594,10 +615,15 @@ export function ProjectPage() {
       ) : (
         <Card className="space-y-4">
           <p className="whitespace-pre-wrap text-muted">{project.prompt}</p>
-          {(generate.error || startAB.error) && <Notice tone="error">{errorText(generate.error ?? startAB.error)}</Notice>}
+          {(generate.error || startAB.error || interview.error) && (
+            <Notice tone="error">{errorText(generate.error ?? startAB.error ?? interview.error)}</Notice>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button variant="flame" onClick={regenerate} loading={generate.isPending}>
               Write this post
+            </Button>
+            <Button variant="secondary" onClick={askQuestions} loading={interview.isPending}>
+              Interview me first
             </Button>
             <Button variant="secondary" onClick={runABTest} loading={startAB.isPending}>
               Write two versions (A/B test)
