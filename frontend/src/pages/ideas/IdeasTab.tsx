@@ -1,21 +1,22 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Bookmark, BookmarkCheck, ChevronDown, FileText, Lightbulb, Sparkles, Trash2, X } from 'lucide-react'
+import { ChevronDown, FileText, Lightbulb, Sparkles, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { errorText } from '../../api/client'
 import { keys, useIdeaLab, useIdeaLabMutations, useIdeaSession, useIdeaSessions, usePersonas } from '../../api/hooks'
-import type { IdeaOut, IdeaSessionIn, PersonaOut } from '../../api/types.gen'
+import type { IdeaSessionIn, PersonaOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
-import { Badge, Button, Card, EmptyState, Field, Notice, ProgressBar, Select, Spinner, Textarea } from '../../components/ui'
+import { Button, Card, EmptyState, Field, Notice, ProgressBar, Select, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
-import { ago, FILTERS, filterIdeas, groupIdeas, MODES, parseDate, SHELF_LIFE, SORTS, type IdeaFilter, type IdeaMode, type IdeaSort } from '../../lib/ideas'
+import { ago, FILTERS, filterIdeas, groupIdeas, MODES, parseDate, SORTS, type IdeaFilter, type IdeaMode, type IdeaSort } from '../../lib/ideas'
+import { IdeaCard } from './IdeaCard'
 import { IdeaDialog } from './IdeaDialog'
 
 type ResearchChoice = 'auto' | 'refresh' | 'reuse'
 const RESEARCH: Record<ResearchChoice, boolean | null> = { auto: null, refresh: true, reuse: false }
 
-function Segmented<T extends string>({
+export function Segmented<T extends string>({
   label,
   options,
   value,
@@ -197,56 +198,6 @@ function BrainstormCard({
   )
 }
 
-function IdeaCard({ idea, onOpen, onState }: { idea: IdeaOut; onOpen: () => void; onState: (state: 'new' | 'saved' | 'dismissed') => void }) {
-  const saved = idea.state === 'saved'
-  return (
-    <Card className={cx('flex flex-col gap-2', idea.state === 'dismissed' && 'opacity-70')}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Badge tone="flame">#{idea.rank}</Badge>
-        <Badge tone="accent">{idea.approach_label}</Badge>
-        {idea.shelf_life !== 'evergreen' && <Badge>{SHELF_LIFE[idea.shelf_life] ?? idea.shelf_life}</Badge>}
-        {idea.state === 'used' && <Badge tone="success">Written</Badge>}
-        <span className="ml-auto text-xs text-muted">{idea.theme}</span>
-      </div>
-      <button type="button" onClick={onOpen} className="text-left text-lg leading-snug font-bold hover:underline">
-        {idea.title}
-      </button>
-      <p className="line-clamp-3 text-sm text-muted">{idea.brief}</p>
-      {idea.why_now && <p className="line-clamp-2 text-sm">{idea.why_now}</p>}
-      <div className="mt-auto flex items-center gap-2 pt-2">
-        <Button size="sm" variant="secondary" onClick={onOpen}>
-          {idea.state === 'used' ? 'Details' : 'Outline & write'}
-        </Button>
-        {idea.state === 'used' && idea.project_id ? (
-          <Link to={`/projects/${idea.project_id}`} className="text-sm font-semibold text-accent hover:underline">
-            Open the post
-          </Link>
-        ) : (
-          <span className="ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
-              aria-label={saved ? `Remove ${idea.title} from saved` : `Save ${idea.title}`}
-              aria-pressed={saved}
-              onClick={() => onState(saved ? 'new' : 'saved')}
-            >
-              {saved ? <BookmarkCheck className="size-4 text-accent" /> : <Bookmark className="size-4" />}
-            </button>
-            <button
-              type="button"
-              className="rounded-md p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
-              aria-label={idea.state === 'dismissed' ? `Bring back ${idea.title}` : `Dismiss ${idea.title}`}
-              onClick={() => onState(idea.state === 'dismissed' ? 'new' : 'dismissed')}
-            >
-              <X className="size-4" />
-            </button>
-          </span>
-        )}
-      </div>
-    </Card>
-  )
-}
-
 export function IdeasTab({ openResearch }: { openResearch: () => void }) {
   const qc = useQueryClient()
   const { data: personas, isLoading } = usePersonas()
@@ -355,7 +306,9 @@ export function IdeasTab({ openResearch }: { openResearch: () => void }) {
               className="ml-auto rounded-md p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
               aria-label="Delete this brainstorm"
               onClick={() => {
-                if (confirm('Delete this brainstorm? Ideas you wrote or dismissed are remembered so they are not suggested again.'))
+                if (
+                  confirm('Delete this brainstorm? Saved ideas stay in your saved bank, and every idea it proposed is remembered so it is not suggested again.')
+                )
                   deleteSession.mutate(sessionId, { onSuccess: () => setPicked(null) })
               }}
             >

@@ -2,12 +2,14 @@ import { useSearchParams } from 'react-router'
 
 import { PageHeader } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { BankTab } from './BankTab'
 import { IdeasTab } from './IdeasTab'
 import { ResearchTab } from './ResearchTab'
 import { SourcesTab } from './SourcesTab'
 
 const TABS = [
   { id: 'ideas', label: 'Ideas' },
+  { id: 'bank', label: 'Saved bank' },
   { id: 'research', label: 'Research' },
   { id: 'sources', label: 'Sources' },
 ] as const
@@ -53,6 +55,7 @@ export function IdeaLabPage() {
       </div>
       <div role="tabpanel" id={`idea-panel-${tab}`} aria-labelledby={`idea-tab-${tab}`}>
         {tab === 'ideas' && <IdeasTab openResearch={() => open('research')} />}
+        {tab === 'bank' && <BankTab />}
         {tab === 'research' && <ResearchTab openSources={() => open('sources')} />}
         {tab === 'sources' && <SourcesTab />}
       </div>

@@ -194,3 +194,29 @@ def test_selection_holds_the_mix_then_tops_up() -> None:
     chosen = select(candidates, {"emerging": 2, "builder": 3})
     # Builder is one short, so the next best emerging idea fills the gap; best first overall.
     assert [c.draft.title for c in chosen] == ["E0", "E1", "E2", "B0", "B1"]
+
+
+@pytest.mark.parametrize(
+    ("state", "project", "stage"),
+    [
+        ("new", None, "prospective"),
+        ("saved", None, "serious"),
+        ("dismissed", None, "dismissed"),
+        ("used", None, "serious"),  # the post is gone
+        ("used", {}, "generated"),
+        ("used", {"stage": "ready"}, "ready"),
+        ("used", {"stage": "published"}, "published"),
+        ("used", {"stage": "published", "outcome": "too_early"}, "too_early"),
+        ("used", {"stage": "published", "outcome": "small"}, "small_hit"),
+        ("used", {"stage": "published", "outcome": "good"}, "medium_hit"),
+        ("used", {"stage": "published", "outcome": "viral"}, "big_hit"),
+    ],
+)
+def test_an_ideas_stage_follows_its_post(state: str, project: dict[str, str] | None, stage: str) -> None:
+    from proseferno.db import Idea, Project
+    from proseferno.idealab.lifecycle import STAGES, stage_label, stage_of
+
+    idea = Idea(session_id=1, persona_id=1, approach="emerging", title="T", state=state)
+    post = Project(persona_id=1, prompt="p", **project) if project is not None else None
+    assert stage_of(idea, post) == stage
+    assert stage_label(stage) == STAGES[stage]

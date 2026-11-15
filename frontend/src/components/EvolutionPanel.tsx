@@ -62,7 +62,7 @@ export function EvolutionPanel({ personaId }: { personaId: number }) {
           </p>
         </div>
         {pending.length === 0 ? (
-          <p className="text-sm text-muted">Nothing to review. Mark a post Published, or rate one Good traction or Viral.</p>
+          <p className="text-sm text-muted">Nothing to review. Mark a post Published, or rate one Medium hit or Big hit.</p>
         ) : (
           <ul className="space-y-2">
             {pending.map((evolution) => (
@@ -103,7 +103,7 @@ export function EvolutionPanel({ personaId }: { personaId: number }) {
           )}
         </div>
         {data.playbook.length === 0 ? (
-          <p className="text-sm text-muted">Nothing yet. Rate a published post Good traction or Viral and apply its secret sauce.</p>
+          <p className="text-sm text-muted">Nothing yet. Rate a published post Medium hit or Big hit and apply its secret sauce.</p>
         ) : (
           <ul className="space-y-2">
             {data.playbook.map((entry, index) => {

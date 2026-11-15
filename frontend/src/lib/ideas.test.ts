@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { IdeaOut, IdeaTrendOut } from '../api/types.gen'
-import { ago, filterIdeas, groupIdeas, groupTrends, parseDate, parseNames, scoreOf } from './ideas'
+import { ago, filterBank, filterIdeas, groupIdeas, groupTrends, parseDate, parseNames, scoreOf, stageOf, stepIndex } from './ideas'
 
 const idea = (rank: number, approach: string, theme: string, state: IdeaOut['state'] = 'new'): IdeaOut => ({
   id: rank,
@@ -24,7 +24,10 @@ const idea = (rank: number, approach: string, theme: string, state: IdeaOut['sta
   score: 10 - rank,
   rank,
   state,
+  stage: state === 'new' ? 'prospective' : state === 'saved' ? 'serious' : state === 'used' ? 'generated' : 'dismissed',
+  stage_label: '',
   project_id: null,
+  note: '',
   prompt: '',
   created_at: '2026-11-15T00:00:00',
 })
@@ -67,6 +70,35 @@ describe('filterIdeas', () => {
     expect(filterIdeas(IDEAS, 'saved').map((i) => i.rank)).toEqual([2])
     expect(filterIdeas(IDEAS, 'used').map((i) => i.rank)).toEqual([5])
     expect(filterIdeas(IDEAS, 'dismissed').map((i) => i.rank)).toEqual([4])
+  })
+})
+
+describe('lifecycle', () => {
+  it('places each stage on the progress line, outcomes on the last step', () => {
+    expect(stepIndex('prospective')).toBe(0)
+    expect(stepIndex('serious')).toBe(1)
+    expect(stepIndex('ready')).toBe(3)
+    expect(stepIndex('published')).toBe(4)
+    expect(stepIndex('big_hit')).toBe(4)
+    expect(stepIndex('dismissed')).toBe(-1)
+    expect(stageOf('small_hit').label).toBe('Small hit')
+  })
+
+  it('filters and searches the bank', () => {
+    const bank = [
+      { ...idea(1, 'own', 'Agents', 'saved'), note: 'ask Sam' },
+      { ...idea(2, 'emerging', 'Agents', 'used'), stage: 'ready' as const },
+      { ...idea(3, 'emerging', 'Agents', 'used'), stage: 'big_hit' as const },
+      idea(4, 'emerging', 'Agents', 'dismissed'),
+    ]
+    const ids = (filter: Parameters<typeof filterBank>[1], search = '') => filterBank(bank, filter, search).map((i) => i.id)
+    expect(ids('serious')).toEqual([1])
+    expect(ids('in_progress')).toEqual([2])
+    expect(ids('published')).toEqual([3])
+    expect(ids('all')).toEqual([1, 2, 3])
+    expect(ids('dismissed')).toEqual([4])
+    expect(ids('all', 'SAM')).toEqual([1])
+    expect(ids('all', 'idea 3')).toEqual([3])
   })
 })
 

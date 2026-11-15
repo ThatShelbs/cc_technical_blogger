@@ -161,7 +161,17 @@ export function ProjectsPage() {
                   {project.title || project.prompt}
                 </Link>
                 <div className="mt-auto flex items-center justify-between pt-2 text-xs text-muted">
-                  <span>as {project.persona_name}</span>
+                  <span>
+                    as {project.persona_name}
+                    {project.idea_id ? (
+                      <>
+                        {' · '}
+                        <Link to="/ideas?tab=bank" className="font-semibold text-accent hover:underline">
+                          From your saved bank
+                        </Link>
+                      </>
+                    ) : null}
+                  </span>
                   <button
                     type="button"
                     className="rounded-md p-1.5 opacity-70 hover:bg-danger-soft hover:text-danger hover:opacity-100"

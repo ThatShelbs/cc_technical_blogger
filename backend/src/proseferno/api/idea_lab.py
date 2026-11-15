@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from collections.abc import Sequence
+
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from proseferno.api.deps import ServicesDep, SessionDep, persona_or_404
 from proseferno.api.projects import create_project
 from proseferno.api.schemas import (
+    IdeaCreate,
     IdeaLabOut,
     IdeaLink,
     IdeaOut,
@@ -21,6 +24,7 @@ from proseferno.api.schemas import (
     IdeaSourceOut,
     IdeaSourcesIn,
     IdeaSourcesOut,
+    IdeaState,
     IdeaTrendOut,
     IdeaUpdate,
     IdeaWriteIn,
@@ -28,8 +32,9 @@ from proseferno.api.schemas import (
     ProjectCreate,
     ProjectCreated,
 )
-from proseferno.db import Idea, IdeaSession, IdeaSignal, IdeaTrend, Persona
+from proseferno.db import Idea, IdeaSession, IdeaSignal, IdeaTrend, Persona, Project
 from proseferno.idealab import BRAINSTORM_JOB, IDEA_JOBS, RESEARCH_JOB, idea_brief
+from proseferno.idealab.lifecycle import BANK_STATES, stage_label, stage_of
 from proseferno.idealab.research import current_trends, is_fresh, load_state, run_research
 from proseferno.idealab.service import approach_label, run_brainstorm
 from proseferno.idealab.sources import (
@@ -59,16 +64,31 @@ def trend_out(trend: IdeaTrend) -> IdeaTrendOut:
     return IdeaTrendOut(**trend.model_dump(exclude={"evidence", "id"}), id=trend.id, evidence=_links(trend.evidence))
 
 
-def idea_out(idea: Idea) -> IdeaOut:
+def idea_out(idea: Idea, project: Project | None = None) -> IdeaOut:
     assert idea.id is not None
+    stage = stage_of(idea, project)
     return IdeaOut(
         **idea.model_dump(exclude={"evidence", "id", "state"}),
         id=idea.id,
         state=idea.state,  # type: ignore[arg-type]
+        stage=stage,  # type: ignore[arg-type]
+        stage_label=stage_label(stage),
+        project_title=project.title if project else None,
         approach_label=approach_label(idea.approach),
         evidence=_links(idea.evidence),
         prompt=idea_brief(idea),
     )
+
+
+def ideas_out(session: Session, ideas: Sequence[Idea]) -> list[IdeaOut]:
+    """Ideas with their stage, reading each linked post once."""
+    ids = [i.project_id for i in ideas if i.project_id is not None]
+    projects = {p.id: p for p in session.exec(select(Project).where(col(Project.id).in_(ids)))} if ids else {}
+    return [idea_out(i, projects.get(i.project_id)) for i in ideas]
+
+
+def _one_out(session: Session, idea: Idea) -> IdeaOut:
+    return ideas_out(session, [idea])[0]
 
 
 def _summary(session: Session, row: IdeaSession, names: dict[int | None, str]) -> dict:  # type: ignore[type-arg]
@@ -90,7 +110,7 @@ def session_out(session: Session, row: IdeaSession) -> IdeaSessionOut:
         sparks=row.sparks,
         notes=list(row.notes or []),
         job_id=row.job_id,
-        items=[idea_out(i) for i in ideas],
+        items=ideas_out(session, ideas),
     )
 
 
@@ -267,11 +287,8 @@ def delete_session(session_id: int, session: SessionDep, services: ServicesDep) 
     row = _session_or_404(session, session_id)
     if row.status == "running" and services.jobs.active_for(kinds=(BRAINSTORM_JOB,)):
         raise HTTPException(409, "This brainstorm is still running.")
-    for idea in session.exec(select(Idea).where(Idea.session_id == session_id)):
-        # Ideas that became posts or were dismissed are kept (hidden with their session) so they are not proposed again.
-        if idea.state in ("new", "saved"):
-            session.delete(idea)
-    session.flush()
+    # The brainstorm leaves the list, but its ideas stay on file: saved ones in the bank, and every other one hidden
+    # with its session so a later brainstorm does not propose it again.
     if session.exec(select(Idea).where(Idea.session_id == session_id)).first() is None:
         session.delete(row)
     else:
@@ -283,9 +300,62 @@ def delete_session(session_id: int, session: SessionDep, services: ServicesDep) 
 # -- ideas ------------------------------------------------------------------------------
 
 
+@router.get("/ideas", response_model=list[IdeaOut])
+def list_ideas(
+    session: SessionDep,
+    persona_id: int | None = None,
+    state: list[IdeaState] = Query(default=list(BANK_STATES)),
+) -> list[IdeaOut]:
+    """The idea bank: ideas across every brainstorm (saved and written by default), newest first."""
+    query = select(Idea).where(col(Idea.state).in_(state))
+    if persona_id is not None:
+        query = query.where(Idea.persona_id == persona_id)
+    return ideas_out(session, session.exec(query.order_by(col(Idea.id).desc()).limit(1000)).all())
+
+
+def _bank_session(session: Session, persona_id: int) -> IdeaSession:
+    """The hidden holder for ideas the author adds by hand (``Idea.session_id`` is required)."""
+    row = session.exec(select(IdeaSession).where(IdeaSession.persona_id == persona_id, IdeaSession.mode == "manual")).first()
+    if row is None:
+        row = IdeaSession(persona_id=persona_id, mode="manual", status="archived")
+        session.add(row)
+        session.flush()
+    return row
+
+
+@router.post("/ideas", response_model=IdeaOut, status_code=201)
+def create_idea(body: IdeaCreate, session: SessionDep) -> IdeaOut:
+    """Add an idea of the author's own straight to the bank, as a serious idea."""
+    if body.persona_id is not None:
+        persona = persona_or_404(session, body.persona_id)
+    else:
+        active = session.exec(select(Persona).where(Persona.is_active == True)).first()  # noqa: E712
+        if active is None:
+            raise HTTPException(422, "Create a persona and turn it on first.")
+        persona = active
+    assert persona.id is not None
+    holder = _bank_session(session, persona.id)
+    assert holder.id is not None
+    idea = Idea(
+        session_id=holder.id,
+        persona_id=persona.id,
+        approach="own",
+        title=" ".join(body.title.split()),
+        brief=body.brief.strip(),
+        angle=body.angle.strip(),
+        outline=[" ".join(point.split()) for point in body.outline if point.strip()],
+        note=body.note.strip(),
+        state="saved",
+    )
+    session.add(idea)
+    session.commit()
+    session.refresh(idea)
+    return idea_out(idea)
+
+
 @router.get("/ideas/{idea_id}", response_model=IdeaOut)
 def get_idea(idea_id: int, session: SessionDep) -> IdeaOut:
-    return idea_out(_idea_or_404(session, idea_id))
+    return _one_out(session, _idea_or_404(session, idea_id))
 
 
 @router.patch("/ideas/{idea_id}", response_model=IdeaOut)
@@ -303,10 +373,12 @@ def update_idea(idea_id: int, body: IdeaUpdate, session: SessionDep) -> IdeaOut:
         idea.angle = body.angle.strip()
     if body.outline is not None:
         idea.outline = [" ".join(point.split()) for point in body.outline if point.strip()]
+    if body.note is not None:
+        idea.note = body.note.strip()
     session.add(idea)
     session.commit()
     session.refresh(idea)
-    return idea_out(idea)
+    return _one_out(session, idea)
 
 
 @router.post("/ideas/{idea_id}/write", response_model=ProjectCreated, status_code=201)

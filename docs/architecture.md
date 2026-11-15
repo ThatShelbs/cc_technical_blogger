@@ -100,7 +100,7 @@ What happens when someone clicks **Write my post**, in the order the code runs:
 6. Still inside `write_post`, the `enrich` hook from `_generate` runs the references pass (`writer/references.py`): plan, web research per reference, one weave call, and code checks that every link and quote came from the search (see [references](references.md)). The AI-detection report (`authenticity/`) then scores the final text.
 7. `_generate` then creates the image rows and `images/service.py` designs and renders each image (Claude writes SVG or Vega-Lite, resvg or vl-convert renders it), crediting the persona and the Claude model. A failed image gets its own `error` status and never fails the post.
 8. The project becomes `ready`, the job finishes, and `ProjectPage.tsx` refetches the post and shows the editor.
-9. Later, the author marks the post Published (`PATCH /api/projects/{id}` with `stage`). `evolution.change_stage` says the edit analysis is due, and `start_analysis` runs it as a job. A Good traction or Viral rating starts the secret-sauce analysis the same way (see [evolution](evolution.md)).
+9. Later, the author marks the post Published (`PATCH /api/projects/{id}` with `stage`). `evolution.change_stage` says the edit analysis is due, and `start_analysis` runs it as a job. A Medium hit or Big hit rating starts the secret-sauce analysis the same way (see [evolution](evolution.md)).
 
 Everything the pipeline needs from Claude goes through `llm/base.py`, which is why the tests and the demo can swap in `demo.FakeLLM`.
 

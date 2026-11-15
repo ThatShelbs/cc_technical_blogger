@@ -146,7 +146,7 @@ describe('InsightsTab', () => {
     expect(screen.getByRole('img', { name: 'Formula flow across 2 posts' })).toBeInTheDocument()
     expect(screen.getByText('Tutorial to Your usual: 2 posts')).toBeInTheDocument()
     expect(screen.getByText('10.2')).toBeInTheDocument()
-    expect(screen.getByText('Good traction · 1')).toBeInTheDocument()
+    expect(screen.getByText('Medium hit · 1')).toBeInTheDocument()
     expect(screen.getByText(/utilize/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Post 2' })).toHaveAttribute('href', '/projects/2')
   })

@@ -38,7 +38,7 @@ describe('StageControl', () => {
   it('rates a published post', async () => {
     const { patched } = setup({ ...PROJECT, stage: 'published', outcome: 'too_early' } as ProjectOut)
     expect(screen.getByRole('button', { name: 'Too early' })).toHaveAttribute('aria-pressed', 'true')
-    await userEvent.click(screen.getByRole('button', { name: 'Viral' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Big hit' }))
     await waitFor(() => expect(patched()).toEqual({ outcome: 'viral' }))
   })
 })

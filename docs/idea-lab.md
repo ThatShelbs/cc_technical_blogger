@@ -9,18 +9,38 @@ Open it from **Idea Lab** in the sidebar (`/ideas`). It has three tabs: **Ideas*
 ## Using it
 
 1. **Brainstorm.** Choose the persona the ideas are for and how many you want: Light (10), Medium (25) or Heavy (50). Under *Steer it* you can say what you want more of, paste your own half-ideas (*sparks*), switch the extra source approaches off, and choose whether to research first.
-2. **Read the board.** Order it by **AI suggestion** (best first), **Themes** or **Source approach**; inside a group the best idea is always first. Save the ones you like, dismiss the ones you do not. Dismissed and written ideas are never proposed again.
+2. **Read the board.** Order it by **AI suggestion** (best first), **Themes** or **Source approach**; inside a group the best idea is always first. Save the ones you like to the **saved bank**, dismiss the ones you do not. No idea already on file (proposed before, saved, written or dismissed) is proposed again.
 3. **Open an idea** to see the outline, the links it came from, and five scores that explain its rank. Edit the title, brief or outline if you want.
 4. **Write it.** Pick the persona to write as, then **Write this post**, **A/B test it**, or **Customize first** (opens *New post* with the brief filled in). The post records which idea it came from.
 
 The first brainstorm runs the research, which takes a few minutes. After that the research is reused for a day unless you ask for a refresh.
+
+## Lifecycle and the saved bank
+
+Every idea has a stage, shown on its card and as a progress line in its dialog:
+
+| Stage | When |
+|---|---|
+| Prospective | Fresh from a brainstorm |
+| Serious | Saved to the bank (or added there by you) |
+| Generated | Written as a post, still a draft |
+| Ready | The post is marked Ready |
+| Published | The post is published (older posts without an outcome) |
+| Too early / Small hit / Medium hit / Big hit | The published post's outcome |
+| Dismissed | Passed on; *Bring back* makes it Prospective again |
+
+Only `Idea.state` (`new|saved|dismissed|used`) is stored. Once an idea is a post, its stage is read from the post's stage and outcome (`idealab/lifecycle.py`), so marking the post on its own page moves the idea along. The post outcomes use the same words (Too early, Small hit, Medium hit, Big hit).
+
+The **Saved bank** tab lists kept ideas from every brainstorm, per persona: *To write* (Serious), *In progress* (Generated, Ready), *Published* (with the outcome), *All kept* and *Dismissed*, with a search over title, brief, note and theme. *Add your own idea* puts one of yours straight in as Serious (approach `own`, kept in a hidden per-persona holder brainstorm). Every idea can carry **your note**, kept through every stage.
+
+Deleting a brainstorm hides it but keeps its ideas: saved ones stay in the bank, and the rest stay on file so later brainstorms do not repeat them. Each brainstorm checks its titles against the persona's last 1,000 ideas in every state plus the portfolio (`too_similar`), and the prompt names the saved, dismissed and most recent earlier ones.
 
 ## Source approaches
 
 | Approach | What it proposes | Works from |
 |---|---|---|
 | **Live and Emerging** | Your take on a release, an industry pattern, or a subject many writers are covering | Trends in the research base |
-| **Portfolio Builder** | The next post for readers of your recent work: sequels, deeper cuts, updates. Posts rated Good or Viral are followed first (tag `sequel`) | The portfolio |
+| **Portfolio Builder** | The next post for readers of your recent work: sequels, deeper cuts, updates. Posts rated Medium hit or Big hit are followed first (tag `sequel`) | The portfolio |
 | **Portfolio Expander** | Ground you have not covered lately: unused topics and article types | The portfolio's measured gaps |
 | **Reader Questions** | The complete answer to something practitioners keep asking | `question` trends |
 | **Counter-take** | Where you would push back on a claim that is spreading | `claim` trends |
@@ -96,7 +116,7 @@ The idea prompt (`prompts/idea_system.md`) holds every idea to this:
 
 ## From idea to post
 
-`POST /api/ideas/{id}/write` builds a brief from the idea (`idea_brief`: title, brief, angle, outline, why now, and the source links), sets the post's article type, and creates the post through the same path as *New post*, as a standard generation or an A/B test. *Customize first* opens *New post* with that brief and passes `idea_id` when you submit. Either way the idea becomes **Written**, links to its post, and `Project.idea_id` records where the post came from. Deleting the post returns the idea to the saved list.
+`POST /api/ideas/{id}/write` builds a brief from the idea (`idea_brief`: title, brief, angle, outline, why now, and the source links), sets the post's article type, and creates the post through the same path as *New post*, as a standard generation or an A/B test. *Customize first* opens *New post* with that brief and passes `idea_id` when you submit. Either way the idea becomes **Written**, links to its post, and `Project.idea_id` records where the post came from. Deleting the post returns the idea to the saved bank as Serious.
 
 The persona's [Insights](insights.md) track record shows how many posts started from each source approach and how many of those did well.
 
@@ -109,8 +129,10 @@ The persona's [Insights](insights.md) track record shows how many posts started 
 | `DELETE /api/idea-lab/trends/{id}` | Remove a trend |
 | `GET` / `PUT /api/idea-lab/sources` | The source setup and each feed's health |
 | `GET` / `POST /api/idea-lab/sessions` | List brainstorms; start one (job `idea_brainstorm`) |
-| `GET` / `DELETE /api/idea-lab/sessions/{id}` | One brainstorm with its ideas; delete it |
-| `GET` / `PATCH /api/ideas/{id}` | One idea; save, dismiss or edit it |
+| `GET` / `DELETE /api/idea-lab/sessions/{id}` | One brainstorm with its ideas; delete (hide) it |
+| `GET /api/ideas` | The saved bank: ideas across brainstorms (`state` repeated, default saved and used; `persona_id`) |
+| `POST /api/ideas` | Add your own idea to the bank |
+| `GET` / `PATCH /api/ideas/{id}` | One idea with its stage; save, dismiss, bring back, edit, or set its note |
 | `POST /api/ideas/{id}/write` | Start a post or an A/B test from it |
 
 Only one Idea Lab job runs at a time. Neither job is reported as a persona's `active_job_id`, and a brainstorm interrupted by a restart is marked failed at startup.
@@ -134,5 +156,5 @@ A full refresh at standard depth is up to nine scouts (four standing beats and u
 Tests and demo mode never go online: `NoSignalCollector` returns canned items and `demo.FakeLLM` returns canned scout findings, digests, ideas and rankings (`idealab/demo_data.py`). The canned content is invented and generic on purpose, so the demo never shows made-up news about a real company.
 
 - `backend/tests/unit/test_idealab.py`: feed parsing, a failing source, the catalog and author changes, the link check, the mix, duplicate removal, selection.
-- `backend/tests/api/test_idea_lab.py`: research, another search, 10/25/50 ideas, reuse of fresh research, sparks, dismissed ideas not returning, editing, writing a post or A/B test from an idea, sources, deleting.
+- `backend/tests/api/test_idea_lab.py`: research, another search, 10/25/50 ideas, reuse of fresh research, sparks, no idea on file returning, editing, writing a post or A/B test from an idea, the lifecycle following the post, the bank, notes, your own ideas, sources, deleting.
 - `frontend/src/lib/ideas.test.ts`, `frontend/src/pages/ideas/IdeaLabPage.test.tsx`, and a step in `frontend/e2e/tour.spec.ts`.

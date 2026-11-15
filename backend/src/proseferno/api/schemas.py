@@ -444,7 +444,7 @@ class ProjectUpdate(BaseModel):
     persona_id: int | None = None
     # Where the post is: draft -> ready -> published. Publishing compares it with the generated text.
     stage: Stage | None = None
-    # How a published post did; Good traction or Viral reads it for its secret sauce.
+    # How a published post did; Medium hit or Big hit reads it for its secret sauce.
     outcome: Outcome | None = None
 
 
@@ -697,6 +697,8 @@ class ProjectSummary(BaseModel):
     thumbnail_url: str | None
     # Status of an A/B test that still needs the author (generating | voting | deciding | error | decided).
     ab_status: str | None = None
+    # The Idea Lab idea the post was written from.
+    idea_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -809,6 +811,8 @@ class ProjectOut(BaseModel):
     edit_rate: float | None
     evolutions: list[EvolutionOut]
     ab_test: ABTestSummary | None = None
+    # The Idea Lab idea the post was written from.
+    idea_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -895,6 +899,9 @@ class FingerprintOut(BaseModel):
 
 IdeaMode = Literal["light", "medium", "heavy"]
 IdeaState = Literal["new", "saved", "dismissed", "used"]
+IdeaStage = Literal[
+    "prospective", "serious", "generated", "ready", "published", "too_early", "small_hit", "medium_hit", "big_hit", "dismissed"
+]
 IdeaExtra = Literal["reader_questions", "counter_take"]
 
 
@@ -1019,7 +1026,13 @@ class IdeaOut(BaseModel):
     score: float
     rank: int
     state: IdeaState
+    # Where the idea is in its life (derived from the state and the post it became): see idealab.lifecycle.
+    stage: IdeaStage
+    stage_label: str
     project_id: int | None
+    # The post's title, once the idea is a post.
+    project_title: str | None = None
+    note: str
     # The idea as a brief for the writer (what "Customize first" opens with).
     prompt: str
     created_at: datetime
@@ -1056,13 +1069,25 @@ class IdeaUpdate(BaseModel):
     brief: str | None = Field(None, max_length=2000)
     angle: str | None = Field(None, max_length=1000)
     outline: list[str] | None = Field(None, max_length=12)
+    note: str | None = Field(None, max_length=2000)
+
+
+class IdeaCreate(BaseModel):
+    """An idea of the author's own, added straight to the bank."""
+
+    persona_id: int | None = None
+    title: str = Field(min_length=3, max_length=200)
+    brief: str = Field("", max_length=2000)
+    angle: str = Field("", max_length=1000)
+    outline: list[str] = Field(default_factory=list, max_length=12)
+    note: str = Field("", max_length=2000)
 
 
 class IdeaSourceCount(BaseModel):
     id: str
     label: str
     count: int
-    # How many of those posts were rated Good or Viral.
+    # How many of those posts were rated Medium hit or Big hit.
     wins: int
 
 

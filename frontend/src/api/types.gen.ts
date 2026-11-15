@@ -319,6 +319,15 @@ export interface Health {
   demo?: boolean;
 }
 
+export interface IdeaCreate {
+  persona_id?: number | null;
+  title: string;
+  brief?: string;
+  angle?: string;
+  outline?: string[];
+  note?: string;
+}
+
 export interface IdeaCustomSourceIn {
   name: string;
   url: string;
@@ -360,7 +369,11 @@ export interface IdeaOut {
   score: number;
   rank: number;
   state: "new" | "saved" | "dismissed" | "used";
+  stage: "prospective" | "serious" | "generated" | "ready" | "published" | "too_early" | "small_hit" | "medium_hit" | "big_hit" | "dismissed";
+  stage_label: string;
   project_id: number | null;
+  project_title?: string | null;
+  note: string;
   prompt: string;
   created_at: string;
 }
@@ -473,6 +486,7 @@ export interface IdeaUpdate {
   brief?: string | null;
   angle?: string | null;
   outline?: string[] | null;
+  note?: string | null;
 }
 
 export interface IdeaWriteIn {
@@ -839,6 +853,7 @@ export interface ProjectOut {
   edit_rate: number | null;
   evolutions: EvolutionOut[];
   ab_test?: ABTestSummary | null;
+  idea_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -854,6 +869,7 @@ export interface ProjectSummary {
   outcome: string | null;
   thumbnail_url: string | null;
   ab_status?: string | null;
+  idea_id?: number | null;
   created_at: string;
   updated_at: string;
 }
