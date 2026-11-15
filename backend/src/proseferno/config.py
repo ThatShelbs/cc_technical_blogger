@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     effort_references: Effort = "medium"
     # Learning from published posts: what the author's edits and their hits say about the persona.
     effort_evolve: Effort = "medium"
+    # Idea Lab: the web search scouts and the digest that groups what they found into trends; writing the ideas;
+    # scoring and theming them.
+    effort_idea_research: Effort = "medium"
+    effort_idea_ideas: Effort = "high"
+    effort_idea_rank: Effort = "medium"
+    # Web searches per scout at standard depth (quick halves it, deep nearly doubles it); several scouts run per refresh.
+    idea_max_searches: int = 8
+    # How many days back the feeds and scouts look.
+    idea_window_days: int = 14
     revision_passes: int = 1
     research_max_searches: int = 8
     # Web searches per reference; each reference is researched on its own.

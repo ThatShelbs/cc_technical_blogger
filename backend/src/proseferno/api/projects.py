@@ -49,7 +49,7 @@ from proseferno.api.schemas import (
     TweakIn,
 )
 from proseferno.authenticity import analyze, author_profile
-from proseferno.db import Persona, PersonaEvolution, Project, ProjectImage, ProjectReference, Sample, utcnow
+from proseferno.db import Idea, Persona, PersonaEvolution, Project, ProjectImage, ProjectReference, Sample, utcnow
 from proseferno.evolution import change_stage, edit_rate, start_analysis
 from proseferno.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from proseferno.images import ImageProviderError, to_png
@@ -371,17 +371,26 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
     assert persona.id is not None
     if body.generate and current_voice_profile(session, persona.id) is None:
         raise HTTPException(422, f"Persona '{persona.name}' has no voice profile yet. Generate it first.")
+    idea = session.get(Idea, body.idea_id) if body.idea_id is not None else None
+    if body.idea_id is not None and idea is None:
+        raise HTTPException(404, "That idea no longer exists.")
     project = Project(
         persona_id=persona.id,
         prompt=body.prompt.strip(),
         dials=body.dials.model_dump(exclude_none=True),
-        title=body.prompt.strip().splitlines()[0][:80],
+        title=(idea.title if idea else body.prompt.strip().splitlines()[0])[:80],
         brand_kit=body.brand_kit.model_dump() if body.brand_kit else {},
+        idea_id=body.idea_id,
     )
     session.add(project)
     session.commit()
     session.refresh(project)
     assert project.id is not None
+    if idea is not None:
+        idea.state = "used"
+        idea.project_id = project.id
+        session.add(idea)
+        session.commit()
     job_id: str | None = None
     if body.generate and body.mode == "ab":
         try:
@@ -438,6 +447,10 @@ async def update_project(project_id: int, body: ProjectUpdate, session: SessionD
 def delete_project(project_id: int, session: SessionDep, services: ServicesDep) -> None:
     project_or_404(session, project_id)
     delete_project_data(session, services.storage, project_id)
+    # The idea it was written from goes back to the saved list.
+    for idea in session.exec(select(Idea).where(Idea.project_id == project_id)):
+        idea.state, idea.project_id = "saved", None
+        session.add(idea)
     session.commit()
 
 

@@ -130,6 +130,7 @@ npm run e2e          # Playwright, against the real backend in demo mode
 - **Baseline**: the text exactly as Proseferno last generated it. Publishing compares your final text with it.
 - **Evolution**: proposals learned from published posts (from your edits, or a hit's secret sauce). You review and apply them.
 - **Playbook**: moves from your best-received posts, fed to every writer call.
+- **Idea Lab**: live research plus the persona's portfolio, turned into ranked ideas with a title, brief and outline that go to the writer in one click (see [idea-lab.md](idea-lab.md)).
 - **Insights**: a persona's tab with a short Claude digest of the voice profile and charts measured from samples and posts (see [insights.md](insights.md)).
 - **Reads-as-human score**: 0-100 AI-detection report (100 reads as human): a scan calibrated to your own samples plus a Claude judge.
 - **Job**: long work that runs in the background and streams progress to the browser over server-sent events (SSE).

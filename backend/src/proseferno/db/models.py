@@ -139,8 +139,106 @@ class Project(SQLModel, table=True):
     # Set only on the two hidden posts of an A/B test (see abtest.service): which test, and control | challenger.
     ab_test_id: int | None = Field(default=None, index=True)
     variant: str | None = None
+    # The Idea Lab idea this post was written from (see idealab), if any.
+    idea_id: int | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class IdeaSignal(SQLModel, table=True):
+    """One item the Idea Lab research found: a feed entry, a discussion, a paper, or a page a web search cited.
+
+    Shared by every persona. Only the title, link, date and a short summary are kept, never the full text.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    source_id: str = Field(index=True)
+    source_name: str = ""
+    # vendor | research | code | community | creator | industry | search
+    group: str = ""
+    url: str = Field(index=True, unique=True)
+    title: str = ""
+    summary: str = Field(default="", sa_column=Column(Text, default=""))
+    author: str = ""
+    published_at: datetime | None = None
+    # Points, stars, upvotes or reactions where the source reports them; 0 otherwise.
+    engagement: int = 0
+    # The author's own search that found it ("send another search"); empty for the standing sources.
+    query: str = ""
+    fetched_at: datetime = Field(default_factory=utcnow)
+
+
+class IdeaTrend(SQLModel, table=True):
+    """Something happening in the field, grouped from signals by the research digest (see idealab.research)."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    # launch | claim | industry_pattern | creator_wave | question
+    kind: str = "launch"
+    label: str = Field(index=True)
+    summary: str = Field(default="", sa_column=Column(Text, default=""))
+    # 1-10: how much attention it is getting right now.
+    heat: int = 5
+    industries: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # [{url, title}]: every link is a collected signal or a search citation.
+    evidence: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    first_seen: datetime = Field(default_factory=utcnow)
+    last_seen: datetime = Field(default_factory=utcnow)
+
+
+class IdeaSession(SQLModel, table=True):
+    """One brainstorm: a set of ideas made for a persona in one run."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    persona_id: int = Field(foreign_key="persona.id", index=True)
+    # light (10 ideas) | medium (25) | heavy (50)
+    mode: str = "light"
+    # How many ideas each source approach was asked for: {approach: count}.
+    mix: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
+    # What the author wants more of this time, and their own half-ideas to develop.
+    focus: str = Field(default="", sa_column=Column(Text, default=""))
+    sparks: str = Field(default="", sa_column=Column(Text, default=""))
+    # running | ready | error
+    status: str = "running"
+    # Things the author should know about the run, e.g. a source approach that had nothing to work from.
+    notes: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    job_id: str | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class Idea(SQLModel, table=True):
+    """A post the author could write next: title, brief and outline, with where it came from and how it ranks."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    session_id: int = Field(foreign_key="ideasession.id", index=True)
+    persona_id: int = Field(index=True)
+    # emerging | builder | expander | reader_questions | counter_take | sparks
+    approach: str
+    theme: str = ""
+    title: str
+    brief: str = Field(default="", sa_column=Column(Text, default=""))
+    # What makes this the author's post and not everyone's.
+    angle: str = Field(default="", sa_column=Column(Text, default=""))
+    outline: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    why_now: str = Field(default="", sa_column=Column(Text, default=""))
+    # this_week | this_month | evergreen
+    shelf_life: str = "evergreen"
+    tags: list[str] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # [{url, title}] taken from the trends the idea rests on.
+    evidence: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
+    # A formula catalog id, or "auto".
+    article_type: str = "auto"
+    # The existing post a builder idea follows on from.
+    builds_on: str = ""
+    # {timeliness, demand, fit, differentiation, effort}, each 1-10, plus the ranker's one-line note.
+    scores: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
+    score: float = 0.0
+    # 1 = the best idea of its session.
+    rank: int = 0
+    # new | saved | dismissed | used
+    state: str = "new"
+    project_id: int | None = None
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class ABTest(SQLModel, table=True):

@@ -176,6 +176,23 @@ function TrackRecord({ track }: { track: TrackRecordOut }) {
             )}
           </div>
         )}
+        {!!track.idea_sources?.length && (
+          <div>
+            <h4 className="mb-1.5 text-sm font-semibold">Posts that started in Idea Lab</h4>
+            <div className="flex flex-wrap gap-2">
+              {track.idea_sources.map((item) => (
+                <Chip key={item.id}>
+                  {item.label}
+                  <span className="text-muted">
+                    {' '}
+                    · {item.count}
+                    {item.wins > 0 && `, ${item.wins} did well`}
+                  </span>
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
         {track.lessons.length > 0 && (
           <div>
             <h4 className="mb-1.5 text-sm font-semibold">What you keep fixing</h4>

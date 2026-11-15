@@ -18,6 +18,7 @@ from proseferno.api.schemas import (
     FormulaFlowOut,
     FormulaLink,
     FormulaNode,
+    IdeaSourceCount,
     InsightsDigestOut,
     InsightsOverview,
     JobOut,
@@ -27,7 +28,8 @@ from proseferno.api.schemas import (
     TrackRecordOut,
     VoiceMixSlice,
 )
-from proseferno.db import Persona, Project, ProjectImage, ProjectReference, Sample, VoiceProfile
+from proseferno.db import Idea, Persona, Project, ProjectImage, ProjectReference, Sample, VoiceProfile
+from proseferno.idealab.ideate import APPROACH_LABELS
 from proseferno.images.memes.formats import get_format
 from proseferno.images.memes.generate import load_state
 from proseferno.ingest.stylometrics import aggregate
@@ -322,4 +324,22 @@ def _track_record(session: Session, persona: Persona, posts: list[Project]) -> T
             for lesson in lessons
         ],
         playbook=len(persona.playbook or []),
+        idea_sources=_idea_sources(session, posts),
     )
+
+
+def _idea_sources(session: Session, posts: list[Project]) -> list[IdeaSourceCount]:
+    """Which Idea Lab source approaches this persona's posts came from, and how many of those posts did well."""
+    from_ideas = [p for p in posts if p.idea_id is not None]
+    if not from_ideas:
+        return []
+    approaches = {i.id: i.approach for i in session.exec(select(Idea).where(col(Idea.id).in_([p.idea_id for p in from_ideas])))}
+    counts: Counter[str] = Counter()
+    wins: Counter[str] = Counter()
+    for post in from_ideas:
+        approach = approaches.get(post.idea_id)
+        if approach is None:
+            continue
+        counts[approach] += 1
+        wins[approach] += post.outcome in ("good", "viral")
+    return [IdeaSourceCount(id=a, label=APPROACH_LABELS.get(a, a), count=n, wins=wins[a]) for a, n in counts.most_common()]

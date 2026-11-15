@@ -10,6 +10,7 @@ from sqlmodel import Session
 
 from proseferno.config import Settings
 from proseferno.db import AppSetting, make_engine
+from proseferno.idealab.collect import HttpSignalCollector, NoSignalCollector, SignalCollector
 from proseferno.images import ImageService
 from proseferno.jobs import JobManager
 from proseferno.llm import LLM
@@ -45,6 +46,8 @@ class Services:
     jobs: JobManager
     # Checks that reference URLs still exist; tests and demo mode trust every link instead of going online.
     links: LinkChecker
+    # Reads the Idea Lab's free feeds; tests and demo mode use canned items instead of going online.
+    signals: SignalCollector
 
     def save_runtime_setting(self, key: str, value: Any) -> None:
         if key not in RUNTIME_SETTINGS:
@@ -73,9 +76,11 @@ def build_services(
     auth: ClaudeAuth | None = None,
     inline_jobs: bool = False,
     links: LinkChecker | None = None,
+    signals: SignalCollector | None = None,
 ) -> Services:
     # Only the real Claude finds real links worth checking; a stand-in LLM (tests, demo mode) never goes online.
     links = links or (HttpLinkChecker() if llm is None and not settings.demo else NoLinkChecker())
+    signals = signals or (HttpSignalCollector() if llm is None and not settings.demo else NoSignalCollector())
     engine = make_engine(settings.db_path)
     load_runtime_settings(engine, settings)
     storage = Storage(settings.data_dir)
@@ -104,4 +109,5 @@ def build_services(
         images=images,
         jobs=jobs,
         links=links,
+        signals=signals,
     )

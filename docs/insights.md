@@ -35,7 +35,7 @@ Versions made by editing the profile by hand or by [persona evolution](evolution
 - **Style fingerprint.** Eight measures from `ingest/stylometrics.py`, averaged over your own samples. The reference is the average of your influence samples ("Writers you read") when you have any. Otherwise it is `TYPICAL_TECH_BLOG`, a set of rough built-in values labeled as approximate. They are a point of comparison, not a target. Each row has its own scale.
 - **Openers and phrases.** How each sample's first sentence opens (`opening_style`), and the recurring and signature phrases, each counted by how many of your posts use it. A phrase contained in a longer one is dropped.
 - **Formula flow.** Each post's article type, opener, body and closer, resolved the same way as when the post was written (`writer.dials.resolve`). A part left automatic shows as "Your usual". A detected article type counts as that type. Band width is the number of posts.
-- **Track record.** Totals, the voice match (`Project.fidelity`) and reads-as-human (`Project.authenticity`) scores per post, outcomes, the closing meme formats used most, and the edits you repeat most (`Persona.edit_lessons`). The trend chart appears from the second scored post.
+- **Track record.** Totals, the voice match (`Project.fidelity`) and reads-as-human (`Project.authenticity`) scores per post, outcomes, the closing meme formats used most, the edits you repeat most (`Persona.edit_lessons`), and how many posts started from each [Idea Lab](idea-lab.md) source approach and how many of those did well. The trend chart appears from the second scored post.
 
 ## Charts in the frontend
 

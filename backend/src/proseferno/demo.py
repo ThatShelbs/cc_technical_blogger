@@ -158,6 +158,15 @@ class FakeLLM:
             words, who = REFERENCE_WORDS.get(name, ("", ""))
             text = f"Found [{title}]({url})." + (f' {who} said "{words}"' if words else "")
             return ResearchResult(text=text, citations=[Citation(url=url, title=title, cited_text=words)])
+        if "\n# Your beat: " in prompt:
+            from proseferno.idealab.demo_data import demo_scout
+
+            if self.delay:
+                await asyncio.sleep(self.delay * 20)
+            if usage:
+                usage({"input_tokens": 500, "output_tokens": 300, "requests": 1})
+            text, pages = demo_scout()
+            return ResearchResult(text=text, citations=[Citation(url=url, title=title) for url, title in pages])
         if prompt.startswith("Find the real numbers for the opening chart"):
             return ResearchResult(
                 text=DEMO_OPENING_RESEARCH,
@@ -433,6 +442,12 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             "summary": "Added a rule to the Lexicon.",
             "edits": [{"item": "c1", "find": "## Lexicon", "replace": "## Lexicon\n\n- Lead with the concrete example, then the rule."}],
         }
+    if name in ("TrendDigest", "IdeaBatch", "IdeaRanking"):
+        from proseferno.idealab import demo_data
+
+        return {"TrendDigest": demo_data.demo_digest, "IdeaBatch": demo_data.demo_batch, "IdeaRanking": demo_data.demo_ranking}[name](
+            prompt
+        )
     raise AssertionError(f"FakeLLM has no payload for {name}")
 
 

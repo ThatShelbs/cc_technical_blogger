@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronsUpDown, FileText, Menu, Moon, Settings, Sun, SunMoon, Users, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronsUpDown, FileText, Lightbulb, Menu, Moon, Settings, Sun, SunMoon, Users, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router'
 
@@ -9,6 +9,7 @@ import { cx } from '../lib/cx'
 
 const NAV = [
   { to: '/', label: 'Posts', icon: FileText, end: true },
+  { to: '/ideas', label: 'Idea Lab', icon: Lightbulb, end: false },
   { to: '/personas', label: 'Personas', icon: Users, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ]

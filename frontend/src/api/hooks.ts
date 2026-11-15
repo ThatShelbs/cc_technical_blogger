@@ -19,6 +19,17 @@ import type {
   FormulaOut,
   GenerateIn,
   Health,
+  IdeaLabOut,
+  IdeaOut,
+  IdeaResearchIn,
+  IdeaSessionCreated,
+  IdeaSessionIn,
+  IdeaSessionOut,
+  IdeaSessionSummary,
+  IdeaSourcesIn,
+  IdeaSourcesOut,
+  IdeaUpdate,
+  IdeaWriteIn,
   ImageOut,
   MemeFormatOut,
   OpeningCatalogOut,
@@ -67,6 +78,11 @@ export const keys = {
   insights: (personaId: number) => ['personas', personaId, 'insights'] as const,
   baselineDiff: (projectId: number) => ['projects', projectId, 'baseline-diff'] as const,
   abTest: (id: number) => ['ab-tests', id] as const,
+  ideaLab: ['idea-lab'] as const,
+  ideaSources: ['idea-sources'] as const,
+  ideaSessions: ['idea-sessions'] as const,
+  ideaSession: (id: number) => ['idea-sessions', id] as const,
+  idea: (id: number) => ['ideas', id] as const,
 }
 
 // -- system --------------------------------------------------------------------
@@ -421,6 +437,72 @@ export function useEvolutionMutations(personaId: number, projectId?: number) {
     forgetPlaybook: useMutation({
       mutationFn: (index?: number) => api.del<PersonaOut>(`/api/personas/${personaId}/playbook${index === undefined ? '' : `?index=${index}`}`),
       onSuccess: refresh,
+    }),
+  }
+}
+
+// -- idea lab ---------------------------------------------------------------------
+
+/** The research base: trends, when it was last refreshed, and any research job in flight. */
+export const useIdeaLab = () => useQuery({ queryKey: keys.ideaLab, queryFn: () => api.get<IdeaLabOut>('/api/idea-lab') })
+
+export const useIdeaSources = (enabled = true) =>
+  useQuery({ queryKey: keys.ideaSources, queryFn: () => api.get<IdeaSourcesOut>('/api/idea-lab/sources'), enabled })
+
+export const useIdeaSessions = () => useQuery({ queryKey: keys.ideaSessions, queryFn: () => api.get<IdeaSessionSummary[]>('/api/idea-lab/sessions') })
+
+export const useIdeaSession = (id: number | null | undefined) =>
+  useQuery({ queryKey: keys.ideaSession(id ?? 0), queryFn: () => api.get<IdeaSessionOut>(`/api/idea-lab/sessions/${id}`), enabled: !!id })
+
+/** One idea, e.g. to prefill a new post from it. */
+export const useIdea = (id: number | null | undefined) =>
+  useQuery({ queryKey: keys.idea(id ?? 0), queryFn: () => api.get<IdeaOut>(`/api/ideas/${id}`), enabled: !!id, retry: false })
+
+export function useIdeaLabMutations() {
+  const qc = useQueryClient()
+  const refreshLab = () => {
+    void qc.invalidateQueries({ queryKey: keys.ideaLab })
+    void qc.invalidateQueries({ queryKey: keys.ideaSources })
+  }
+  const refreshSessions = () => qc.invalidateQueries({ queryKey: keys.ideaSessions })
+  /** Put a changed idea into its cached session so the board updates at once. */
+  const setIdea = (idea: IdeaOut) => {
+    qc.setQueryData(keys.idea(idea.id), idea)
+    qc.setQueryData<IdeaSessionOut>(keys.ideaSession(idea.session_id), (session) =>
+      session ? { ...session, items: session.items.map((item) => (item.id === idea.id ? idea : item)) } : session,
+    )
+  }
+  return {
+    refreshLab,
+    refreshSessions,
+    /** Refresh the whole research base, or with a query add one more search to it. Follow the job with `useJob`. */
+    research: useMutation({ mutationFn: (body: IdeaResearchIn = {}) => api.post<JobOut>('/api/idea-lab/research', body) }),
+    brainstorm: useMutation({
+      mutationFn: (body: IdeaSessionIn) => api.post<IdeaSessionCreated>('/api/idea-lab/sessions', body),
+      onSuccess: (data) => {
+        qc.setQueryData(keys.ideaSession(data.session.id), data.session)
+        void refreshSessions()
+      },
+    }),
+    deleteSession: useMutation({ mutationFn: (id: number) => api.del<void>(`/api/idea-lab/sessions/${id}`), onSuccess: refreshSessions }),
+    deleteTrend: useMutation({ mutationFn: (id: number) => api.del<void>(`/api/idea-lab/trends/${id}`), onSuccess: refreshLab }),
+    saveSources: useMutation({
+      mutationFn: (body: IdeaSourcesIn) => api.put<IdeaSourcesOut>('/api/idea-lab/sources', body),
+      onSuccess: (data) => qc.setQueryData(keys.ideaSources, data),
+    }),
+    updateIdea: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: IdeaUpdate }) => api.patch<IdeaOut>(`/api/ideas/${id}`, body),
+      onSuccess: setIdea,
+    }),
+    /** Start a post (or an A/B test) from the idea. */
+    writeIdea: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: IdeaWriteIn }) => api.post<ProjectCreated>(`/api/ideas/${id}/write`, body),
+      onSuccess: (data, { id }) => {
+        qc.setQueryData(keys.project(data.project.id), data.project)
+        void qc.invalidateQueries({ queryKey: keys.projects })
+        void qc.invalidateQueries({ queryKey: keys.idea(id) })
+        void qc.invalidateQueries({ queryKey: ['idea-sessions'] })
+      },
     }),
   }
 }

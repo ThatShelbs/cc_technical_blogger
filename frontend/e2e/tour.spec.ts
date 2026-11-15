@@ -49,6 +49,52 @@ test('the example persona has insights: a voice digest and charts', async ({ pag
   await expect(page.getByText('Could not build the insights')).toHaveCount(0)
 })
 
+test('idea lab: brainstorm ten ideas, order them three ways, add a search, and write one', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('link', { name: 'Idea Lab' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Idea Lab', exact: true })).toBeVisible()
+  await expect(page.getByText('No ideas yet')).toBeVisible()
+
+  // The first brainstorm researches first, then writes and ranks the ideas.
+  await page.getByRole('button', { name: 'Brainstorm 10 ideas' }).click()
+  await expect(page.getByRole('button', { name: 'Outline & write' })).toHaveCount(10, { timeout: 90_000 })
+
+  await page.getByRole('button', { name: 'Themes', exact: true }).click()
+  await expect(page.locator('section h2').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Source approach', exact: true }).click()
+  await expect(page.getByRole('heading', { name: /Live and Emerging/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Portfolio Builder/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Portfolio Expander/ })).toBeVisible()
+  await shot(page, 'idea-lab', { fullPage: true })
+
+  // The research the ideas came from, and one more search added to it.
+  await page.getByRole('tab', { name: 'Research' }).click()
+  await expect(page).toHaveURL(/tab=research/)
+  await expect(page.getByRole('heading', { name: 'Agent frameworks add built-in evaluation' })).toBeVisible()
+  await page.getByLabel('Send another search').fill('feature stores')
+  await page.getByRole('button', { name: 'Search and add' }).click()
+  await expect(page.getByRole('heading', { name: 'New this week: feature stores' })).toBeVisible({ timeout: 60_000 })
+
+  await page.getByRole('tab', { name: 'Sources' }).click()
+  await expect(page.getByRole('heading', { name: 'People to watch' })).toBeVisible()
+  await expect(page.getByRole('switch', { name: 'Read Towards Data Science' })).toHaveAttribute('aria-checked', 'true')
+
+  // Pick an idea and send it straight to the writer.
+  await page.getByRole('tab', { name: 'Ideas' }).click()
+  await page.getByRole('button', { name: 'Outline & write' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Outline', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'A/B test it' })).toBeVisible()
+  await page.getByRole('button', { name: 'Write this post' }).click()
+  await expect(page).toHaveURL(/\/projects\/\d+/)
+  await expect(page.getByRole('heading', { name: 'Title', exact: true })).toBeVisible({ timeout: 90_000 })
+
+  await page.getByRole('link', { name: 'Idea Lab' }).first().click()
+  // The idea left the "to consider" list and now links to its post.
+  await expect(page.getByRole('button', { name: 'Outline & write' })).toHaveCount(9)
+  await page.getByRole('button', { name: 'Written (1)' }).click()
+  await expect(page.getByRole('link', { name: 'Open the post' })).toBeVisible()
+})
+
 test('with no files of your own: remove the example, use the sample posts, write a post', async ({ page }) => {
   await page.goto('/personas')
   page.once('dialog', (dialog) => dialog.accept())
