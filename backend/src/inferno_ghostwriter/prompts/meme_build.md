@@ -12,7 +12,8 @@ $spec
 </format_spec>
 
 Cast: $cast
-Visual style: $visual_style
+$look
+The author's general visual style (follow it only where it does not conflict with the look): $visual_style
 $brand
 $variation
 

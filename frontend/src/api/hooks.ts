@@ -35,6 +35,7 @@ import type {
   ImageOut,
   InterviewAnswer,
   MemeFormatOut,
+  MemeLookOut,
   OpeningCatalogOut,
   JobOut,
   LinkedInPostOut,
@@ -75,6 +76,7 @@ export const keys = {
   projects: ['projects'] as const,
   project: (id: number) => ['projects', id] as const,
   memeFormats: ['meme-formats'] as const,
+  memeLooks: ['meme-looks'] as const,
   openingStyles: ['opening-styles'] as const,
   formulaCatalog: ['formula-catalog'] as const,
   formulas: ['formulas'] as const,
@@ -569,6 +571,10 @@ export function useIdeaLabMutations() {
 export const useMemeFormats = (enabled = true) =>
   useQuery({ queryKey: keys.memeFormats, queryFn: () => api.get<MemeFormatOut[]>('/api/meme-formats'), staleTime: Infinity, enabled })
 
+/** Every look a meme can be drawn in (the Look menu); it never changes while the app runs. */
+export const useMemeLooks = (enabled = true) =>
+  useQuery({ queryKey: keys.memeLooks, queryFn: () => api.get<MemeLookOut[]>('/api/meme-looks'), staleTime: Infinity, enabled })
+
 const EMPTY_OPENING_CATALOG: OpeningCatalogOut = { styles: [], suggested_by_type: {} }
 
 /** Every way a post can open, and which styles suit each article type; it never changes while the app runs. */
@@ -605,6 +611,7 @@ export function useFormulaMutations() {
 export interface RedrawPicks {
   memeFormat?: string
   memeConcept?: number
+  memeLook?: string
   openingStyle?: string
   openingConcept?: number
 }
@@ -619,6 +626,7 @@ export function useImageMutations(projectId: number) {
           rethink,
           meme_format: picks.memeFormat ?? null,
           meme_concept: picks.memeConcept ?? null,
+          meme_look: picks.memeLook ?? null,
           opening_style: picks.openingStyle ?? null,
           opening_concept: picks.openingConcept ?? null,
         }),

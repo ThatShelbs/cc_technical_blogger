@@ -8,7 +8,7 @@ real people's likenesses or someone else's characters.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 Box = tuple[int, int, int, int]  # x, y, width, height in canvas pixels
 
@@ -21,10 +21,10 @@ FAMILIES = {
 }
 
 CAST = (
-    "The star is the Inferno Ghostwriter ghost: a small, friendly spectral blogger with a soft, rounded teardrop body that fades into "
-    "flowing wisps, two big glowing cream-yellow oval eyes and an expressive face, a translucent body that shades from violet (#4a0c6b) "
-    "through magenta (#a52c60) to orange (#ed6925) and yellow (#f7d13d) at the edges, and wispy hands that can hold things or type. "
-    "Supporting cast: other ghosts in different inferno colors, or simple stylized people (dot eyes, no real likenesses, no logos)."
+    "The star is the Inferno Ghostwriter ghost: a small, friendly spectral blogger (never an evil ghost) with a soft, rounded teardrop "
+    "body that fades into flowing wisps, two big glowing oval eyes and an expressive face, and wispy hands that can hold things or type. "
+    "Its colors and rendering follow this meme's look. Supporting cast: other ghosts in different colors, or simple stylized people "
+    "(dot eyes, no real likenesses, no logos)."
 )
 
 
@@ -116,6 +116,32 @@ def _comic(fid: str, name: str, width: int, height: int, cols: int, rows: int, m
     )
 
 
+def _retold(
+    base: MemeFormat,
+    name: str,
+    when: str,
+    recognizable: str,
+    hints: tuple[str, ...],
+    briefs: tuple[str, ...],
+    optional: tuple[str, ...] = (),
+) -> MemeFormat:
+    """A comic layout re-cast as a famous multi-panel format: same frames and bubbles, its own roles and staging."""
+    return replace(
+        base,
+        name=name,
+        family="classic",
+        when_to_use=when,
+        recognizable=recognizable,
+        slots=tuple(replace(sl, hint=hints[i], optional=sl.name in optional) for i, sl in enumerate(base.slots)),
+        regions=tuple(replace(r, brief=briefs[i]) for i, r in enumerate(base.regions)),
+    )
+
+
+_QUIET_TOP = (
+    " Keep the top 40% of the panel quiet (plain wall or sky) because the speech bubble goes there; the ghosts stand in the lower 60%."
+)
+
+
 def _grid4(fid: str, name: str, family: str, when: str, recognizable: str, brief: str, hints: tuple[str, ...]) -> MemeFormat:
     """Gru's-plan style 2x2 grid: art on the left of each panel, a whiteboard the code draws on the right."""
     panels = _panels(1200, 900, 2, 2, 12)
@@ -161,13 +187,13 @@ FORMATS: tuple[MemeFormat, ...] = (
             ArtRegion(
                 "nope",
                 (0, 0, 540, 540),
-                "Warm yellow background. The bot in an orange puffer jacket, body facing right but head turned away to the left in "
+                "Warm yellow background. The ghost in an orange puffer jacket, body facing right but head turned away to the left in "
                 "disgust, eyes shut, one mitten hand raised palm-out toward the right as if blocking something.",
             ),
             ArtRegion(
                 "yep",
                 (0, 540, 540, 540),
-                "Same yellow background and jacket. The bot now faces right with a smug, delighted smile, one finger pointing "
+                "Same yellow background and jacket. The ghost now faces right with a smug, delighted smile, one finger pointing "
                 "approvingly to the right.",
             ),
         ),
@@ -189,8 +215,8 @@ FORMATS: tuple[MemeFormat, ...] = (
             ArtRegion(
                 "scene",
                 (0, 0, 1200, 800),
-                "Dim basement or warehouse with crates and a single hanging light. Two IDENTICAL copies of the bot (same red-and-blue "
-                "suit pattern, define it once in cast_defs and <use> it twice, mirroring the second with a transform) stand on the "
+                "Dim basement or warehouse with crates and a single hanging light. Two IDENTICAL copies of the ghost (same scarf and "
+                "hat pattern, define it once in cast_defs and <use> it twice, mirroring the second with a transform) stand on the "
                 "left and right thirds, facing each other, each with one arm fully outstretched pointing at the other. Keep the top "
                 "28% and bottom 18% free of detail for labels.",
             ),
@@ -217,8 +243,8 @@ FORMATS: tuple[MemeFormat, ...] = (
                 "scene",
                 (0, 0, 1200, 800),
                 "Sunny city street, soft blurred buildings. Left third: an eye-catching, glamorous ghost walking away to the left, "
-                "glancing back. Center: the bot walking right but twisting around to stare at the left ghost, mouth open, eyebrows "
-                "up. Right third: the bot's partner ghost, holding its arm, glaring at it in outrage. Keep the torso area of each "
+                "glancing back. Center: the ghost walking right but twisting around to stare at the left ghost, mouth open, eyebrows "
+                "up. Right third: the ghost's partner ghost, holding its arm, glaring at it in outrage. Keep the torso area of each "
                 "figure (y 500-700) simple and low-contrast for labels.",
             ),
         ),
@@ -277,7 +303,7 @@ FORMATS: tuple[MemeFormat, ...] = (
                 "scene",
                 (0, 0, 1200, 760),
                 "A cozy room engulfed in stylized orange-yellow flames along the floor and walls, dark smoke under the ceiling. "
-                "The bot sits on the right half at a small wooden table with a coffee mug, a calm, slightly forced smile and "
+                "The ghost sits on the right half at a small wooden table with a coffee mug, a calm, slightly forced smile and "
                 "half-closed eyes, a tiny hat optional. Keep the upper-left quarter as smoke only for the speech bubble.",
             ),
         ),
@@ -306,7 +332,7 @@ FORMATS: tuple[MemeFormat, ...] = (
             ArtRegion(
                 "sweat",
                 (0, 700, 1080, 600),
-                "Close-up of the bot sweating heavily, eyes wide in panic, wiping its forehead with a cloth, plain warm background. "
+                "Close-up of the ghost sweating heavily, eyes wide in panic, wiping its forehead with a cloth, plain warm background. "
                 "Keep the bottom 20% plain for a label.",
             ),
         ),
@@ -334,7 +360,7 @@ FORMATS: tuple[MemeFormat, ...] = (
             ArtRegion(
                 "middle",
                 (540, 280, 320, 300),
-                "The bot crying and sweating with tangled wires sparking from its head, glasses askew.",
+                "The ghost crying and sweating, steam wisps curling off its head, glasses askew, a halo of sticky notes orbiting it.",
                 opaque=False,
             ),
             ArtRegion(
@@ -349,7 +375,7 @@ FORMATS: tuple[MemeFormat, ...] = (
         "A confident plan whose third step hides the fatal flaw, discovered in step four.",
         "A 2x2 grid: the presenter points at a flipchart with steps 1-3; "
         "in panel 4 the board repeats step 3 and the presenter does a double-take.",
-        "The bot stands on the left, confidently pointing at the flipchart on its right, chest out.",
+        "The ghost stands on the left, confidently pointing at the flipchart on its right, chest out.",
         (
             "Step one: sensible.",
             "Step two: sensible.",
@@ -527,6 +553,118 @@ FORMATS: tuple[MemeFormat, ...] = (
             ),
         ),
     ),
+    _retold(
+        _comic("right_right", "", 1080, 1080, 2, 2, 60),
+        "Right? Right? (the 'For the better, right?' format)",
+        "A grand, optimistic claim about data, a model, a tool or a plan ('this dataset answers everything'), where the hopeful "
+        "listener's growing doubt is the joke. A classic for over-promised data sources, silver-bullet tools and 'it will scale' claims.",
+        "Four panels (2x2) of two ghosts in a sunlit meadow: a confident ghost makes a claim; the other smiles hopefully and asks for "
+        "reassurance; the confident ghost just stares blankly; the hopeful ghost's smile fades into a nervous 'Right?'.",
+        (
+            "The confident ghost's grand claim, with real jargon from the post (e.g. 'We can use this dataset to answer everything').",
+            "The hopeful ghost's smiling reply that seeks reassurance (e.g. 'For the better, right?').",
+            "Optional: a silent beat. Leave blank for the classic, or one flat word such as '...'.",
+            "The hopeful ghost again, now nervous, a single word or phrase: 'Right?' (or a sharper twist on it).",
+        ),
+        (
+            "Sunlit green meadow with a pale sky. Two ghosts side by side, the confident one on the left facing right with a calm, "
+            "faintly smug smile and eyes front, the hopeful one on the right turned toward it, beaming with big hopeful eyes." + _QUIET_TOP,
+            "Same meadow. Close-up on the hopeful ghost on the right, bright eyes, a warm, trusting smile, tilting toward the left."
+            + _QUIET_TOP,
+            "Same meadow. Close-up on the confident ghost on the left: totally blank, expressionless stare straight ahead, a tiny "
+            "wisp of wind blowing past, as if it did not hear the question." + _QUIET_TOP,
+            "Same meadow. Close-up on the hopeful ghost: the smile has frozen and tightened, eyes wide and slightly watery, a bead of "
+            "sweat, looking pleadingly at the other." + _QUIET_TOP,
+        ),
+        optional=("p3",),
+    ),
+    MemeFormat(
+        id="always_has_been",
+        name="Always has been (two ghosts in space)",
+        family="classic",
+        when_to_use="A sudden realization that everything is secretly one thing ('wait, it's all just correlations?').",
+        recognizable="Deep space: a shocked ghost gazes at a planet; a calmer ghost floats behind it: Wait, it's all X? Always has been.",
+        size=(1200, 700),
+        groups=(("question", "answer"),),
+        slots=(
+            TextSlot("planet", (70, 420, 440, 170), 40, "outline", "The planet's label: the thing the post says everything reduces to."),
+            TextSlot("question", (520, 24, 640, 170), 60, "bubble", "The shocked ghost: 'Wait, it's all ...?'", bubble=True),
+            TextSlot("answer", (700, 260, 460, 150), 40, "bubble", "The calm ghost: 'Always has been.' (or a sharper twist).", bubble=True),
+        ),
+        regions=(
+            ArtRegion(
+                "scene",
+                (0, 0, 1200, 700),
+                "Deep space with stars and a soft nebula. A big planet fills the bottom-left corner (keep its middle, x 70-510 and "
+                "y 420-590, plain and calm for a label). On the right, in the lower half, two ghosts float: the front one turned left "
+                "toward the planet with huge shocked eyes and an open mouth; the second ghost floats just behind it, facing the same "
+                "way with a serene, knowing half-smile. Keep the top-right free for two speech bubbles.",
+            ),
+        ),
+    ),
+    MemeFormat(
+        id="change_my_mind",
+        name="Change my mind (the table and the sign)",
+        family="classic",
+        when_to_use="A confident, slightly provocative opinion a practitioner would defend at a table (a hot take about the post's topic).",
+        recognizable="A ghost sits calmly at a small table with a mug and a big sign on the front reading a hot take.",
+        size=(1200, 800),
+        slots=(
+            TextSlot("sign", (360, 490, 500, 190), 80, "dark", "The hot take written on the sign."),
+            TextSlot("caption", (40, 700, 1120, 80), 30, "outline", "Optional line under the table, e.g. 'Change my mind.'", optional=True),
+        ),
+        regions=(
+            ArtRegion(
+                "scene",
+                (0, 0, 1200, 800),
+                "A sunny campus lawn with soft trees. A small folding table in the middle holds a steaming mug; the ghost sits "
+                "behind it, relaxed and serene, one wisp hand around the mug. A big blank WHITE sign board hangs on the front of the "
+                "table, facing the viewer, covering x 340-880 and y 470-690: leave it perfectly plain and white for the text. Keep "
+                "the top 14% and the bottom 10% quiet.",
+            ),
+        ),
+    ),
+    _retold(
+        _comic("shocked_strip", "", 1500, 560, 3, 1, 70),
+        "Shocked ghost strip (the 'surprised face' format)",
+        "A predictable consequence of an obvious decision, followed by a shocked reaction ('we skipped the tests' ... 'bugs in prod?!').",
+        "Three panels: the setup (what the team did), the obvious consequence, then a close-up of a ghost frozen in wide-eyed surprise.",
+        (
+            "The setup: the choice that was made, in real jargon from the post.",
+            "The predictable consequence, stated flatly.",
+            "Optional: the shocked ghost's one-word reaction. Leave blank for the classic silent stare.",
+        ),
+        (
+            "A plain office or desk scene; a ghost proudly making the questionable choice, with a thumbs-up." + _QUIET_TOP,
+            "The same scene going quietly wrong: warning lights, a stack of alerts, the ghost not noticing." + _QUIET_TOP,
+            "Extreme close-up of the ghost against a flat pastel color: jaw dropped, eyes enormous and round, a shocked gasp." + _QUIET_TOP,
+        ),
+        optional=("p3",),
+    ),
+    MemeFormat(
+        id="is_this_a",
+        name="Is this a...? (the misidentification format)",
+        family="classic",
+        when_to_use="Someone confidently mislabels something (a vanity metric as insight, a chatbot as an agent).",
+        recognizable="A ghost gestures at a glowing butterfly-like thing, with a label on each and a bottom caption asking 'Is this ...?'.",
+        size=(1200, 800),
+        groups=(("person", "thing"),),
+        slots=(
+            TextSlot("person", (60, 380, 380, 160), 36, "outline", "Label on the ghost: who is misjudging (the team, the exec, me)."),
+            TextSlot("thing", (760, 120, 380, 150), 36, "outline", "Label on the glowing thing: what it actually is."),
+            TextSlot("question", (40, 640, 1120, 130), 60, "impact", "The bottom caption: 'Is this ...?' naming the wrong thing."),
+        ),
+        regions=(
+            ArtRegion(
+                "scene",
+                (0, 0, 1200, 800),
+                "A soft garden at dusk. On the left, the ghost stands in a relaxed pose with a wisp hand lifted toward the right, "
+                "head tilted in innocent curiosity. On the right a glowing, butterfly-like creature hovers over a flower. Keep the "
+                "ghost's body (x 60-440, y 380-540) and the area above the creature (x 760-1140, y 120-270) plain for labels, and the "
+                "bottom 22% quiet.",
+            ),
+        ),
+    ),
     MemeFormat(
         id="classic_caption",
         name="Classic caption meme",
@@ -542,7 +680,7 @@ FORMATS: tuple[MemeFormat, ...] = (
             ArtRegion(
                 "scene",
                 (0, 0, 1080, 1080),
-                "One expressive cartoon scene (the bot or an object reacting) that sets up the joke. Keep the top 18% and bottom 22% "
+                "One expressive cartoon scene (the ghost or an object reacting) that sets up the joke. Keep the top 18% and bottom 22% "
                 "visually quiet (plain background) because the captions go there. No words in the art.",
             ),
         ),

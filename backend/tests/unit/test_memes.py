@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import random
+import re
 from typing import Any
 
 import pytest
@@ -12,11 +14,17 @@ from inferno_ghostwriter.config import Settings
 from inferno_ghostwriter.demo import DEMO_MEME_TEXTS, FakeLLM, meme_build_payload, meme_ideas_payload
 from inferno_ghostwriter.images import ImageProviderError
 from inferno_ghostwriter.images.memes import FORMATS, ArtDirection, MemeContext, MemeMaker, get_format, load_state, plan_callbacks
-from inferno_ghostwriter.images.memes.compose import compose, region_svg
-from inferno_ghostwriter.images.memes.formats import ArtRegion, build_spec, menu
-from inferno_ghostwriter.images.memes.generate import clip_post
-from inferno_ghostwriter.images.memes.specs import MemeBuild
+from inferno_ghostwriter.images.memes.compose import MASCOT_SCENE, compose, region_svg
+from inferno_ghostwriter.images.memes.formats import CAST, ArtRegion, build_spec, menu
+from inferno_ghostwriter.images.memes.generate import clip_post, render_build
+from inferno_ghostwriter.images.memes.looks import BY_ID as BY_LOOK
+from inferno_ghostwriter.images.memes.looks import LOOKS, choose_look, get_look, themed
+from inferno_ghostwriter.images.memes.looks import menu as looks_menu
+from inferno_ghostwriter.images.memes.specs import MemeBuild, MemeReview, MemeVerdict
 from inferno_ghostwriter.images.memes.text import STYLES, fit_text
+from inferno_ghostwriter.llm import LLMError
+from inferno_ghostwriter.llm.base import LLMImagesUnsupportedError
+from inferno_ghostwriter.prompts import raw
 
 POST = MemeContext(title="Pie Charts Are Lame", markdown="# Pie Charts Are Lame\n\nUse bars.", voice_profile="", brief="Closing laugh")
 ART = ArtDirection(visual_style="flat vector")
@@ -39,7 +47,7 @@ def test_every_format_renders(fmt: Any) -> None:
 
 
 def test_catalog_is_consistent() -> None:
-    assert len(FORMATS) == 18 and len({f.id for f in FORMATS}) == 18
+    assert len(FORMATS) == 23 and len({f.id for f in FORMATS}) == 23
     for fmt in FORMATS:
         names = [s.name for s in fmt.slots]
         assert len(names) == len(set(names)), fmt.id
@@ -60,8 +68,8 @@ def test_text_is_fitted_inside_its_box() -> None:
 
 def test_region_ids_are_made_unique_and_scripts_never_survive() -> None:
     region = ArtRegion("p1", (0, 0, 100, 100), "")
-    svg = region_svg(region, '<defs><linearGradient id="g"/></defs><rect fill="url(#g)"/><use href="#bot"/><script>x()</script>')
-    assert 'id="r-p1-g"' in svg and "url(#r-p1-g)" in svg and 'href="#bot"' in svg
+    svg = region_svg(region, '<defs><linearGradient id="g"/></defs><rect fill="url(#g)"/><use href="#ghost"/><script>x()</script>')
+    assert 'id="r-p1-g"' in svg and "url(#r-p1-g)" in svg and 'href="#ghost"' in svg
     png, _, _ = render(
         "classic_caption", art=[{"region": "scene", "svg": '<rect width="10" height="10" onclick="x()"/><script>alert(1)</script>'}]
     )
@@ -120,7 +128,7 @@ async def test_a_format_with_no_art_is_drawn_from_the_pitch_alone() -> None:
     llm = FakeLLM()
     maker = MemeMaker(llm, Settings())
     first = await maker.make("", POST, ART, meme_format="joke_pie_3d")
-    assert llm.tasks() == ["meme ideas"]
+    assert llm.tasks() == ["meme ideas", "meme panel"]
     state = load_state(first.spec)
     assert state and state["format"] == "joke_pie_3d" and first.caption == "Pie logic (data: entirely made up)"
     assert "What pie charts are good for" in first.alt and "Showing two slices: 6" in first.alt
@@ -128,7 +136,7 @@ async def test_a_format_with_no_art_is_drawn_from_the_pitch_alone() -> None:
     # Another pitch in the same art-free format, and a redraw: still no call to Claude.
     await maker.make(first.spec, POST, ART, rethink=True)
     await maker.make(first.spec, POST, ART, redraw=True)
-    assert llm.tasks() == ["meme ideas"]
+    assert llm.tasks() == ["meme ideas", "meme panel"]
 
     # A pitch saved before pitches carried chart data cannot be drawn directly, so production is asked.
     old = json.loads(first.spec)
@@ -240,3 +248,174 @@ async def test_editing_a_meme_keeps_its_format_and_joke() -> None:
     assert "Make the last line angrier" in llm.calls[-1]["prompt"] and "meme edit (terminal)" in llm.tasks()
     with pytest.raises(ImageProviderError):
         await maker.edit(json.dumps({"svg": "<svg/>", "top": "a", "bottom": "b"}), "Bigger", ART)
+
+
+# -- Looks, the panel, the render review and the classic formats ------------------------------------------
+
+
+def test_looks_catalog_is_consistent_and_templates_follow_the_look() -> None:
+    assert len(LOOKS) >= 10 and len({look.id for look in LOOKS}) == len(LOOKS)
+    hexa = re.compile(r"^#[0-9a-fA-F]{6}$")
+    for look in LOOKS:
+        colors = [*look.palette, look.theme.dark, look.theme.paper, look.theme.ink, *look.theme.accents, *look.theme.bands]
+        assert all(hexa.match(c) for c in colors), look.id
+        assert len(look.theme.accents) == 6 and look.art and look.cast and look.suits
+        assert f"`{look.id}`" in looks_menu()
+    # The comic gutters, chat header, charts and alignment bands follow the theme, so every look paints differently.
+    for fmt_id in ("comic_strip_3", "chat_thread", "joke_pie_3d", "alignment_chart", "midwit_bell_curve", "spurious_correlation"):
+        fmt = get_format(fmt_id)
+        assert fmt is not None
+        build = MemeBuild.model_validate(meme_build_payload(fmt_id))
+        args = (fmt, {t.slot: t for t in build.texts}, {a.region: a.svg for a in build.art}, build.cast_defs, build.data)
+        assert len({compose(*args, theme=look.theme)[0] for look in LOOKS}) >= 8, fmt_id
+
+
+def test_every_format_renders_in_every_look() -> None:
+    for fmt in FORMATS:
+        build = MemeBuild.model_validate(meme_build_payload(fmt.id))
+        for look in LOOKS[::3]:
+            png, _, _ = render_build(fmt, build, (), look)
+            assert png.startswith(b"\x89PNG"), (fmt.id, look.id)
+
+
+def test_choose_look_honors_the_pick_avoids_recent_looks_and_lets_a_brand_palette_override() -> None:
+    assert choose_look("kawaii", "soft_3d", ("kawaii",)).id == "kawaii"
+    assert choose_look(None, "soft_3d", ("kawaii",)).id == "soft_3d"
+    assert choose_look(None, "soft_3d", ("soft_3d", "kawaii")).id != "soft_3d"
+    assert choose_look(None, "nonsense", ()).id in BY_LOOK
+    rng = random.Random(7)
+    seen = {choose_look(None, None, ("kawaii", "soft_3d"), rng=rng).id for _ in range(60)}
+    assert len(seen) > 5 and not seen & {"kawaii", "soft_3d"}
+    assert choose_look(None, None, (), avoid=("kawaii",), rng=rng).id != "kawaii"
+    assert get_look("never-heard-of-it").id == "inferno_flat" and get_look(None).id == "inferno_flat"
+    brand = themed(get_look("kawaii"), ("#003366", "#00aa88", "#ffcc00"))
+    assert brand.accents[0] == "#003366" and brand.dark == get_look("kawaii").theme.dark
+
+
+def test_the_prompts_never_describe_the_old_robot_mascot() -> None:
+    texts = [menu(), "\n".join(build_spec(f) for f in FORMATS), CAST, raw("meme_system"), raw("meme_build"), raw("meme_ideas")]
+    for text in texts:
+        assert not re.search(r"\bbot\b|robot", text, re.IGNORECASE)
+    assert "robot" in get_look("inferno_robots").cast.lower()  # the one look that offers robots, on purpose
+    assert "ghost" in CAST and MASCOT_SCENE.strip()
+
+
+def test_the_classic_right_right_format_and_other_new_classics_are_offered() -> None:
+    for fmt_id in ("right_right", "always_has_been", "change_my_mind", "shocked_strip", "is_this_a"):
+        fmt = get_format(fmt_id)
+        assert fmt is not None and fmt.family == "classic" and f"`{fmt_id}`" in menu()
+    right = get_format("right_right")
+    assert right is not None and len(right.slots) == 4 and "Right?" in right.recognizable + right.slots[3].hint
+    p3 = right.slot("p3")
+    assert p3 is not None and p3.optional
+
+
+async def test_a_meme_is_judged_by_a_panel_looked_at_and_gets_a_look() -> None:
+    llm = FakeLLM()
+    maker = MemeMaker(llm, Settings())
+    first = await maker.make("", POST, ART, meme_format="nope_yep")
+    state = load_state(first.spec)
+    assert state and state["look"] and len(state["panel"]["scores"]) == 5
+    assert llm.tasks()[:2] == ["meme ideas", "meme panel"]
+    assert "meme review" in llm.tasks() and state["review"]["verdict"] == "passed"
+    # An art-free format has nothing to review.
+    llm2 = FakeLLM()
+    free = await MemeMaker(llm2, Settings()).make("", POST, ART, meme_format="terminal")
+    assert "meme review" not in llm2.tasks() and "review" not in (load_state(free.spec) or {})
+    # The author's pick sticks, and a redraw moves to a different look.
+    picked = await maker.make(first.spec, POST, ART, redraw=True, look="kawaii")
+    assert (load_state(picked.spec) or {})["look"] == "kawaii"
+    again = await maker.make(picked.spec, POST, ART, redraw=True)
+    assert (load_state(again.spec) or {})["look"] != "kawaii"
+    # Retyping the words keeps the look and calls no model.
+    before = len(llm.calls)
+    worded = maker.reword(again.spec, {"nope": "Short"}, ART)
+    assert (load_state(worded.spec) or {})["look"] == (load_state(again.spec) or {})["look"] and len(llm.calls) == before
+
+
+class PanelLLM(FakeLLM):
+    """The panel prefers the third pitch, rules out the first, and may offer new words for the winner."""
+
+    def __init__(self, punch: list[dict[str, str]] | None = None, fail: bool = False) -> None:
+        super().__init__()
+        self.punch, self.fail = punch, fail
+
+    async def structured(self, *, task: str, schema: type[BaseModel], **kwargs: Any) -> Any:
+        if schema is MemeVerdict:
+            self.calls.append({"kind": "structured", "task": task, "prompt": kwargs.get("prompt", "")})
+            if self.fail:
+                raise LLMError("panel down")
+            scores = [
+                {
+                    "concept": i,
+                    "feed_reader": 9 if i == 2 else 5,
+                    "comedy_editor": 6,
+                    "author": 6,
+                    "gets_it": 2 if i == 0 else 8,
+                    "note": "n",
+                }
+                for i in range(5)
+            ]
+            return MemeVerdict.model_validate({"scores": scores, "chosen": 2, "punch_up": self.punch or [], "summary": "Third is best."})
+        return await super().structured(task=task, schema=schema, **kwargs)
+
+
+async def test_the_panel_overrides_the_writers_choice_and_its_punch_up_is_applied_only_within_limits() -> None:
+    result = await MemeMaker(PanelLLM(), Settings()).make("", POST, ART, meme_format="venn")
+    state = load_state(result.spec)
+    assert state and state["chosen"] == 2 and state["panel"]["scores"][0] < 0 and state["why"] == "Third is best."
+
+    words = {**DEMO_MEME_TEXTS["venn"], "center": "Pizza, again"}
+    ok = [{"slot": s, "text": t, "speaker": ""} for s, t in words.items()]
+    sharp = await MemeMaker(PanelLLM(punch=ok), Settings()).make("", POST, ART, meme_format="venn")
+    sharp_state = load_state(sharp.spec)
+    assert sharp_state and sharp_state["panel"]["punched_up"] and "Pizza, again" in sharp.alt
+    too_long = [{**t, "text": "x" * 300} for t in ok]
+    unchanged = load_state((await MemeMaker(PanelLLM(punch=too_long), Settings()).make("", POST, ART, meme_format="venn")).spec)
+    assert unchanged and not unchanged["panel"]["punched_up"]
+
+
+async def test_a_failing_panel_falls_back_to_the_writers_own_scores() -> None:
+    result = await MemeMaker(PanelLLM(fail=True), Settings()).make("", POST, ART, meme_format="nope_yep")
+    state = load_state(result.spec)
+    assert state and state["chosen"] == 0 and "panel" not in state and result.png.startswith(b"\x89PNG")
+
+
+class ReviewLLM(FakeLLM):
+    def __init__(self, reviews: list[dict[str, Any]], unsupported: bool = False) -> None:
+        super().__init__()
+        self.reviews, self.unsupported = list(reviews), unsupported
+
+    async def structured(self, *, task: str, schema: type[BaseModel], **kwargs: Any) -> Any:
+        if schema is MemeReview:
+            self.calls.append({"kind": "structured", "task": task, "prompt": kwargs.get("prompt", ""), "images": kwargs.get("images")})
+            if self.unsupported:
+                raise LLMImagesUnsupportedError()
+            return MemeReview.model_validate(self.reviews.pop(0))
+        return await super().structured(task=task, schema=schema, **kwargs)
+
+
+BAD = {"passes": False, "funny": 3, "craft": 3, "problems": ["The ghost covers the label"], "fix": "Move the ghost left"}
+GOOD = {"passes": True, "funny": 8, "craft": 8, "problems": [], "fix": ""}
+
+
+async def test_a_meme_that_reads_badly_is_redrawn_once_and_the_better_one_is_kept() -> None:
+    llm = ReviewLLM([BAD, GOOD])
+    result = await MemeMaker(llm, Settings()).make("", POST, ART, meme_format="nope_yep")
+    assert llm.tasks().count("meme review") == 2 and llm.tasks().count("meme edit (nope_yep)") == 1
+    assert "Move the ghost left" in next(c for c in llm.calls if c["task"] == "meme edit (nope_yep)")["prompt"]
+    assert (load_state(result.spec) or {})["review"]["verdict"] == "redrawn"
+    assert all(c["images"] for c in llm.calls if c["task"] == "meme review")
+
+    worse = ReviewLLM([BAD, {**BAD, "funny": 1, "craft": 1}])
+    kept = await MemeMaker(worse, Settings()).make("", POST, ART, meme_format="nope_yep")
+    assert worse.tasks().count("meme edit (nope_yep)") == 1 and (load_state(kept.spec) or {})["review"]["verdict"] == "kept"
+
+
+async def test_the_review_is_skipped_when_images_cannot_be_sent_or_when_asked() -> None:
+    llm = ReviewLLM([], unsupported=True)
+    result = await MemeMaker(llm, Settings()).make("", POST, ART, meme_format="nope_yep")
+    assert (load_state(result.spec) or {})["review"]["skipped"] is True and "meme edit (nope_yep)" not in llm.tasks()
+    off = FakeLLM()
+    await MemeMaker(off, Settings()).make("", POST, ART, meme_format="nope_yep", review=False)
+    assert "meme review" not in off.tasks()

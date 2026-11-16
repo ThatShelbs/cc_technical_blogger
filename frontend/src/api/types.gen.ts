@@ -622,6 +622,16 @@ export interface MemeInfoOut {
   fallback_from: string;
   pitches: MemePitchOut[];
   slots: MemeSlotOut[];
+  look?: string;
+  look_label?: string;
+  review_verdict?: string;
+}
+
+export interface MemeLookOut {
+  id: string;
+  label: string;
+  description: string;
+  swatch: string[];
 }
 
 export interface MemePitchOut {
@@ -632,6 +642,7 @@ export interface MemePitchOut {
   words: string[];
   tried: boolean;
   current: boolean;
+  panel_score?: number | null;
 }
 
 export interface MemeSlotOut {
@@ -914,6 +925,7 @@ export interface RedrawIn {
   rethink?: boolean;
   meme_format?: string | null;
   meme_concept?: number | null;
+  meme_look?: string | null;
   opening_style?: string | null;
   opening_concept?: number | null;
 }

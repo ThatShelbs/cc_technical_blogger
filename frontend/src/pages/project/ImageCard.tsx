@@ -3,7 +3,7 @@ import { Dices, History, ImagePlus, Lightbulb, PencilLine, Type, Wand2 } from 'l
 import { useRef, useState } from 'react'
 
 import { errorText } from '../../api/client'
-import { keys, useImageMutations, useMemeFormats, useOpeningStyles, type RedrawPicks } from '../../api/hooks'
+import { keys, useImageMutations, useMemeFormats, useMemeLooks, useOpeningStyles, type RedrawPicks } from '../../api/hooks'
 import type { ImageOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
 import { fullCaption } from '../../lib/article'
@@ -58,6 +58,7 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
   const opening = image.kind === 'hero' ? image.opening : null
   const isMeme = image.kind === 'meme' || !!(opening && image.meme)
   const memeFormats = useMemeFormats(isMeme)
+  const memeLooks = useMemeLooks(isMeme)
   const { data: openingCatalog } = useOpeningStyles()
   const [ideasOpen, setIdeasOpen] = useState(false)
   const [memeIdeasOpen, setMemeIdeasOpen] = useState(false)
@@ -302,6 +303,8 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           onClose={() => setMemeIdeasOpen(false)}
           meme={image.meme}
           formats={memeFormats.data ?? []}
+          looks={memeLooks.data ?? []}
+          onLook={(id) => redraw(false, { memeLook: id })}
           onPick={(index) => redraw(false, { memeConcept: index })}
           onNext={() => redraw(true)}
           onFormat={(id) => redraw(false, { memeFormat: id })}

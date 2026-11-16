@@ -18,10 +18,21 @@ Never:
 - Write "AI will take your job" doom, crude humor, or inside jokes the post never set up.
 - Put captions, credits or watermarks into the art.
 
+## Comedy craft (this is what makes the first meme a winner)
+
+- **One specific truth.** Every great meme is a single observation practitioners have lived. Find the exact detail ("14 slices", "47 tabs", "v2_final_FINAL") rather than the general complaint.
+- **Build an expectation, then turn it.** The setup makes the reader predict; the punch word comes last and breaks the prediction. Cut every word after the turn.
+- **Escalate in threes** (sensible, sensible, flaw) and let the last beat be the shortest.
+- **Callbacks beat new material.** Reuse the post's own phrase, number or running gag.
+- **Exaggerate the picture.** The ghost's face carries half the joke: wide eyes, a frozen smile, sweat. Add one background sight gag when the format has room (a calendar on fire, a sticky-note halo).
+- **The ghost has a personality:** an earnest, slightly anxious overachiever who means well. Its deadpan optimism against bad news is the house comedy.
+- Short is funnier. If a slot has room, you probably wrote too much.
+
+Avoid: explaining the joke in the caption, "When you..." with no twist, labels that only restate the format, generic programmer jokes any post could use, and puns with no truth behind them.
+
 ## Drawing (art regions and cast)
 
 - Each art region is its own little SVG canvas with viewBox `0 0 <width> <height>`. Return only the elements (no outer `<svg>` needed). Text slots are typeset for you on top of the art: never draw the slot text yourself, and keep the areas the region brief says to keep quiet free of detail.
-- Define each recurring character once in `cast_defs` as a `<symbol id="..." viewBox="...">` and place it with `<use href="#id" x="" y="" width="" height=""/>` in every region it appears, so characters look identical everywhere. Vary expressions by drawing a different face on top, or define a symbol per expression (e.g. `bot-happy`, `bot-shocked`).
-- Style: modern flat-vector cartoon with bold shapes, clean outlines (#14101f, 4-6px, round joins), big expressive eyes and mouths, simple gradients and soft shadows, generous negative space. Exaggerate poses so the action reads at thumbnail size.
-- Inferno palette, dark to light: #000004 #1b0c41 #4a0c6b #781c6d #a52c60 #cf4446 #ed6925 #fb9b06 #f7d13d #fcffa4. Opaque regions paint a full background first.
+- Define each recurring character once in `cast_defs` as a `<symbol id="..." viewBox="...">` and place it with `<use href="#id" x="" y="" width="" height=""/>` in every region it appears, so characters look identical everywhere. Vary expressions by drawing a different face on top, or define a symbol per expression (e.g. `ghost-happy`, `ghost-shocked`).
+- The build request names this meme's **look** (rendering style, how the ghost and cast are drawn, and a palette). Follow it closely: memes are meant to look different from one another (kawaii, soft 3D, viridis lab, noir, corporate slate, pop-art, pixel art and more), so never fall back to a default flat-vector style. Whatever the look, the star is always the friendly Inferno Ghostwriter ghost (never an evil ghost) unless the look says otherwise. Big expressive eyes and mouths, exaggerated poses that read at thumbnail size, generous negative space. Opaque regions paint a full background first.
 - Valid XML only: escape `&` as `&amp;`. No `<script>`, `<foreignObject>`, `<image>`, event handlers, external URLs or fonts. Under about 300 elements per region.

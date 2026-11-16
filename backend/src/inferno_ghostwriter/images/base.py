@@ -48,3 +48,14 @@ async def draw_with_retry[D, R](ask: Callable[[str], Awaitable[D]], draw: Callab
                 raise
             note = retry_note(str(exc))
     raise ImageProviderError("No attempts were made.")  # unreachable: tries >= 1
+
+
+def thumbnail_png(png: bytes, width: int = 800) -> bytes:
+    """A smaller copy for a reviewer: cheaper to send, and closer to how a feed shows it."""
+    with Image.open(io.BytesIO(png)) as source:
+        img = source.convert("RGB")
+    if img.width > width:
+        img = img.resize((width, round(img.height * width / img.width)), Image.Resampling.LANCZOS)
+    out = io.BytesIO()
+    img.save(out, format="PNG", optimize=True)
+    return out.getvalue()

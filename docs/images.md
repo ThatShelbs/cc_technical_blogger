@@ -12,7 +12,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
 | **chart** | Data visualization (real numbers from the post, or labeled illustrative data) | Claude Vega-Lite spec with inline data |
 | **screenshot** | The post shows what a screen looks like (an app page, settings, a chat, an editor, a terminal) | Claude SVG: a faithful mock of that screen with the post's real content; **Replace** it with a real capture if you have one |
-| **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Inferno Ghostwriter owns layout and type ([below](#closing-memes)) |
+| **meme** | The closing joke | One of 23 meme formats: Claude writes the joke and draws the art, Inferno Ghostwriter owns layout and type ([below](#closing-memes)) |
 
 Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the opening image (as wide as 5:2), so it keeps everything that matters in the middle band. The opening image has its own pitch, panel and review; see [Opening images](opening-images.md).
 
@@ -47,11 +47,11 @@ The meme is the last thing a reader sees and the thing they share, so it gets it
 2. **Production** (`prompts/meme_build.md`), only for formats with art. Claude draws SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel) and may tighten the words. Missing pieces or overlong text get one retry with the problems quoted back. The seven formats with no art (chat, terminal, Nutrition Facts, alignment chart, pie, spurious correlation, Venn) skip this call: they are composed straight from the pitch.
 3. **Composer** (`compose.py`). Code draws the layout, panel frames, speech bubbles, charts and chrome, places Claude's art in its regions (sanitized, ids made unique), and typesets every string with Pillow: each one is sized to the largest font that fits its box, parallel slots (rows, cells, panels) share one size, and words are only broken when nothing else fits. Text cannot overflow.
 
-If a build still cannot be drawn, the meme becomes the best other pitch in a format with no art (which cannot fail), so the reader still gets a whole joke. Only when there is none (for example, the author asked for one format) does it fall back to a classic top/bottom caption meme over the Inferno Ghostwriter robot. Either way the card says which format could not be drawn (`fallback_from` in the meme's state).
+If a build still cannot be drawn, the meme becomes the best other pitch in a format with no art (which cannot fail), so the reader still gets a whole joke. Only when there is none (for example, the author asked for one format) does it fall back to a classic top/bottom caption meme over the Inferno Ghostwriter ghost at its laptop. Either way the card says which format could not be drawn (`fallback_from` in the meme's state).
 
 | Family | Formats |
 | --- | --- |
-| Famous formats, recast with our ghost (no real people or characters) | Nope / Yep (Drake), pointing twins, distracted ghost, expanding brain, This is fine, two buttons, midwit bell curve, four-step plan (Gru) |
+| Famous formats, recast with our ghost (no real people or characters) | Nope / Yep (Drake), pointing twins, distracted ghost, expanding brain, This is fine, two buttons, midwit bell curve, four-step plan (Gru), **Right? Right?** (the "For the better, right?" format: *we can use this data to answer everything, right? Right?*), always has been, change my mind, shocked ghost strip, is this a...? |
 | Chart jokes, drawn with real chart machinery | terrible 3D exploded pie, spurious correlation (dual-axis Vega-Lite), Venn diagram |
 | Comics | three-panel strip, four-panel grid |
 | Fake artifacts | team chat thread, terminal session, Nutrition Facts label, alignment chart |
@@ -59,14 +59,27 @@ If a build still cannot be drawn, the meme becomes the best other pitch in a for
 
 Chart jokes are captioned *(data: entirely made up)*. A brand kit palette recolors the pie and Venn; Claude's art follows the brand style and palette.
 
+### Looks, the judging panel and the review
+
+Memes are meant to look different from one another. Each meme is drawn in one **look** (`images/memes/looks.py`, the only place a look is defined): inferno flat (the brand look), kawaii, soft 3D, viridis lab, magma noir, corporate slate, retro comic, pixel arcade, whiteboard doodle, blueprint and inferno robots. A look sets how Claude draws (line work, shading, texture), how the ghost and the supporting cast are rendered (always our own characters, never Sanrio or any existing brand), a palette (viridis, magma, plasma, cividis, professional blues and grays, ...) and the **theme** the composer paints templates with: comic gutters, chat header, chart marks, alignment bands, bubble outlines. A brand kit palette still wins for chart marks.
+
+The look comes from, in order: the author's pick (the *Look* chips on the Ideas board, `meme_look`), the room's suggestion for that joke unless the author used it in one of their last two memes, or a weighted random pick among the looks they have not used lately. Redraw and *New idea* move to a different look; *Words* and *Edit* keep it. The look is stored in the meme's state (`look`); older memes read as inferno flat.
+
+Two extra Claude calls make the first meme a winner:
+
+- **Independent panel** (`prompts/meme_verdict.md`, effort `effort_meme_verdict`). The writers no longer grade their own jokes. A fresh panel (a tired senior practitioner scrolling a feed, a comedy editor, the author) scores every pitch 1-10, plus a "does a cold reader get it in five seconds" check that rules a joke out below 5. The panel's choice replaces the writers' pick, its totals rank *Next best idea*, and its optional punch-up (sharper words for the winner) is used only when it covers every slot within its character limit. If the panel call fails the writers' own scores are used.
+- **Render review** (`prompts/meme_review.md`, effort `effort_meme_review`, setting `meme_review`). For memes with art, Claude looks at the finished PNG (legible, on-model ghost, on-look, nothing covered). A meme that reads badly gets one redraw with the reviewer's fix, and the better version is kept. Skipped for formats with no art, with a Claude Code subscription connection (it cannot receive images), and for opening memes (the opening room has its own review).
+
+The writers' room is also told how the joke should be built (one specific truth, the punch word last, callbacks, an exaggerated picture, the ghost as an earnest, slightly anxious overachiever), lists about 12 raw angles before pitching, and must include a callback, a visual gag and an art-free format among its five.
+
 On the meme card:
 
 - **Ideas** opens the pitch board: all five jokes with their format and words. *Use this idea* draws one (`POST /api/images/{id}/redraw` with `meme_concept`), *Next best idea* moves to the best untried pitch (fresh pitches, avoiding the old ones, once all five are used), and the format menu asks for five new pitches in a format you pick (`meme_format`; formats from `GET /api/meme-formats`). Moving between pitches never asks Claude to pitch again, and a pitch with no art appears at once.
 - **Words** lets you retype any text in the meme (`PUT /api/images/{id}/meme-words`). The art is kept, the text is refitted, the alt text is rebuilt from the new words, and Claude is not called.
-- **Redraw** draws the same joke with new art (hidden for formats with no art).
+- **Redraw** draws the same joke with new art in a different look (for formats with no art it recolors the template).
 - **Edit** changes words or art by instruction.
 
-To review every format, run `uv run python scripts/meme_gallery.py` (canned builds, free) and open `data/meme-gallery/index.html`. `--real --yes` asks Claude for new memes for your latest posts (costs money).
+To review every format, run `uv run python scripts/meme_gallery.py` (canned builds, free; add `--looks` to see every format in every look) and open `data/meme-gallery/index.html`. `--real --yes` asks Claude for new memes for your latest posts (costs money).
 
 **Adding a format:** add a `MemeFormat` to `FORMATS` in `images/memes/formats.py` (text slots with boxes and character limits, art regions with briefs, `groups` for slots that should share a size). A format with no `regions` is drawn from the pitch alone; if it needs chart data, describe it in `data` (the pitch menu shows that text). If the template draws anything (frames, charts, chrome), add a scene function to `SCENES` in `compose.py`. Add canned words to `DEMO_MEME_TEXTS` in `demo.py`; the tests render every format.
 

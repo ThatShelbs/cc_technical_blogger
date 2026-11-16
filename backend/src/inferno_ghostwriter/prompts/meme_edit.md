@@ -5,6 +5,7 @@ $instruction
 </instruction>
 
 $brand
+$look
 
 <format_spec>
 $spec

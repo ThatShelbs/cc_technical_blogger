@@ -170,6 +170,7 @@ class ImageService:
         instruction: str = "",
         meme_format: str | None = None,
         meme_concept: int | None = None,
+        meme_look: str | None = None,
         opening_style: str | None = None,
         opening_concept: int | None = None,
         usage: UsageSink | None = None,
@@ -177,7 +178,7 @@ class ImageService:
         """Design and render one image, then persist the result.
 
         With an ``instruction`` the current image is edited ("make the arrows orange") instead of redrawn.
-        ``meme_format`` makes a meme in that catalog format; ``meme_concept`` draws that stored pitch.
+        ``meme_format`` makes a meme in that catalog format; ``meme_concept`` draws that stored pitch; ``meme_look`` sets its look.
         For the opening image, ``opening_style`` pitches again in one style and ``opening_concept`` builds that stored pitch.
         """
         with Session(self.engine) as session:
@@ -199,6 +200,7 @@ class ImageService:
                     brand_kit=brand_kit,
                     meme_format=meme_format,
                     meme_concept=meme_concept,
+                    meme_look=meme_look,
                     opening_style=opening_style,
                     opening_concept=opening_concept,
                     usage=usage,
@@ -311,6 +313,7 @@ class ImageService:
         brand_kit: dict[str, Any] | None,
         meme_format: str | None,
         meme_concept: int | None,
+        meme_look: str | None,
         opening_style: str | None,
         opening_concept: int | None,
         usage: UsageSink | None,
@@ -321,7 +324,15 @@ class ImageService:
             # The opening meme's own tools (another format, a stored pitch) work inside the opening image.
             post = self._meme_context(image, persona, title, markdown, voice_profile, position="opening")
             meme = await self.memes.make(
-                meme_spec(image), post, art, redraw=redraw, meme_format=meme_format, concept_index=meme_concept, usage=usage
+                meme_spec(image),
+                post,
+                art,
+                redraw=redraw,
+                meme_format=meme_format,
+                concept_index=meme_concept,
+                look=meme_look,
+                review=False,
+                usage=usage,
             )
             return self._opening_result(image, persona, self.opening.with_meme(image.spec, meme))
         if kind == "hero":
@@ -347,6 +358,7 @@ class ImageService:
                 rethink=rethink,
                 meme_format=meme_format,
                 concept_index=meme_concept,
+                look=meme_look,
                 usage=usage,
             )
             return self._meme_result(image, persona, meme)
@@ -495,6 +507,7 @@ class ImageService:
             callbacks=plan_callbacks(plan),
             humor=int(humor) if humor is not None else persona.default_humor,
             recent_formats=self._recent_meme_formats(persona, image.project_id),
+            recent_looks=self._recent_meme_looks(persona, image.project_id),
             formula=_formula_note(dials, persona, brief),
             position=position,
             opening=self._opening_meme_note(image.project_id) if position == "closing" else "",
@@ -589,6 +602,24 @@ class ImageService:
             if fmt and fmt.name not in names:
                 names.append(fmt.name)
         return tuple(names[:limit])
+
+    def _recent_meme_looks(self, persona: Persona, project_id: int, limit: int = 3) -> tuple[str, ...]:
+        """The looks of this author's latest memes (closing and opening) in other posts, newest first."""
+        with Session(self.engine) as session:
+            rows = session.exec(
+                select(ProjectImage.kind, ProjectImage.spec)
+                .join(Project, col(Project.id) == col(ProjectImage.project_id))
+                .where(col(Project.persona_id) == persona.id, col(ProjectImage.kind).in_(("meme", "hero")), col(Project.id) != project_id)
+                .order_by(col(Project.updated_at).desc())
+                .limit(limit * 4)
+            ).all()
+        looks: list[str] = []
+        for kind, spec in rows:
+            state = load_state(spec) if kind == "meme" else load_state(opening_meme_spec(spec) or "")
+            look = str((state or {}).get("look") or "")
+            if look and look not in looks:
+                looks.append(look)
+        return tuple(looks[:limit])
 
     def _result(
         self,

@@ -414,16 +414,20 @@ def _structured_payload(name: str, prompt: str = "", is_showcase: bool = False) 
         return {"passes": True, "clickability": 8, "craft": 8, "problems": [], "fix": ""}
     if name == "SvgSpec":
         if "**hero**" in prompt or "**illustration**" in prompt or "Draw the opening image" in prompt:
-            return {"svg": HERO_SVG, "alt": "A robot made of a pie chart under a setting sun", "caption": "The saddest pie"}
+            return {"svg": HERO_SVG, "alt": "A ghost made of a pie chart under a setting sun", "caption": "The saddest pie"}
         return {"svg": DIAGRAM_SVG, "alt": "A diagram", "caption": "How pies mislead"}
     if name == "SvgMemeSpec":
         # Edits of memes made before the meme catalog existed.
-        return {"svg": HERO_SVG, "alt": "A pie-chart robot", "caption": "Pie logic", "top_text": "Pie chart", "bottom_text": "Bar chart"}
+        return {"svg": HERO_SVG, "alt": "A pie-chart ghost", "caption": "Pie logic", "top_text": "Pie chart", "bottom_text": "Bar chart"}
     if name == "MemeIdeas":
         return meme_ideas_payload(prompt)
     if name == "MemeBuild":
         match = re.search(r"Format `([a-z0-9_]+)`", prompt)
         return meme_build_payload(match.group(1) if match else "classic_caption")
+    if name == "MemeVerdict":
+        return meme_verdict_payload(prompt)
+    if name == "MemeReview":
+        return {"passes": True, "funny": 8, "craft": 8, "problems": [], "fix": ""}
     if name == "ChartSpec":
         return {"vega_lite_json": CHART_SPEC, "alt": "Bar chart", "caption": "Accuracy by chart type", "data_is_illustrative": True}
     if name == "PostBrief":
@@ -683,8 +687,8 @@ def png_bytes(width: int = 64, height: int = 48, color: str = "#ed6925") -> byte
 # One canned build per format: demo mode cycles through them, tests render every one,
 # and scripts/meme_gallery.py lays them out for a visual review.
 
-DEMO_BOT = (
-    '<symbol id="bot" viewBox="0 0 200 260">'
+DEMO_GHOST = (
+    '<symbol id="ghost" viewBox="0 0 200 260">'
     '<ellipse cx="100" cy="250" rx="70" ry="9" fill="#000004" opacity="0.25"/>'
     '<path d="M30 235 C14 130 40 30 100 30 C160 30 186 130 170 235 C156 214 140 246 124 228 C112 248 92 214 76 232 C62 244 44 214 30 235 Z" fill="#a52c60"/>'
     '<path d="M44 225 C32 140 54 50 100 50 C146 50 168 140 156 225 C142 208 130 232 116 216 C104 234 90 208 76 222 C64 232 54 210 44 225 Z" fill="#ed6925" opacity="0.85"/>'
@@ -782,6 +786,16 @@ DEMO_MEME_TEXTS: dict[str, dict[str, str]] = {
         "ne": "Pie chart with 14 slices",
         "ce": "3D exploding pie in a board deck",
     },
+    "right_right": {
+        "p1": "We can use this dataset to answer everything.",
+        "p2": "For the better, right?",
+        "p3": "",
+        "p4": "Right?",
+    },
+    "always_has_been": {"planet": "Pie charts", "question": "Wait, it's all pie charts?", "answer": "Always has been."},
+    "change_my_mind": {"sign": "Sorted bar charts beat pies", "caption": "Change my mind."},
+    "shocked_strip": {"p1": "We skipped the axis labels.", "p2": "Nobody knows what the chart says.", "p3": "?!"},
+    "is_this_a": {"person": "Me, building the dashboard", "thing": "A pie chart", "question": "Is this a bar chart?"},
     "classic_caption": {"top": "When the stakeholder asks for a pie chart", "bottom": "with 14 slices"},
 }
 
@@ -800,6 +814,7 @@ DEMO_MEME_DATA: dict[str, list[dict[str, Any]]] = {
 
 _DEMO_MEME_CYCLE = itertools.cycle(DEMO_MEME_TEXTS)
 _SHOWCASE_MEME_CYCLE = itertools.cycle(showcase.MEME_FORMATS)
+_DEMO_LOOK_CYCLE = itertools.cycle(("kawaii", "viridis_lab", "retro_comic", "corporate_slate", "soft_3d", "magma_noir"))
 
 
 def meme_ideas_payload(prompt: str, is_showcase: bool = False) -> dict[str, Any]:
@@ -824,11 +839,34 @@ def meme_ideas_payload(prompt: str, is_showcase: bool = False) -> dict[str, Any]
             "texts": [{"slot": slot, "text": text, "speaker": ""} for slot, text in texts_by_format.get(fmt, {}).items()],
             "data": DEMO_MEME_DATA.get(fmt, []),
             "caption": "Friday logic" if is_showcase else "Pie logic",
+            "look": next(_DEMO_LOOK_CYCLE),
             "scores": {"relevance": 5, "recognizability": 4, "surprise": 4, "clarity": 5, "voice_fit": 4, "standalone": 4 - i % 2},
         }
         for i, fmt in enumerate(formats)
     ]
-    return {"concepts": concepts, "chosen": 0, "why": "It pays off the post's main argument in one glance."}
+    return {
+        "angles": ["Pie charts and angles", "The 14-slice board deck"],
+        "concepts": concepts,
+        "chosen": 0,
+        "why": "It pays off the post's main argument in one glance.",
+    }
+
+
+def meme_verdict_payload(prompt: str) -> dict[str, Any]:
+    """The panel likes the first pitch best and leaves its words as they are."""
+    count = len(re.findall(r"^\d+\. \[", prompt, flags=re.MULTILINE)) or 5
+    scores = [
+        {
+            "concept": i,
+            "feed_reader": 8 - i % 3,
+            "comedy_editor": 7,
+            "author": 8,
+            "gets_it": 8,
+            "note": "Lands on the post's own claim; the risk is that it is familiar.",
+        }
+        for i in range(count)
+    ]
+    return {"scores": scores, "chosen": 0, "punch_up": [], "summary": "It pays off the post's argument in one glance."}
 
 
 def meme_build_payload(format_id: str, is_showcase: bool = False) -> dict[str, Any]:
@@ -846,11 +884,13 @@ def meme_build_payload(format_id: str, is_showcase: bool = False) -> dict[str, A
             f'<rect width="{w}" height="{h}" fill="#f7d13d"/>'
             f'<circle cx="{w / 2}" cy="{h / 2}" r="{size / 2}" fill="#fb9b06" opacity="0.4"/>'
         )
-        bot = f'<use href="#bot" x="{(w - size * 0.77) / 2:.0f}" y="{h - size - 10:.0f}" width="{size * 0.77:.0f}" height="{size:.0f}"/>'
-        art.append({"region": region.name, "svg": (backdrop if region.opaque else "") + bot})
+        ghost = (
+            f'<use href="#ghost" x="{(w - size * 0.77) / 2:.0f}" y="{h - size - 10:.0f}" width="{size * 0.77:.0f}" height="{size:.0f}"/>'
+        )
+        art.append({"region": region.name, "svg": (backdrop if region.opaque else "") + ghost})
     return {
         "texts": texts,
-        "cast_defs": DEMO_BOT if fmt.regions else "",
+        "cast_defs": DEMO_GHOST if fmt.regions else "",
         "art": art,
         "data": DEMO_MEME_DATA.get(fmt.id, []),
         "alt": f"A {fmt.name} meme about {'shipping models on a Friday' if is_showcase else 'pie charts'}. Text: "
