@@ -4,7 +4,14 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ## [Unreleased]
 
+### Added
+
+- **Keyboard and quick actions.** A "New post" button and a command palette (Ctrl/Cmd+K) in the sidebar jump to any page, post or persona, switch persona or theme. Ctrl/Cmd+S saves Markdown edits, Ctrl/Cmd+Enter writes from the New post page, and `?` lists the shortcuts. Saving shows a short toast instead of a lasting banner.
+
 ### Changed
+
+- **A tidier post editor.** The side rail groups its cards into Revise, Sources & look, Quality checks and Brief & settings; each group is collapsible and remembers its state. On phones and tablets Save, Export and Settings sit in a bar at the bottom.
+- **Accessibility.** Shared tabs with arrow-key navigation and linked panels (editor mode, persona and Idea Lab pages), a focus-trapped mobile menu and persona switcher that close on Escape and return focus, and a skip-to-content link.
 
 - **Proseferno is now Inferno Ghostwriter** ("The AI Ghostwriter for Technical Minds"). New brand: a friendly spectral ghost with a laptop and a quill replaces the robot, in the app, the memes' recurring character, the README banner and the installer. The Python package is `inferno_ghostwriter`, the command is `inferno-ghostwriter`, settings use the `INFERNO_GHOSTWRITER_` prefix, and the database is `inferno_ghostwriter.db`.
 - **Existing installs carry over.** On first start the app renames `proseferno.db`, moves the old Windows app folder, copies the saved API key from the old keychain entry (the old one is kept) and honors `PROSEFERNO_*` variables.
