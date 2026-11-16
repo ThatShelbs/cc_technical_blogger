@@ -138,3 +138,18 @@ class ImagePlacement(BaseModel):
     )
     edits: list[TextEdit] = Field(description="Edits to adjacent text so it works with the image; usually empty or one small edit.")
     summary: str = Field(description="One or two plain sentences telling the author where the image went and what else changed.")
+
+
+class UrlPlacement(BaseModel):
+    """Where a link the author pasted fits best in the finished post."""
+
+    kind: Literal["source", "resource", "related_article"] = Field(
+        description="source: backs up a claim or explains a concept. resource: something hands-on to use next (a book, tutorial, "
+        "package, video). related_article: a related post or article to read next."
+    )
+    placement: Literal["inline", "go_deeper"] = Field(
+        description="inline: a link worked into the anchor sentence, when the post already talks about this thing. go_deeper: one line "
+        "in the short list of things to explore next (resources and related articles only)."
+    )
+    anchor: str = Field(description="One sentence copied exactly from the post that the link backs up or extends; empty for go_deeper.")
+    purpose: str = Field(description="What the link adds for the reader, in one sentence.")

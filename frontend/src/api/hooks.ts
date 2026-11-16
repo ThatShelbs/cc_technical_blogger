@@ -13,6 +13,7 @@ import type {
   BaselineDiffOut,
   CopyHtmlOut,
   DetectorStatusOut,
+  AddReferenceUrlIn,
   EnrichIn,
   EvolutionOut,
   FormulaCatalogOut,
@@ -673,6 +674,9 @@ export function useReferenceMutations(projectId: number) {
   return {
     enrich: useMutation({
       mutationFn: (body: EnrichIn = {}) => api.post<JobOut>(`/api/projects/${projectId}/references`, body),
+    }),
+    addUrl: useMutation({
+      mutationFn: (body: AddReferenceUrlIn) => api.post<JobOut>(`/api/projects/${projectId}/references/url`, body),
     }),
     redraw: useMutation({
       mutationFn: ({ id, kind }: { id: number; kind?: ReferenceKind }) => api.post<JobOut>(`/api/references/${id}/redraw`, { kind: kind ?? null }),

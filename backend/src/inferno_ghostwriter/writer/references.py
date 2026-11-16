@@ -26,13 +26,14 @@ from sqlmodel import Session, col, delete, select
 from inferno_ghostwriter.config import Settings
 from inferno_ghostwriter.db import Persona, Project, ProjectReference, Sample, utcnow
 from inferno_ghostwriter.jobs import JobContext
-from inferno_ghostwriter.llm import LLM, LLMError, ResearchResult, SystemBlock
+from inferno_ghostwriter.llm import LLM, Citation, LLMError, ResearchResult, SystemBlock
 from inferno_ghostwriter.prompts import raw, render
 from inferno_ghostwriter.voice import current_voice_profile, format_exemplars, select_exemplars
 from inferno_ghostwriter.voice.lessons import format_lessons
 from inferno_ghostwriter.voice.playbook import format_playbook
 from inferno_ghostwriter.writer.dials import REFERENCE_KINDS, Dials, ResolvedDials, auto_reference_count, resolve
 from inferno_ghostwriter.writer.links import LinkChecker
+from inferno_ghostwriter.writer.pages import Page, PageReader, PageReadError
 from inferno_ghostwriter.writer.pipeline import Reporter, WriterError, measure, split_title, writer_system
 from inferno_ghostwriter.writer.revisions import push_revision
 from inferno_ghostwriter.writer.schemas import ReferenceEdit, ReferenceEdits, ReferencePlan
@@ -122,6 +123,12 @@ def links_in(text: str) -> list[str]:
 def research_block(result: ResearchResult) -> str:
     sources = "\n".join(f"- [{c.title or c.url}]({c.url})" for c in result.citations)
     return f"<research>\n{result.text.strip()}\n\nSources:\n{sources}\n</research>"
+
+
+def page_research(page: Page) -> ResearchResult:
+    """A page the author pasted, shaped like search research so the usual checks apply: its address is the one allowed link."""
+    text = "\n\n".join(part for part in (page.title, page.description, page.text) if part)
+    return ResearchResult(text=text, citations=[Citation(url=page.url, title=page.title or page.url, cited_text=page.text)])
 
 
 def quote_in_research(quote: str, result: ResearchResult) -> bool:
@@ -727,8 +734,12 @@ async def redraw_reference(
     reference_id: int,
     kind: str | None,
     ctx: JobContext,
+    pages: PageReader | None = None,
 ) -> dict[str, Any]:
-    """Find a different reference for the same spot (optionally of another kind) and swap it into the text."""
+    """Find a different reference for the same spot (optionally of another kind) and swap it into the text.
+
+    A link the author pasted themselves is never swapped for another: the page is read again and worked in afresh.
+    """
     with Session(engine, expire_on_commit=False) as session:
         row = session.get(ProjectReference, reference_id)
         if row is None:
@@ -764,17 +775,6 @@ async def redraw_reference(
     else:
         base = markdown
 
-    await ctx.progress(0.1, f"Looking for a different {label}")
-    research = await research_reference(
-        llm=llm,
-        settings=settings,
-        links=links,
-        planned=planned,
-        title=c.project.title,
-        avoid=[*row.tried_urls, row.url],
-        usage=ctx.add_usage,
-    )
-
     def fail(message: str) -> WriterError:
         with Session(engine) as session:
             fresh = session.get(ProjectReference, reference_id)
@@ -783,6 +783,26 @@ async def redraw_reference(
                 session.add(fresh)
                 session.commit()
         return WriterError(message)
+
+    if row.user_supplied:
+        await ctx.progress(0.1, "Reading your link again")
+        if pages is None:
+            raise fail("This app can't read web pages right now.")
+        try:
+            research = page_research(await pages.read(row.url))
+        except PageReadError as exc:
+            raise fail(str(exc)) from exc
+    else:
+        await ctx.progress(0.1, f"Looking for a different {label}")
+        research = await research_reference(
+            llm=llm,
+            settings=settings,
+            links=links,
+            planned=planned,
+            title=c.project.title,
+            avoid=[*row.tried_urls, row.url],
+            usage=ctx.add_usage,
+        )
 
     if not research.citations:
         raise fail(f"Couldn't find another verifiable {label} for this spot. Try again, or switch the kind.")

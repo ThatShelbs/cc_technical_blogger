@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { errorText } from '../../api/client'
 import { useReferenceMutations } from '../../api/hooks'
-import type { JobOut, ReferenceOut } from '../../api/types.gen'
+import type { AddReferenceUrlIn, JobOut, ReferenceOut } from '../../api/types.gen'
 import type { ReferenceKind } from '../../lib/references'
 
 export interface ReferenceActions {
@@ -15,6 +15,9 @@ export interface ReferenceActions {
   revert: (ref: ReferenceOut, index: number) => void
   enrich: (count?: number) => void
   enriching: boolean
+  /** Read a link the author pasted and work it into the post where it fits best. */
+  addUrl: (body: AddReferenceUrlIn, onDone?: () => void) => void
+  addingUrl: boolean
   error: string | null
 }
 
@@ -22,11 +25,21 @@ export interface ReferenceActions {
 export function useReferenceActions(projectId: number, { busy, onJobStarted }: { busy: boolean; onJobStarted: (job: JobOut) => void }): ReferenceActions {
   const mutations = useReferenceMutations(projectId)
   const [pendingId, setPendingId] = useState<number | null>(null)
-  const failed = mutations.redraw.error ?? mutations.remove.error ?? mutations.revert.error ?? mutations.enrich.error
+  const failed = mutations.redraw.error ?? mutations.remove.error ?? mutations.revert.error ?? mutations.enrich.error ?? mutations.addUrl.error
   return {
-    disabled: busy || mutations.redraw.isPending || mutations.enrich.isPending,
+    disabled: busy || mutations.redraw.isPending || mutations.enrich.isPending || mutations.addUrl.isPending,
     redrawingId: busy || mutations.redraw.isPending ? pendingId : null,
     enriching: mutations.enrich.isPending || (busy && pendingId === -1),
+    addingUrl: mutations.addUrl.isPending || (busy && pendingId === -2),
+    addUrl: (body, onDone) => {
+      setPendingId(-2)
+      mutations.addUrl.mutate(body, {
+        onSuccess: (job) => {
+          onJobStarted(job)
+          onDone?.()
+        },
+      })
+    },
     redraw: (ref, kind) => {
       setPendingId(ref.id)
       mutations.redraw.mutate({ id: ref.id, kind }, { onSuccess: onJobStarted })

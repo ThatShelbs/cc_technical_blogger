@@ -64,6 +64,12 @@ export interface AddImageIn {
   instruction?: string;
 }
 
+export interface AddReferenceUrlIn {
+  url: string;
+  kind?: "source" | "resource" | "related_article" | null;
+  note?: string;
+}
+
 export interface ApiKeyIn {
   api_key: string;
 }
@@ -951,6 +957,7 @@ export interface ReferenceOut {
   quote: string;
   status: string;
   error: string | null;
+  user_supplied?: boolean;
   in_post: boolean;
   history: ReferenceHistoryOut[];
 }

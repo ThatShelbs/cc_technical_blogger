@@ -6,10 +6,11 @@ from fastapi import APIRouter, HTTPException
 
 from inferno_ghostwriter.api.deps import ServicesDep, SessionDep, project_or_404, reference_or_404
 from inferno_ghostwriter.api.projects import _check_idle, _writable_persona, project_out
-from inferno_ghostwriter.api.schemas import EnrichIn, JobOut, ProjectOut, ReferenceRedrawIn, RevertIn
+from inferno_ghostwriter.api.schemas import AddReferenceUrlIn, EnrichIn, JobOut, ProjectOut, ReferenceRedrawIn, RevertIn
 from inferno_ghostwriter.voice import current_voice_profile
 from inferno_ghostwriter.writer import WriterError
 from inferno_ghostwriter.writer.examples import fill_missing_examples
+from inferno_ghostwriter.writer.reference_url import add_reference_url
 from inferno_ghostwriter.writer.references import enrich_post, redraw_reference, remove_reference, revert_reference
 
 router = APIRouter(prefix="/api")
@@ -34,6 +35,35 @@ async def add_references(project_id: int, session: SessionDep, services: Service
             project_id=project_id,
             count=body.count,
             kinds=list(body.kinds) if body.kinds else None,
+            ctx=ctx,
+        ),
+        project_id=project_id,
+    )
+    return JobOut(**job.model_dump())
+
+
+@router.post("/projects/{project_id}/references/url", response_model=JobOut, status_code=202)
+async def add_reference_from_url(project_id: int, body: AddReferenceUrlIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Read a link the author pasted and work it into the post where it fits best."""
+    project = project_or_404(session, project_id)
+    if not project.markdown:
+        raise HTTPException(409, "Generate the post before adding references.")
+    url = body.url.strip()
+    if not url.lower().startswith(("http://", "https://")):
+        raise HTTPException(422, "Paste a full web address that starts with http:// or https://.")
+    _writable_persona(session, project.persona_id)
+    _check_idle(services, project_id)
+    job = await services.jobs.start(
+        "add_reference_url",
+        lambda ctx: add_reference_url(
+            engine=services.engine,
+            llm=services.llm,
+            settings=services.settings,
+            pages=services.pages,
+            project_id=project_id,
+            url=url,
+            kind=body.kind,
+            note=body.note,
             ctx=ctx,
         ),
         project_id=project_id,
@@ -72,6 +102,7 @@ async def redraw(reference_id: int, session: SessionDep, services: ServicesDep, 
             llm=services.llm,
             settings=services.settings,
             links=services.links,
+            pages=services.pages,
             reference_id=reference_id,
             kind=kind,
             ctx=ctx,
