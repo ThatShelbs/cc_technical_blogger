@@ -1044,6 +1044,9 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
 
         await ctx.progress(0.05, f"Redrawing {len(image_ids)} images")
         await asyncio.gather(*(one(i, kind) for i, kind in drawn))
+        failed = [img for img in redrawn.values() if img.status == "error"]
+        if failed and len(failed) == len(redrawn):
+            raise ImageProviderError(failed[0].error or "Image generation failed.")
         changes = [(before[i][0], before[i][1], describe_image(img)) for i, img in redrawn.items() if i in before]
         return {"image_ids": image_ids, **await _sync_text(services, project_id, changes, ctx)}
 
