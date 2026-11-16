@@ -29,6 +29,7 @@ from inferno_ghostwriter.images.memes.specs import (
     MemeText,
     MemeVerdict,
 )
+from inferno_ghostwriter.images.remix import PALETTE, ImprovementPlan, Tweak, variation_for
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
 from inferno_ghostwriter.llm.base import LLMImagesUnsupportedError, UsageSink
 from inferno_ghostwriter.prompts import raw, render
@@ -100,6 +101,10 @@ class ArtDirection:
     brand: str = ""
     image_guidance: str = ""
     palette: tuple[str, ...] = ()
+    # A redraw's critique and twists (see images/remix.py), and the cast it asks for ("" = the house ghost).
+    improvement: ImprovementPlan | None = None
+    tweaks: tuple[Tweak, ...] = ()
+    cast: str = ""
 
 
 @dataclass
@@ -561,11 +566,17 @@ class MemeMaker:
             title=title,
             concept=concept_text,
             spec=build_spec(fmt),
-            cast=f"{CAST} {look.cast}",
+            cast=f"{art.cast} {look.cast}" if art.cast else f"{CAST} {look.cast}",
             look=look_direction(look),
             visual_style=art.visual_style,
             brand=art.brand,
-            variation="This is a redraw: keep the joke and words but give the art a fresh composition and staging." if redraw else "",
+            variation=(
+                (variation_for(art, (PALETTE,)) + "\nKeep the joke and the words; only the art changes.")
+                if redraw and variation_for(art, (PALETTE,))
+                else "This is a redraw: keep the joke and words but give the art a fresh composition and staging."
+                if redraw
+                else ""
+            ),
             image_guidance=art.image_guidance,
         )
         return await self._attempts(fmt, prompt, art, look, task=f"meme build ({fmt.id})", usage=usage)

@@ -2,6 +2,7 @@ Review the attached image before it is published as this post's opening image an
 
 Post title: $title
 Style: $style_label
+$style_check
 What it was meant to show:
 <concept>
 $concept

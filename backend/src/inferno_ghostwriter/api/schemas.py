@@ -508,6 +508,23 @@ class ImageHistoryOut(BaseModel):
     created_at: str
 
 
+class RemixTweakOut(BaseModel):
+    dimension: str
+    id: str
+    label: str
+
+
+class RemixOut(BaseModel):
+    """What the last redraw tried: Claude's critique and the twist (another palette, cast, staging or medium)."""
+
+    weakness: str
+    improvements: list[str]
+    fresh_angle: str
+    tweaks: list[RemixTweakOut]
+    # False when only a twist was tried (the critique call failed or this was an author-picked idea).
+    brainstormed: bool
+
+
 class ImageOut(BaseModel):
     id: int
     slot_id: str
@@ -531,6 +548,12 @@ class ImageOut(BaseModel):
     meme: MemeInfoOut | None = None
     # The opening image only: its style, the panel's pitches and verdicts, sources and the render review.
     opening: OpeningInfoOut | None = None
+    # The slot id of the earlier image this one extends ("" = stands alone); both are drawn from one source.
+    builds_on: str = ""
+    # What the last redraw tried; None before the first redraw.
+    remix: RemixOut | None = None
+    # What Remix can vary for this image: "palette", "cast", "staging", "medium" (see GET /api/remix-options).
+    remix_dimensions: list[str] = []
 
 
 class OpeningPitchOut(BaseModel):
@@ -687,6 +710,30 @@ class RedrawIn(BaseModel):
     # (an index from ``ImageOut.opening.pitches``) with no new pitching or judging.
     opening_style: str | None = None
     opening_concept: int | None = Field(default=None, ge=0)
+    # Pin parts of the redraw's twist, e.g. {"palette": "viridis", "cast": "dogs"} (see GET /api/remix-options);
+    # anything left out is chosen for you. Memes and the opening meme take palette and cast.
+    tweaks: dict[str, str] | None = None
+    # Critique the current image first and redraw to fix it (the default); False only tries the twist.
+    improve: bool = True
+
+
+class BuildsOnIn(BaseModel):
+    """Make an image extend an earlier one; it is drawn again from that image's source."""
+
+    slot_id: str = Field(min_length=1, max_length=40)
+
+
+class RemixOptionOut(BaseModel):
+    id: str
+    label: str
+    # Palette options: their colors, dark to light.
+    swatch: list[str] = []
+
+
+class RemixDimensionOut(BaseModel):
+    id: str
+    label: str
+    options: list[RemixOptionOut]
 
 
 class ImageEditIn(BaseModel):

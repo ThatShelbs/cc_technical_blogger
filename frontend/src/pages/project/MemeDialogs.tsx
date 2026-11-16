@@ -133,23 +133,29 @@ export function MemeFormatPicker({
   value,
   disabled,
   onPick,
+  label = 'Meme format',
+  placeholder = 'Meme format…',
+  title = 'Pitch five new ideas in another format',
 }: {
   formats: MemeFormatOut[]
   value: string
   disabled?: boolean
   onPick: (id: string) => void
+  label?: string
+  placeholder?: string
+  title?: string
 }) {
   const families = [...new Set(formats.map((f) => f.family_label))]
   return (
     <Select
-      aria-label="Meme format"
-      title="Pitch five new ideas in another format"
+      aria-label={label}
+      title={title}
       className="h-8 w-56 max-w-full text-sm"
       value={value}
       disabled={disabled}
       onChange={(e) => e.target.value && e.target.value !== value && onPick(e.target.value)}
     >
-      {!value && <option value="">Meme format…</option>}
+      {!value && <option value="">{placeholder}</option>}
       {families.map((family) => (
         <optgroup key={family} label={family}>
           {formats

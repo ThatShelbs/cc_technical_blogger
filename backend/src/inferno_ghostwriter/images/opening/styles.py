@@ -56,12 +56,13 @@ STYLES: list[OpeningStyle] = [
     OpeningStyle(
         id="data_art",
         label="Data art",
-        summary="Beautiful abstract data: networks, streams sorting by colour, flowing particles, chart motifs.",
+        summary="Beautiful abstract data: flowing lines, particle fields, soft networks, with only a subtle hint of the subject.",
         when_to_use=(
-            "Analytics, data science, ML and finance topics that want the premium 'data in motion' look: a network graph, "
-            "streams of coloured particles sorting into lanes, candlestick or line motifs, scatter clouds. It must encode the "
-            "post's idea (streams sorting into the post's own categories, a network with the one node the post is about), and it "
-            "never shows numbers, axis values or claims, so it states nothing that could be wrong."
+            "Analytics, data science, ML and finance topics that want the premium 'data in motion' look. It is abstract: "
+            "flowing lines, particles, contours, soft networks and glows, never literal objects (no coins, dice, people or "
+            "icons: that is the visual metaphor style). The subject shows only as a quiet hint in its structure (many "
+            "sorting into few, one node holding the network together), its rhythm (bursts, drift, a break) and its colour "
+            "story. It never shows numbers, axis values or claims, so it states nothing that could be wrong."
         ),
         builder="svg",
         always=True,
