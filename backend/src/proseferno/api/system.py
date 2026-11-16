@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
+from typing import Any
 
 import anthropic
 from fastapi import APIRouter, HTTPException
+from sqlmodel import Session, col, select
 
 from proseferno import __version__
 from proseferno.api.deps import ServicesDep
@@ -13,11 +16,16 @@ from proseferno.api.schemas import (
     ApiKeyIn,
     AuthStatusOut,
     AuthTestOut,
+    DetectorStatusOut,
     Health,
+    JobOut,
     SettingsIn,
     SettingsOut,
 )
+from proseferno.authenticity import local_detector
+from proseferno.db import Job
 from proseferno.images import model_label
+from proseferno.jobs import JobContext
 from proseferno.llm import LLMNotConfiguredError
 from proseferno.services import RUNTIME_SETTINGS
 
@@ -118,6 +126,8 @@ def _settings_out(services: ServicesDep) -> SettingsOut:
         use_fallbacks=s.use_fallbacks,
         revision_passes=s.revision_passes,
         ai_detection=s.ai_detection,
+        deep_check=s.deep_check,
+        humanize_rounds=s.humanize_rounds,
         reference_max_searches=s.reference_max_searches,
         check_reference_links=s.check_reference_links,
         image_tool_label=f"{model_label(s.model)}: SVG illustrations, icons and diagrams; Vega-Lite charts",
@@ -140,3 +150,42 @@ def update_settings(body: SettingsIn, services: ServicesDep) -> SettingsOut:
         if value is not None:
             services.save_runtime_setting(key, value.strip() if isinstance(value, str) else value)
     return _settings_out(services)
+
+
+# -- local AI-text detector models -----------------------------------------------------
+
+DETECTOR_SETUP_JOB = "detector_setup"
+
+
+def _detector_out(services: ServicesDep) -> DetectorStatusOut:
+    state = local_detector.status(services.settings)
+    # The latest setup while it runs, or when it failed (so the author sees why); a finished one shows as "ready".
+    with Session(services.engine) as session:
+        latest = session.exec(select(Job).where(Job.kind == DETECTOR_SETUP_JOB).order_by(col(Job.created_at).desc())).first()
+    job = JobOut(**latest.model_dump()) if latest is not None and latest.status != "succeeded" else None
+    return DetectorStatusOut(**state, job=job)
+
+
+@router.get("/detector", response_model=DetectorStatusOut)
+def detector_status(services: ServicesDep) -> DetectorStatusOut:
+    return _detector_out(services)
+
+
+@router.post("/detector/setup", response_model=DetectorStatusOut, status_code=202)
+async def setup_detector(services: ServicesDep) -> DetectorStatusOut:
+    """Install the detector packages and download the models once (about 1.3 GB), then turn the detectors on."""
+    state = local_detector.status(services.settings)
+    if not state["available"]:
+        raise HTTPException(409, state["detail"])
+    if not services.jobs.active_for(kinds=(DETECTOR_SETUP_JOB,)):
+
+        async def run(ctx: JobContext) -> dict[str, Any]:
+            await ctx.progress(0.05, "Installing PyTorch and downloading the detector models (one time, about 1.3 GB)")
+            if not services.settings.demo:
+                await asyncio.to_thread(local_detector.setup_detector, services.settings)
+            services.save_runtime_setting("deep_check", True)
+            await ctx.progress(1.0, "The detector models are ready")
+            return {"ready": True}
+
+        await services.jobs.start(DETECTOR_SETUP_JOB, run)
+    return _detector_out(services)

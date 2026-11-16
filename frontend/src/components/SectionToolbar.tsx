@@ -1,4 +1,4 @@
-import { ImagePlus, Link2, Maximize2, MessageSquareText, Minimize2, Quote, Wand2 } from 'lucide-react'
+import { Fingerprint, ImagePlus, Link2, Maximize2, MessageSquareText, Minimize2, Quote, Wand2 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import type { RewriteIn } from '../api/types.gen'
@@ -9,6 +9,7 @@ export type SectionAction = NonNullable<RewriteIn['action']>
 
 const ACTIONS: { action: Exclude<SectionAction, 'custom'>; label: string; icon: ReactNode; hint: string }[] = [
   { action: 'rewrite', label: 'Rewrite', icon: <Wand2 className="size-4" />, hint: 'Same point, fresh phrasing' },
+  { action: 'humanize', label: 'Humanize', icon: <Fingerprint className="size-4" />, hint: 'Make it read like you: specific, lived-in, your rhythm' },
   { action: 'compact', label: 'Compact', icon: <Minimize2 className="size-4" />, hint: 'Tighter, about half the length' },
   { action: 'expand', label: 'Expand', icon: <Maximize2 className="size-4" />, hint: 'Add depth and an example' },
   { action: 'add_source', label: 'Add source', icon: <Link2 className="size-4" />, hint: 'Find and cite a real source (web search)' },
@@ -22,6 +23,7 @@ const PENDING_TEXT: Record<SectionAction, string> = {
   expand: 'Expanding it…',
   add_source: 'Searching the web for a source…',
   add_quote: 'Searching the web for a quote…',
+  humanize: 'Making it read like you…',
 }
 
 export interface SectionRun {
@@ -29,7 +31,7 @@ export interface SectionRun {
   instruction: string
 }
 
-/** The six ways to regenerate a highlighted section; "Custom brief" takes feedback such as "make it more positive". */
+/** The seven ways to regenerate a highlighted section; "Custom brief" takes feedback such as "make it more positive". */
 export function SectionActions({
   onRun,
   onAddImage,

@@ -58,6 +58,8 @@ class SettingsOut(BaseModel):
     use_fallbacks: bool
     revision_passes: int
     ai_detection: bool
+    deep_check: bool
+    humanize_rounds: int
     reference_max_searches: int
     check_reference_links: bool
     image_tool_label: str
@@ -73,6 +75,8 @@ class SettingsIn(BaseModel):
     use_fallbacks: bool | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
     ai_detection: bool | None = None
+    deep_check: bool | None = None
+    humanize_rounds: int | None = Field(None, ge=0, le=2)
     reference_max_searches: int | None = Field(None, ge=1, le=8)
     check_reference_links: bool | None = None
 
@@ -109,6 +113,8 @@ class PersonaDefaults(BaseModel):
     default_formula: FormulaParts | None = None
     # How new posts open: an opening style id or "auto" (unknown ids are stored as "auto").
     default_opening_style: str | None = Field(None, max_length=40)
+    # Ask a few interview questions before writing each new post.
+    default_interview: bool | None = None
 
 
 class PersonaUpdate(PersonaDefaults):
@@ -241,6 +247,7 @@ class PersonaOut(BaseModel):
     default_platform: str
     default_formula: FormulaParts
     default_opening_style: str
+    default_interview: bool
     visual_style: str
     credit_template: str
     voice_profile_words: int
@@ -398,6 +405,18 @@ class JobOut(BaseModel):
     created_at: datetime
 
 
+class DetectorStatusOut(BaseModel):
+    """The local AI-text detector models (see authenticity.local_detector)."""
+
+    available: bool
+    ready: bool
+    enabled: bool
+    models: dict[str, str]
+    detail: str
+    # Set while the one-time setup (install and download) runs.
+    job: JobOut | None = None
+
+
 # -- projects / images ------------------------------------------------------------------
 
 
@@ -411,6 +430,8 @@ class ProjectCreate(BaseModel):
     mode: Literal["standard", "ab"] = "standard"
     # The Idea Lab idea this post is written from: the post takes its title and the idea is marked as used.
     idea_id: int | None = None
+    # Ask 3-5 interview questions first; the post is written once the author answers (or skips) them.
+    interview: bool = False
 
 
 class BrandKit(BaseModel):
@@ -454,6 +475,17 @@ class GenerateIn(BaseModel):
     prompt: str | None = Field(None, min_length=3)
     dials: Dials | None = None
     persona_id: int | None = None
+    # The interview questions with the author's answers (an empty answer = skipped); [] clears the interview.
+    interview: list[InterviewAnswer] | None = None
+
+
+class InterviewAnswer(BaseModel):
+    question: str = Field(max_length=500)
+    answer: str = Field("", max_length=6000)
+
+
+class InterviewIn(BaseModel):
+    answers: list[InterviewAnswer] = Field(max_length=8)
 
 
 class TweakIn(BaseModel):
@@ -792,6 +824,7 @@ class ProjectOut(BaseModel):
     critique: dict[str, Any] | None
     fidelity: dict[str, Any] | None
     authenticity: dict[str, Any] | None
+    interview: list[InterviewAnswer]
     social: dict[str, Any] | None
     pinned_titles: list[str]
     brand_kit: BrandKit
@@ -825,7 +858,7 @@ class ProjectCreated(BaseModel):
 class RewriteIn(BaseModel):
     selection: str = Field(min_length=1)
     instruction: str = Field(default="", max_length=4000)
-    action: Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote"] = "custom"
+    action: Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote", "humanize"] = "custom"
 
 
 class AddImageIn(BaseModel):

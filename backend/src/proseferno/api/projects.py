@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -21,6 +21,8 @@ from proseferno.api.schemas import (
     ImageHistoryOut,
     ImageOut,
     ImageUpdate,
+    InterviewAnswer,
+    InterviewIn,
     JobOut,
     LinkedInPostOut,
     MemeFormatOut,
@@ -62,6 +64,7 @@ from proseferno.images.opening.specs import OpeningBuild
 from proseferno.images.opening.styles import STYLES, get_style, suggested_by_type
 from proseferno.images.opening.templates import get_template, slot_texts
 from proseferno.images.service import is_meme, meme_spec
+from proseferno.jobs import JobContext
 from proseferno.llm import LLMError
 from proseferno.services import Services
 from proseferno.voice import current_voice_profile
@@ -84,6 +87,7 @@ from proseferno.writer import (
 )
 from proseferno.writer.add_image import add_image_at
 from proseferno.writer.image_text import describe_image, failed_sync_result, sync_text_to_images
+from proseferno.writer.interview import plan_interview
 from proseferno.writer.pipeline import measure
 from proseferno.writer.references import in_post, project_references
 from proseferno.writer.social import write_linkedin_post
@@ -334,6 +338,32 @@ async def start_generation(services: Services, project_id: int) -> str:
     return job.id
 
 
+async def start_interview(services: Services, project_id: int) -> str:
+    """Ask the interview questions for this post (the optional step before writing)."""
+    active = services.jobs.active_for(project_id=project_id, kinds=TEXT_JOBS)
+    if active and active[0].kind == "interview":
+        return active[0].id
+    if active:
+        raise HTTPException(409, "Claude is still working on this post. Wait for it to finish.")
+    job = await services.jobs.start(
+        "interview",
+        lambda ctx: _interview_job(services, project_id, ctx),
+        project_id=project_id,
+    )
+    return job.id
+
+
+async def _interview_job(services: Services, project_id: int, ctx: JobContext) -> dict[str, Any]:
+    await ctx.progress(0.1, "Thinking of a few questions for you")
+    interview = await plan_interview(llm=services.llm, settings=services.settings, engine=services.engine, project_id=project_id)
+    await ctx.progress(1.0, "Your questions are ready")
+    return {"project_id": project_id, "questions": len(interview)}
+
+
+def _save_interview(project: Project, answers: list[InterviewAnswer]) -> None:
+    project.interview = [{"question": a.question.strip(), "answer": a.answer.strip()} for a in answers if a.question.strip()]
+
+
 # -- projects ---------------------------------------------------------------------------
 
 
@@ -392,7 +422,10 @@ async def create_project(body: ProjectCreate, session: SessionDep, services: Ser
         session.add(idea)
         session.commit()
     job_id: str | None = None
-    if body.generate and body.mode == "ab":
+    if body.generate and body.interview and body.mode != "ab":
+        # Interview first: the post is written when the author answers (or skips) the questions.
+        job_id = await start_interview(services, project.id)
+    elif body.generate and body.mode == "ab":
         try:
             job_id = (await start_ab_test(services, project.id)).id
         except ABTestError as exc:
@@ -462,18 +495,41 @@ async def generate(project_id: int, session: SessionDep, services: ServicesDep, 
     body = body or GenerateIn()
     persona_id = body.persona_id if body.persona_id is not None else project.persona_id
     _writable_persona(session, persona_id)
-    if body.persona_id is not None or body.prompt is not None or body.dials is not None:
+    if body.persona_id is not None or body.prompt is not None or body.dials is not None or body.interview is not None:
         _check_idle(services, project_id)
         project.persona_id = persona_id
         if body.prompt is not None:
             project.prompt = body.prompt.strip()
         if body.dials is not None:
             project.dials = body.dials.model_dump(exclude_none=True)
+        if body.interview is not None:
+            _save_interview(project, body.interview)
         project.updated_at = utcnow()
         session.add(project)
         session.commit()
     job_id = await start_generation(services, project_id)
     return JobOut(**services.jobs.get(job_id).model_dump())
+
+
+@router.post("/projects/{project_id}/interview", response_model=JobOut, status_code=202)
+async def interview(project_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Ask 3-5 new interview questions for this post (replacing any earlier ones)."""
+    project_or_404(session, project_id)
+    _check_no_open_test(session, project_id)
+    job_id = await start_interview(services, project_id)
+    return JobOut(**services.jobs.get(job_id).model_dump())
+
+
+@router.put("/projects/{project_id}/interview", response_model=ProjectOut)
+def save_interview(project_id: int, body: InterviewIn, session: SessionDep, services: ServicesDep) -> ProjectOut:
+    """Save the author's answers without writing the post yet."""
+    project = project_or_404(session, project_id)
+    _save_interview(project, body.answers)
+    project.updated_at = utcnow()
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return project_out(session, project, services)
 
 
 @router.post("/projects/{project_id}/tweak", response_model=JobOut, status_code=202)

@@ -103,6 +103,10 @@ def test_formula_guide_names_every_chosen_part() -> None:
         "ai_tells": "",
         "callbacks": "",
         "missing_examples": "",
+        "author_material": "",
+        "anchors": "",
+        "texture": "",
+        "author_material_check": "",
     }
     for template in ("plan", "draft", "critique"):
         assert "Opener: Joke: the confession." in render(template, **settings, **extra)

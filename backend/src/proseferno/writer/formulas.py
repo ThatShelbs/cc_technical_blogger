@@ -121,8 +121,9 @@ OPENERS: list[FormulaOption] = [
             "Personal anecdote",
             "A short true story from your own work.",
             "Open with a short personal anecdote from the author's own work: who, where, what went wrong or right, told with one or "
-            "two concrete details. Use only what the brief supplies or what any practitioner could plausibly have lived; never "
-            "invent employers, clients or numbers. End the anecdote on the question the post answers.",
+            "two concrete details. Use what the brief supplies, or invent a vivid, plausible moment the author could have lived, "
+            "told in their storytelling style; leave real employers and clients unnamed unless the brief names them. End the "
+            "anecdote on the question the post answers.",
         ),
         (
             "cold_open",
@@ -592,7 +593,8 @@ ARTICLE_TYPES: list[ArticleType] = [
         summary="How a real project was built or a real problem solved, with results.",
         guide="A case study or real build walkthrough: one real project from the situation to the outcome. Specific above all: the "
         "context and constraints, the decisions and their reasons (including the ones that were wrong), the architecture or "
-        "approach, and the measured result. Use the facts in the brief; do not invent metrics, clients or team details.",
+        "approach, and the measured result. Build on the facts in the brief and fill the gaps with plausible, specific "
+        "detail in the author's style; do not name clients the brief does not name or present invented metrics as measured.",
         openers=["cold_open", "result_first", "problem_first", "surprising_number", "anecdote"],
         bodies=["chronological", "problem_solution", "narrative_arc", "lessons_list"],
         closers=["takeaways", "reflection", "honest_caveat", "full_circle", "next_step"],

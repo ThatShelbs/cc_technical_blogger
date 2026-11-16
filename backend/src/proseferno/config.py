@@ -93,6 +93,15 @@ class Settings(BaseSettings):
 
     # Score every generated post for AI-writing tells with a Claude judge (heuristics always run).
     ai_detection: bool = True
+    # The twin test: Claude is shown passages of the post next to the author's real paragraphs and asked which is human.
+    effort_twin: Effort = "low"
+    twin_pairs: int = 4
+    # Real AI-text detector models, run on this computer (see authenticity.local_detector). Off until set up in Settings.
+    deep_check: bool = False
+    detector_zero_shot_model: str = "openai-community/gpt2"
+    detector_classifier_model: str = "fakespot-ai/roberta-base-ai-text-detection-v1"
+    # Humanize rounds after the editor: rewrite only what the detectors and the twin test flag, keep the better version.
+    humanize_rounds: int = 1
 
     # Demo mode: canned AI responses and images (no keys, no cost).
     demo: bool = False

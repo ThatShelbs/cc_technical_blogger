@@ -103,6 +103,11 @@ async def run(args: argparse.Namespace) -> int:
         "voice_profile_version": voice_profile.version if voice_profile else None,
         "judge": args.judge,
         "model": settings.model,
+        "detector_models": bool(any(r["detector_score"] is not None for r in rows)),
+        "real_detector_mean": _mean([r["detector_score"] for r in rows if r["kind"] == "real" and r["detector_score"] is not None]),
+        "generated_detector_mean": _mean(
+            [r["detector_score"] for r in rows if r["kind"] == "generated" and r["detector_score"] is not None]
+        ),
         "real_mean": _mean(real),
         "generated_mean": _mean(generated),
         "gap": round(_mean(real) - _mean(generated), 1) if real and generated else None,  # type: ignore[operator]
@@ -118,19 +123,25 @@ async def run(args: argparse.Namespace) -> int:
     report = [
         f"# AI-detection eval: {persona.name}",
         "",
-        f"- Voice profile v{summary['voice_profile_version']}; {'scan + Claude judge' if args.judge else 'scan only'}",
+        f"- Voice profile v{summary['voice_profile_version']}; scan + texture"
+        + (" + detector models" if summary["detector_models"] else "")
+        + (" + twin test" if args.judge else ""),
         "- Score: 100 = authentic human prose, 0 = almost certainly flagged as AI-generated",
         f"- **Real posts: {summary['real_mean']}** (calibration; should be high)",
         f"- **Generated posts: {summary['generated_mean']}** "
         f"({summary['generated_flagged']} of {len(generated)} below 60, likely to be flagged by detectors)",
         f"- Gap (real - generated): {summary['gap']} (0 = indistinguishable)",
+        f"- Detector models: real {summary['real_detector_mean']}, generated {summary['generated_detector_mean']}"
+        if summary["detector_models"]
+        else "- Detector models: off (set them up in Settings to include them)",
         "",
         "Most common tells in generated posts: " + (", ".join(f"{k} ({v})" for k, v in tells.most_common(6)) or "none"),
         "",
-        "| Post | Kind | Score | Scan | Judge |",
-        "|---|---|---|---|---|",
+        "| Post | Kind | Score | Detectors | Twin / judge | Scan | Texture |",
+        "|---|---|---|---|---|---|---|",
         *(
-            f"| {r['title']} | {r['kind']} | {r['score']} | {r['scan_score']} | {'-' if r['judge_score'] is None else r['judge_score']} |"
+            f"| {r['title']} | {r['kind']} | {r['score']} | {_cell(r['detector_score'])} | {_cell(r['judge_score'])} "
+            f"| {r['scan_score']} | {_cell(r['texture_score'])} |"
             for r in rows
         ),
     ]
@@ -141,11 +152,18 @@ async def run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cell(value: object) -> str:
+    return "-" if value is None else str(value)
+
+
 def _row(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "score": result["score"],
         "scan_score": result["scan_score"],
         "judge_score": result["judge_score"],
+        "judge_kind": result.get("judge_kind"),
+        "texture_score": result.get("texture_score"),
+        "detector_score": result.get("detector_score"),
         "tells": [s["label"] for s in result["signals"] if s["penalty"] > 0],
         "flagged": result["flagged"][:5],
     }

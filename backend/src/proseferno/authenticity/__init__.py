@@ -1,6 +1,6 @@
-"""AI-generation detection: a scan calibrated to the author's own samples plus a Claude judge, scored 0-100 (100 reads as human)."""
+"""AI-generation detection, calibrated to the author: detector models, the twin test, a tell scan and texture (100 reads as human)."""
 
-from proseferno.authenticity.detector import AIDetectionJudgement, analyze, author_profile, band, report
+from proseferno.authenticity.detector import AIDetectionJudgement, analyze, author_profile, band, blend, report, run_detectors
 from proseferno.authenticity.heuristics import AuthorProfile, ScanResult, profile_author, scan
 
 __all__ = [
@@ -10,7 +10,9 @@ __all__ = [
     "analyze",
     "author_profile",
     "band",
+    "blend",
     "profile_author",
     "report",
+    "run_detectors",
     "scan",
 ]

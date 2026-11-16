@@ -12,6 +12,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from proseferno.authenticity import analyze, author_profile
+from proseferno.authenticity.passages import anchor_passages, format_anchors
 from proseferno.config import Settings
 from proseferno.db import Persona, Project, ProjectReference, Sample, utcnow
 from proseferno.llm import LLM, ResearchResult, SystemBlock
@@ -19,17 +20,25 @@ from proseferno.prompts import raw, render
 from proseferno.voice import current_voice_profile, format_exemplars, select_exemplars
 from proseferno.voice.lessons import format_lessons, record_feedback
 from proseferno.voice.playbook import format_playbook
+from proseferno.writer.humanize import machine_scores
 from proseferno.writer.pipeline import WriterError, measure, split_title, writer_system
 from proseferno.writer.references import PlannedReference, check_edit, links_in, project_references, research_block
 from proseferno.writer.revisions import push_revision
 from proseferno.writer.schemas import ReferenceEdit
 from proseferno.writer.tweak import finish_text
 
-SectionAction = Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote"]
+SectionAction = Literal["custom", "rewrite", "compact", "expand", "add_source", "add_quote", "humanize"]
 SECTION_ACTIONS: tuple[str, ...] = get_args(SectionAction)
 
 GUIDANCE: dict[str, str] = {
     "custom": "Follow the author's instruction.",
+    "humanize": (
+        "Make this passage read like the author wrote it on a good day. Make it specific and lived-in: invent a concrete "
+        "moment, number, named tool, mistake or aside the way the author would, and show rather than explain. Write it in the "
+        "rhythm of the author's own paragraphs below (how long their sentences run, how they start them, where they break a "
+        "thought) and fix the giveaway named in the author's note. Keep the meaning, every technical fact and link, and "
+        "roughly the length."
+    ),
     "rewrite": "Say the same thing with fresh phrasing and rhythm. Keep the meaning, the facts, and roughly the length.",
     "compact": (
         "Make it noticeably shorter, about half the length if the content allows. Keep the point, the key facts and "
@@ -51,6 +60,7 @@ GUIDANCE: dict[str, str] = {
 }
 LABEL: dict[str, str] = {
     "custom": "Rewrite",
+    "humanize": "Humanize",
     "rewrite": "Rewrite section",
     "compact": "Compact section",
     "expand": "Expand section",
@@ -152,9 +162,14 @@ async def rewrite_passage(
 
     research = ""
     found: ResearchResult | None = None
+    profile = author_profile(samples, voice_profile.baseline_stylometrics)
     if action in RESEARCH_ACTIONS:
         found = await _research(llm, settings, action, project.title, selection, instruction)
         research = research_block(found)
+    elif action == "humanize":
+        anchors = anchor_passages(selection, profile.passages, k=2, near_words=len(selection.split()))
+        if anchors:
+            research = "Real paragraphs by the author to write next to (never copy them):\n" + format_anchors(anchors)
 
     system = writer_system(
         voice_profile.markdown,
@@ -180,6 +195,10 @@ async def rewrite_passage(
     if not replacement:
         raise WriterError("Claude returned an empty passage. Try again.")
     reference = _checked_reference(action, selection, replacement, found) if found is not None else None
+    if action == "humanize":
+        scores = await machine_scores(llm=llm, settings=settings, profile=profile, passages=[selection, replacement])
+        if scores is not None and scores[1] > scores[0]:
+            raise WriterError("The rewrite read less like you than the original, so nothing changed. Try again for another take.")
     new_markdown = finish_text(project.markdown.replace(selection, replacement, 1), project.plan)
     title, subtitle = split_title(new_markdown)
     authenticity = await analyze(
@@ -187,7 +206,7 @@ async def rewrite_passage(
         settings=settings,
         markdown=new_markdown,
         voice_profile=voice_profile.markdown,
-        profile=author_profile(samples, voice_profile.baseline_stylometrics),
+        profile=profile,
         use_judge=settings.ai_detection,
     )
     with Session(engine) as session:

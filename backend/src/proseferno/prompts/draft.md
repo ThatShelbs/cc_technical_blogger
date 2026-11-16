@@ -7,6 +7,7 @@ $prompt
 <plan>
 $plan
 </plan>
+$author_material$anchors
 
 Settings:
 - About $target_words words (excluding code)
@@ -24,7 +25,7 @@ Write the opener, the body and the closer the way the formula describes them, in
 
 Follow the plan's `callbacks`: set up each running joke and key concept where the plan says, bring it back in each listed section with something new each time, and pay it off as planned. Callbacks should feel natural, not announced ("as I said earlier" is a crutch).
 
-Sound human, because the author is human: vary sentence length and paragraph shape the way the author does, use their real verbal habits, and avoid the generic AI-writing tells listed in the voice profile (stock vocabulary like "delve", "tapestry" or "game-changer", "it's not X, it's Y" constructions, reflexive rule-of-three lists, "Moreover/Furthermore" transitions, em dashes beyond the author's measured rate, and tidy upbeat summaries).
+Sound human, because the author is human. Write each part in the same hand as the author's paragraphs above: their rhythm, how they start sentences, how specific they get, their asides. Fill the blanks with vivid, specific, lived-in material (a moment, a mistake, a number, a named tool, a line of dialogue) the way the author would, instead of explaining in general terms. Vary sentence length and paragraph shape the way the author does, use their real verbal habits, and avoid the generic AI-writing tells listed in the voice profile (stock vocabulary like "delve", "tapestry" or "game-changer", "it's not X, it's Y" constructions, reflexive rule-of-three lists, "Moreover/Furthermore" transitions, em dashes beyond the author's measured rate, and tidy upbeat summaries).
 
 Format (Markdown):
 - First line `# <title>`, then the subtitle in italics on its own line.

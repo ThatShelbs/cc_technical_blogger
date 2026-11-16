@@ -29,6 +29,8 @@ RUNTIME_SETTINGS = (
     "use_fallbacks",
     "revision_passes",
     "ai_detection",
+    "deep_check",
+    "humanize_rounds",
     "reference_max_searches",
     "check_reference_links",
 )

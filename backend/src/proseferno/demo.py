@@ -317,7 +317,11 @@ def _structured_payload(name: str, prompt: str = "") -> dict[str, Any]:
             "tags": ["Data Visualization", "Charts"],
         }
     if name == "PostEdits":
-        return _post_edits(prompt)
+        return _humanize_edits(prompt) if "<targets>" in prompt else _post_edits(prompt)
+    if name == "TwinVerdicts":
+        return _twin_verdicts(prompt)
+    if name == "InterviewQuestions":
+        return {"questions": DEMO_INTERVIEW}
     if name == "ImageTextEdits":
         return _image_text_edits(prompt)
     if name == "ImagePlacement":
@@ -473,6 +477,43 @@ def _post_edits(prompt: str) -> dict[str, Any]:
         "summary": "Added a wry aside to the opening." + (" Redrew the diagram with a new idea." if image_changes else ""),
         "edits": [{"find": paragraph, "replace": paragraph + DEMO_TWEAK}] if paragraph else [],
         "image_changes": image_changes,
+    }
+
+
+DEMO_HUMANIZE = " Ask me how I know: one Tuesday, one dashboard, one very confused VP."
+DEMO_INTERVIEW = [
+    "What is the worst pie chart you have ever had to defend in a meeting?",
+    "What finally made you switch to bar charts?",
+    "Who is this post really for: analysts, or the people who ask them for charts?",
+    "What is the one rule you would tape to every analyst's monitor?",
+]
+
+
+def _humanize_edits(prompt: str) -> dict[str, Any]:
+    """Give the first target that appears in the post a specific, lived-in aside."""
+    post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+    targets = re.findall(r"<target number=\"\d+\"[^>]*>\n(.*?)\n</target>", prompt, flags=re.S)
+    quote = next((t.strip() for t in targets if t.strip() and t.strip() in post), "")
+    return {
+        "summary": "Gave the most machine-like passage a concrete moment.",
+        "edits": [{"find": quote, "replace": quote + DEMO_HUMANIZE}] if quote else [],
+        "image_changes": [],
+    }
+
+
+def _twin_verdicts(prompt: str) -> dict[str, Any]:
+    """Alternate the pick; fairly sure each time, so a demo post shows one caught passage and one that passed."""
+    count = int(m.group(1)) if (m := re.search(r"Here are (\d+) pairs", prompt)) else 0
+    return {
+        "verdicts": [
+            {
+                "pair": i,
+                "human": "A" if i % 2 else "B",
+                "confidence": 75,
+                "giveaway": "Every sentence lands with the same tidy rhythm" if i % 2 else "",
+            }
+            for i in range(1, count + 1)
+        ]
     }
 
 

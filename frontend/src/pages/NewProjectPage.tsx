@@ -10,7 +10,7 @@ import { emptyBrandKit, isEmptyBrandKit } from '../lib/brandKit'
 import { DialsFields } from '../components/DialsFields'
 import { FormulaFields } from '../components/FormulaFields'
 import { OpeningFields } from '../components/OpeningFields'
-import { Button, Card, Field, Notice, PageHeader, Select, Textarea } from '../components/ui'
+import { Button, Card, Field, Notice, PageHeader, Select, Switch, Textarea } from '../components/ui'
 import { cx } from '../lib/cx'
 
 const EXAMPLE = `Why most A/B tests at big companies are underpowered
@@ -33,6 +33,7 @@ export function NewProjectPage() {
   const [dials, setDials] = useState<DialsState>(emptyDials)
   const [brandKit, setBrandKit] = useState(emptyBrandKit)
   const [mode, setMode] = useState<'standard' | 'ab'>('standard')
+  const [interviewChoice, setInterview] = useState<boolean | null>(null)
   const set = (patch: Partial<DialsState>) => setDials((d) => ({ ...d, ...patch }))
 
   // "Customize first" from Idea Lab: start from the idea's brief and article type, once, then it is the author's to change.
@@ -52,6 +53,8 @@ export function NewProjectPage() {
   const changed = Object.keys(buildDials(dials)).length > 0
 
   const ready = !!persona?.voice_profile_version
+  // Off unless the author turns it on (or makes it the persona's default); A/B tests write straight away.
+  const interview = mode === 'standard' && (interviewChoice ?? persona?.default_interview ?? false)
   const submit = () =>
     create.mutate(
       {
@@ -59,10 +62,13 @@ export function NewProjectPage() {
         dials: buildDials(dials),
         persona_id: persona?.id,
         mode,
+        interview,
         ...(isEmptyBrandKit(brandKit) ? {} : { brand_kit: brandKit }),
         ...(seeded ? { idea_id: seeded } : {}),
       },
-      { onSuccess: (data) => navigate(`/projects/${data.project.id}${data.job_id ? `?job=${data.job_id}` : ''}`) },
+      {
+        onSuccess: (data) => navigate(`/projects/${data.project.id}${data.job_id ? `?job=${data.job_id}${interview ? '&kind=interview' : ''}` : ''}`),
+      },
     )
 
   return (
@@ -128,6 +134,17 @@ export function NewProjectPage() {
               </button>
             ))}
           </div>
+          {mode === 'standard' && (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-line px-4 py-3">
+              <div>
+                <p className="font-semibold">Interview me first</p>
+                <p className="text-sm text-muted">
+                  Optional. Claude asks 3-5 questions about this post (your stories, opinions, numbers) and works your answers in. Skip any of them.
+                </p>
+              </div>
+              <Switch checked={interview} label="Interview me first" onChange={setInterview} />
+            </div>
+          )}
           <Button
             type="submit"
             variant="flame"
@@ -136,7 +153,7 @@ export function NewProjectPage() {
             disabled={!ready || prompt.trim().length < 3}
             loading={create.isPending}
           >
-            {mode === 'ab' ? 'Write two versions' : 'Write my post'}
+            {mode === 'ab' ? 'Write two versions' : interview ? 'Ask me a few questions' : 'Write my post'}
           </Button>
         </Card>
 

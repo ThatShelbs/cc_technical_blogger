@@ -19,6 +19,9 @@ $callbacks
 AI-writing tells found by an automated scan (fix every one in your instructions unless the author genuinely writes that way):
 $ai_tells
 
+Texture compared with the author's own posts (sentence-length mix, runs of same-length sentences, generic sentences, first person, openers; fix the biggest gaps and rewrite the quoted sentences in the author's rhythm, with specific, lived-in detail instead of abstractions):
+$texture
+$author_material_check
 Lead-ins that promise an example with nothing after it (the post must show every example it introduces; tell the reviser to add the missing code block, table, quote or list right after each one, or to point it at an image placeholder, and never to delete the lead-in):
 $missing_examples
 

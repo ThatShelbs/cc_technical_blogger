@@ -14,6 +14,8 @@ from sqlalchemy import Engine
 from sqlmodel import Session, col, delete, select
 
 from proseferno.authenticity import analyze, author_profile, scan
+from proseferno.authenticity.passages import section_anchors
+from proseferno.authenticity.texture import texture_report
 from proseferno.config import Settings
 from proseferno.db import Persona, Project, ProjectImage, Sample, VoiceProfile, utcnow
 from proseferno.images import PLACEHOLDER_RE, ImageService
@@ -27,6 +29,7 @@ from proseferno.voice.lessons import format_lessons
 from proseferno.voice.playbook import format_playbook
 from proseferno.writer.dials import Dials, ResolvedDials, resolve
 from proseferno.writer.examples import add_example_slots, format_missing_examples
+from proseferno.writer.humanize import humanize_post
 from proseferno.writer.links import LinkChecker, NoLinkChecker
 from proseferno.writer.schemas import ArticlePlan, Critique, ImageSlot, TitleOptions
 
@@ -279,6 +282,49 @@ class Reporter(Protocol):
     def add_usage(self, usage: dict[str, int]) -> None: ...
 
 
+def answered(interview: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+    """The interview questions the author answered (skipped ones are left out)."""
+    return [
+        {"question": str(q.get("question", "")).strip(), "answer": str(q.get("answer", "")).strip()}
+        for q in interview or []
+        if str(q.get("answer", "")).strip()
+    ]
+
+
+def format_author_material(interview: list[dict[str, Any]] | None) -> str:
+    """The author's interview answers for the plan and draft prompts; empty when there are none."""
+    answers = answered(interview)
+    if not answers:
+        return ""
+    body = "\n\n".join(f"Q: {a['question']}\nA: {a['answer']}" for a in answers)
+    return (
+        "\n<author_material>\nThe author answered a few questions for this post. These are their own stories, opinions and "
+        "details: build the post around them and keep their wording close to verbatim (fix only grammar and flow), each in the "
+        "section where it fits. Fill everything around them the way the author would.\n\n"
+        f"{body}\n</author_material>\n"
+    )
+
+
+def format_anchor_block(anchors: str) -> str:
+    if not anchors:
+        return ""
+    return (
+        "\n<author_paragraphs>\nReal paragraphs the author wrote, picked for each part of this plan (openings for the hook, "
+        "the closest body paragraphs for each section, closings for the ending). Write each part in the same hand: their "
+        "sentence rhythm, how they start sentences, how specific they get, their asides. Never copy their sentences, stories or "
+        f"jokes.\n\n{anchors}\n</author_paragraphs>\n"
+    )
+
+
+def author_material_check(interview: list[dict[str, Any]] | None) -> str:
+    if not answered(interview):
+        return ""
+    return (
+        "\nThe author gave their own material for this post (below). Check that each answer made it into the post close to "
+        "their wording; flag any that was dropped or smoothed into generic prose.\n" + format_author_material(interview)
+    )
+
+
 @dataclass
 class WrittenPost:
     markdown: str
@@ -303,6 +349,7 @@ async def write_post(
     on_draft: Callable[[str, dict[str, Any]], None] | None = None,
     enrich: Callable[[str, ArticlePlan, list[SystemBlock]], Awaitable[str]] | None = None,
     variation: Variation | None = None,
+    interview: list[dict[str, Any]] | None = None,
 ) -> WrittenPost:
     """Plan -> streamed draft -> critique/revise -> optional ``enrich`` pass (references). Images are a separate step."""
     exemplars = select_exemplars(prompt, samples)
@@ -311,13 +358,15 @@ async def write_post(
         exemplars = [by_id[i] for i in variation.exemplar_ids if i in by_id] or exemplars
     system = writer_system(voice_profile.markdown, format_exemplars(exemplars), lessons, playbook, variation.emphasis if variation else "")
     settings_text = prompt_settings(dials)
+    profile = author_profile(samples, voice_profile.baseline_stylometrics)
+    material = format_author_material(interview)
 
     # 1. Plan
     await reporter.progress(0.03, "Planning the post")
     plan = await llm.structured(
         task="post plan",
         system=system,
-        prompt=render("plan", prompt=prompt, **settings_text),
+        prompt=render("plan", prompt=prompt, author_material=material, **settings_text),
         schema=ArticlePlan,
         effort=settings.effort_plan,
         usage=reporter.add_usage,
@@ -343,6 +392,15 @@ async def write_post(
             prompt=prompt,
             plan=json.dumps(plan.model_dump(exclude={"image_slots"}), indent=1),
             placeholders=placeholders,
+            author_material=material,
+            anchors=format_anchor_block(
+                section_anchors(
+                    plan.hook,
+                    [(section.heading, "; ".join(section.key_points)) for section in plan.sections],
+                    plan.closing,
+                    profile.passages,
+                )
+            ),
             **settings_text,
         ),
         effort=settings.effort_draft,
@@ -356,8 +414,7 @@ async def write_post(
     if on_draft:
         on_draft(draft, measured)
 
-    # 3. Critique and revise (the editor also sees the AI-writing tells the scan found)
-    profile = author_profile(samples, voice_profile.baseline_stylometrics)
+    # 3. Critique and revise (the editor also sees the AI-writing tells the scan found and the texture gaps)
     critique: Critique | None = None
     try:
         for round_number in range(dials.revision_passes):
@@ -370,6 +427,8 @@ async def write_post(
                     draft=draft,
                     fidelity=json.dumps(measured, indent=1),
                     ai_tells=scan(draft, profile).tells_text(),
+                    texture=texture_report(draft, profile.texture).text(),
+                    author_material_check=author_material_check(interview),
                     callbacks=format_callbacks(plan),
                     missing_examples=format_missing_examples(draft),
                     **settings_text,
@@ -410,7 +469,36 @@ async def write_post(
         await reporter.emit("draft_reset", {})
         await reporter.emit("draft_delta", {"text": draft})
 
-    # 4. References: a later pass over the finished text, so they never get in the way of the voice edit.
+    # 4. Humanize: rewrite only what the detector models, the twin test and texture flag; keep the better version.
+    checked: dict[str, Any] | None = None
+
+    async def humanize_round(round_number: int) -> None:
+        await reporter.progress(0.6 + 0.03 * round_number, "Humanizing the passages that read as machine-written")
+
+    try:
+        humanized, checked = await humanize_post(
+            llm=llm,
+            settings=settings,
+            system=system,
+            markdown=draft,
+            voice_profile=voice_profile.markdown,
+            profile=profile,
+            finish=lambda text: ensure_placeholders(text, slots),
+            usage=reporter.add_usage,
+            on_round=humanize_round,
+        )
+    except Exception:
+        # Humanizing makes a post better; failing must never cost the author the post.
+        log.exception("Humanize pass failed; keeping the edited draft")
+        humanized = draft
+    if humanized != draft:
+        draft = humanized
+        measured = measure(draft, voice_profile.baseline_stylometrics)
+        await reporter.emit("draft_reset", {})
+        await reporter.emit("draft_delta", {"text": draft})
+    checked_text = draft
+
+    # 5. References: a later pass over the finished text, so they never get in the way of the voice edit.
     if enrich is not None:
         try:
             enriched = await enrich(draft, plan, system)
@@ -424,16 +512,20 @@ async def write_post(
                 await reporter.emit("draft_reset", {})
                 await reporter.emit("draft_delta", {"text": draft})
 
-    # 5. AI-generation detection report
+    # 6. AI-generation detection report (the humanize check is reused when nothing changed since)
     await reporter.progress(0.69, "Checking how human the post reads")
-    authenticity = await analyze(
-        llm=llm,
-        settings=settings,
-        markdown=draft,
-        voice_profile=voice_profile.markdown,
-        profile=profile,
-        use_judge=settings.ai_detection,
-        usage=reporter.add_usage,
+    authenticity = (
+        checked
+        if checked is not None and checked_text == draft
+        else await analyze(
+            llm=llm,
+            settings=settings,
+            markdown=draft,
+            voice_profile=voice_profile.markdown,
+            profile=profile,
+            use_judge=settings.ai_detection,
+            usage=reporter.add_usage,
+        )
     )
     await reporter.emit("authenticity", authenticity)
 
@@ -507,6 +599,7 @@ async def _generate(
         on_draft=lambda draft, measured: _save(engine, project_id, markdown=draft, fidelity=measured, revisions=[]),
         enrich=add_references,
         variation=variation,
+        interview=project.interview or None,
     )
     draft, plan, slots = post.markdown, post.plan, post.plan.image_slots
 
