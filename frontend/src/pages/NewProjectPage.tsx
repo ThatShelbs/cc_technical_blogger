@@ -12,6 +12,7 @@ import { FormulaFields } from '../components/FormulaFields'
 import { OpeningFields } from '../components/OpeningFields'
 import { Button, Card, Field, Notice, PageHeader, Select, Switch, Textarea } from '../components/ui'
 import { cx } from '../lib/cx'
+import { useHotkey } from '../lib/hotkeys'
 
 const EXAMPLE = `Why most A/B tests at big companies are underpowered
 - story: the test that "won" and then quietly lost
@@ -70,6 +71,17 @@ export function NewProjectPage() {
         onSuccess: (data) => navigate(`/projects/${data.project.id}${data.job_id ? `?job=${data.job_id}${interview ? '&kind=interview' : ''}` : ''}`),
       },
     )
+
+  // Ctrl/Cmd+Enter writes the post from anywhere on the page, including the prompt box.
+  const canSubmit = ready && prompt.trim().length >= 3 && !create.isPending
+  useHotkey(
+    'mod+enter',
+    (event) => {
+      event.preventDefault()
+      if (canSubmit) submit()
+    },
+    true,
+  )
 
   return (
     <>
@@ -152,6 +164,7 @@ export function NewProjectPage() {
             icon={<Flame className="size-5" />}
             disabled={!ready || prompt.trim().length < 3}
             loading={create.isPending}
+            title="Ctrl/Cmd + Enter"
           >
             {mode === 'ab' ? 'Write two versions' : interview ? 'Ask me a few questions' : 'Write my post'}
           </Button>

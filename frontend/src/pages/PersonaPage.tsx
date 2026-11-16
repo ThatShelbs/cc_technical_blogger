@@ -10,7 +10,8 @@ import { FormulaFields } from '../components/FormulaFields'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
 import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, Slider, Spinner, Switch } from '../components/ui'
-import { cx } from '../lib/cx'
+import { Tabs } from '../components/tabs'
+import { panelDomId, tabDomId } from '../lib/tabs'
 import { buildFormula, formulaFrom } from '../lib/formula'
 import { autoReferenceCount } from '../lib/references'
 import { InsightsTab } from './persona/InsightsTab'
@@ -540,12 +541,12 @@ export function PersonaPage() {
   if (isLoading) return <Spinner />
   if (error || !persona) return <Notice tone="error">{error ? errorText(error) : 'Persona not found.'}</Notice>
 
-  const tabs: [Tab, string][] = [
-    ['samples', 'Writing samples'],
-    ['voice', 'Voice profile'],
-    ['insights', 'Insights'],
-    ['evolution', persona.pending_evolutions ? `Evolution (${persona.pending_evolutions})` : 'Evolution'],
-    ['settings', 'Settings & defaults'],
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'samples', label: 'Writing samples' },
+    { id: 'voice', label: 'Voice profile' },
+    { id: 'insights', label: 'Insights' },
+    { id: 'evolution', label: persona.pending_evolutions ? `Evolution (${persona.pending_evolutions})` : 'Evolution' },
+    { id: 'settings', label: 'Settings & defaults' },
   ]
   return (
     <>
@@ -567,27 +568,14 @@ export function PersonaPage() {
           </>
         }
       />
-      <div role="tablist" aria-label="Persona sections" className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
-        {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => setTab(key)}
-            className={cx(
-              '-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap',
-              tab === key ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg',
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <Tabs tabs={tabs} value={tab} onChange={setTab} label="Persona sections" idPrefix="persona" className="mb-6" />
+      <div role="tabpanel" id={panelDomId('persona', tab)} aria-labelledby={tabDomId('persona', tab)}>
+        {tab === 'samples' && <SamplesTab personaId={persona.id} />}
+        {tab === 'voice' && <VoiceProfilePanel personaId={persona.id} />}
+        {tab === 'insights' && <InsightsTab personaId={persona.id} onOpenTab={setTab} />}
+        {tab === 'evolution' && <EvolutionPanel personaId={persona.id} />}
+        {tab === 'settings' && <SettingsTab key={`${persona.id}-${persona.name}`} persona={persona} />}
       </div>
-      {tab === 'samples' && <SamplesTab personaId={persona.id} />}
-      {tab === 'voice' && <VoiceProfilePanel personaId={persona.id} />}
-      {tab === 'insights' && <InsightsTab personaId={persona.id} onOpenTab={setTab} />}
-      {tab === 'evolution' && <EvolutionPanel personaId={persona.id} />}
-      {tab === 'settings' && <SettingsTab key={`${persona.id}-${persona.name}`} persona={persona} />}
       {duplicating && <DuplicatePersonaDialog persona={persona} open onClose={() => setDuplicating(false)} />}
     </>
   )

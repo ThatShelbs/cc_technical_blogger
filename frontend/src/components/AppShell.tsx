@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronsUpDown, FileText, Lightbulb, Menu, Moon, Settings, Sun, SunMoon, Users, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronsUpDown, FileText, Lightbulb, Menu, Moon, Plus, Search, Settings, Sun, SunMoon, Users, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router'
 
@@ -6,6 +6,10 @@ import { useHealth, usePersonaMutations, usePersonas } from '../api/hooks'
 import type { PersonaOut } from '../api/types.gen'
 import { useTheme, type ThemeMode } from '../theme/useTheme'
 import { cx } from '../lib/cx'
+import { useFocusTrap } from '../lib/focusTrap'
+import { useHotkey } from '../lib/hotkeys'
+import { CommandPalette } from './CommandPalette'
+import { Dialog } from './ui'
 
 const NAV = [
   { to: '/', label: 'Posts', icon: FileText, end: true },
@@ -59,19 +63,19 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<number | null>(null)
   const panel = useRef<HTMLDivElement>(null)
+  const popover = useRef<HTMLDivElement>(null)
   const active = personas?.find((p) => p.is_active)
+
+  // Focus moves into the popover on open and back to the button on close; Escape closes it.
+  useFocusTrap(popover, open, () => setOpen(false))
 
   useEffect(() => {
     if (!open) return
-    const close = (event: MouseEvent | KeyboardEvent) => {
-      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !panel.current?.contains(event.target as Node)) setOpen(false)
+    const outside = (event: MouseEvent) => {
+      if (!panel.current?.contains(event.target as Node)) setOpen(false)
     }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', close)
-    }
+    document.addEventListener('mousedown', outside)
+    return () => document.removeEventListener('mousedown', outside)
   }, [open])
 
   if (!personas?.length) return null
@@ -89,6 +93,7 @@ function PersonaSwitcher({ onNavigate }: { onNavigate?: () => void }) {
     <div ref={panel} className="relative">
       {open && (
         <div
+          ref={popover}
           role="dialog"
           aria-label="Switch persona"
           className="absolute bottom-full left-0 z-30 mb-2 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface p-2 shadow-xl"
@@ -229,19 +234,82 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
+const SHORTCUTS: [string, string][] = [
+  ['Ctrl/Cmd + K', 'Open the command palette'],
+  ['Ctrl/Cmd + S', 'Save your Markdown edits (post editor)'],
+  ['Ctrl/Cmd + Enter', 'Write the post (New post page)'],
+  ['?', 'Show this list'],
+  ['Esc', 'Close a menu or dialog'],
+]
+
+function QuickActions({ onPalette, onNavigate }: { onPalette: () => void; onNavigate?: () => void }) {
+  return (
+    <div className="space-y-2">
+      <Link
+        to="/projects/new"
+        onClick={onNavigate}
+        className="flame-button flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white shadow-md hover:brightness-110"
+      >
+        <Plus className="size-4" aria-hidden /> New post
+      </Link>
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.()
+          onPalette()
+        }}
+        className="flex h-9 w-full items-center gap-2 rounded-lg border border-line px-3 text-sm text-muted hover:bg-surface-2 hover:text-fg"
+      >
+        <Search className="size-4" aria-hidden />
+        <span className="flex-1 text-left">Search &amp; jump</span>
+        <kbd className="rounded border border-line px-1.5 text-xs">Ctrl K</kbd>
+      </button>
+    </div>
+  )
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const menu = useRef<HTMLDivElement>(null)
   const health = useHealth()
+  useFocusTrap(menu, open, () => setOpen(false))
+  useHotkey('mod+k', (event) => {
+    event.preventDefault()
+    setPaletteOpen((v) => !v)
+  })
+  useHotkey('?', () => setHelpOpen(true))
   return (
     <div className="min-h-screen bg-bg">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-fg"
+      >
+        Skip to content
+      </a>
       {health.data?.demo && (
         <div className="flame-button px-4 py-1.5 text-center text-sm font-semibold text-white">
           Demo mode: AI responses and images are canned examples. No API keys are used.
         </div>
       )}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Keyboard shortcuts">
+        <dl className="space-y-2 text-sm">
+          {SHORTCUTS.map(([keys, what]) => (
+            <div key={keys} className="flex items-center justify-between gap-4">
+              <dt className="text-muted">{what}</dt>
+              <dd>
+                <kbd className="rounded border border-line px-1.5 py-0.5 text-xs">{keys}</kbd>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </Dialog>
       <div className="flex">
         <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-6 border-r border-line bg-surface px-4 py-5 lg:flex">
           <Logo />
+          <QuickActions onPalette={() => setPaletteOpen(true)} />
           <NavItems />
           <div className="mt-auto space-y-3">
             <PersonaSwitcher />
@@ -258,20 +326,30 @@ export function AppShell({ children }: { children: ReactNode }) {
           </header>
           {open && (
             <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setOpen(false)}>
-              <div className="h-full w-72 space-y-6 bg-surface p-4" onClick={(e) => e.stopPropagation()}>
+              <div
+                ref={menu}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Menu"
+                className="h-full w-72 space-y-6 overflow-y-auto bg-surface p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex items-center justify-between">
                   <Logo />
                   <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-surface-2" aria-label="Close menu">
                     <X className="size-5" />
                   </button>
                 </div>
+                <QuickActions onPalette={() => setPaletteOpen(true)} onNavigate={() => setOpen(false)} />
                 <NavItems onNavigate={() => setOpen(false)} />
                 <PersonaSwitcher onNavigate={() => setOpen(false)} />
                 <ThemeToggle />
               </div>
             </div>
           )}
-          <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>
+          <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-6 outline-none sm:px-6 lg:px-10 lg:py-10">
+            {children}
+          </main>
         </div>
       </div>
     </div>
