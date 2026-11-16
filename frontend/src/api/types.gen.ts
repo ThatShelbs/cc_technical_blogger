@@ -156,11 +156,22 @@ export interface CountItem {
   count: number;
 }
 
+export interface DetectorModelOut {
+  id: string;
+  label: string;
+  summary: string;
+  heavy: boolean;
+  size: string;
+  selected: boolean;
+  installed: boolean;
+}
+
 export interface DetectorStatusOut {
   available: boolean;
   ready: boolean;
   enabled: boolean;
-  models: Record<string, string>;
+  selected: string[];
+  models: DetectorModelOut[];
   detail: string;
   job?: JobOut | null;
 }
@@ -1096,7 +1107,7 @@ export interface SettingsIn {
   use_fallbacks?: boolean | null;
   revision_passes?: number | null;
   ai_detection?: boolean | null;
-  deep_check?: boolean | null;
+  detector_models?: string[] | null;
   humanize_rounds?: number | null;
   reference_max_searches?: number | null;
   check_reference_links?: boolean | null;
@@ -1108,7 +1119,7 @@ export interface SettingsOut {
   use_fallbacks: boolean;
   revision_passes: number;
   ai_detection: boolean;
-  deep_check: boolean;
+  detector_models: string[];
   humanize_rounds: number;
   reference_max_searches: number;
   check_reference_links: boolean;

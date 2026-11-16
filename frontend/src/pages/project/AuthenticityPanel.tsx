@@ -170,7 +170,7 @@ export function AuthenticityPanel({ project, onEdited }: { project: ProjectOut; 
           {report.verdict && <p className="text-sm">{report.verdict}</p>}
           {report.detector_score == null && !report.detector_error && (
             <p className="text-xs text-muted">
-              For a real detector&apos;s read, turn on the AI-detector models in{' '}
+              No detector is selected. Pick one in{' '}
               <Link to="/settings" className="font-semibold underline">
                 Settings
               </Link>
@@ -197,7 +197,7 @@ export function AuthenticityPanel({ project, onEdited }: { project: ProjectOut; 
 
             {models.length > 0 && (
               <div>
-                <p className="mb-2 font-semibold">Detector models (run on this computer)</p>
+                <p className="mb-2 font-semibold">Detectors (run on this computer)</p>
                 <ul className="space-y-1.5">
                   {models.map((m) => (
                     <li key={m.id} className="flex items-start gap-3">

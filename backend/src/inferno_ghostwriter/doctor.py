@@ -190,7 +190,7 @@ def run_checks(
             "AI-detector models (optional)",
             bool(detector["ready"]),
             str(detector["detail"]),
-            "Turn on 'Real AI-detector models' in Settings for a one-time download." if detector["available"] else "",
+            "Pick the trained models in Settings > Humanizing for a one-time download." if detector["available"] else "",
         )
     )
 

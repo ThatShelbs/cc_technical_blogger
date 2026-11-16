@@ -1,15 +1,16 @@
 """Real AI-text detector models, run locally and calibrated to the author's own posts.
 
-Two open models score every post:
+Any mix of these models can score a post (``CATALOG``; the author picks them in Settings, the first one is the default):
 
+- **Light check** (built in, no download): sentence rhythm, voice markers and detail (``light_detector``).
 - **Fast-DetectGPT** (zero-shot): how close each sentence is to what a small language model would have written.
 - **An AI-text classifier**: a model trained to tell human from machine text, scored per paragraph.
 
-They run in ``detector_worker.py`` through ``uv run --no-project --with torch --with transformers``: the heavy packages
+The two trained models run in ``detector_worker.py`` through ``uv run --no-project --with torch --with transformers``: the heavy packages
 live in uv's cache, never in the app's environment, and one worker process stays up so models load once. Nothing is
-downloaded until the author turns the detectors on in Settings (``setup_detector``).
+downloaded until the author selects one of them in Settings (``setup_detector``).
 
-Both models are compared with the author's own posts, scored once and cached: the goal is to read like the author,
+Every model is compared with the author's own posts, scored once and cached: the goal is to read like the author,
 whose real writing is human by definition, not to chase a number lower than theirs.
 """
 
@@ -30,8 +31,9 @@ import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
+from inferno_ghostwriter.authenticity.light_detector import light_result
 from inferno_ghostwriter.authenticity.passages import split_paragraphs
 from inferno_ghostwriter.authenticity.texture import prose_sentences
 from inferno_ghostwriter.config import FROZEN, Settings
@@ -47,10 +49,10 @@ MAX_OUTLIERS = 10
 CALIBRATION_VERSION = 1
 
 # Without the author's own posts: where plain human prose usually sits for each model.
-GENERIC = {"curvature": (0.0, 1.0), "classifier": (0.1, 0.15)}
+GENERIC = {"light": (0.38, 0.12), "curvature": (0.0, 1.0), "classifier": (0.1, 0.15)}
 # Spread floors, so an author whose posts score alike is not held to an impossibly narrow band.
-MIN_SPREAD = {"curvature": 0.5, "classifier": 0.08}
-LABELS = {"curvature": "Fast-DetectGPT (zero-shot)", "classifier": "AI-text classifier"}
+MIN_SPREAD = {"light": 0.06, "curvature": 0.5, "classifier": 0.08}
+LABELS = {"light": "Light check (built in)", "curvature": "Fast-DetectGPT (zero-shot)", "classifier": "AI-text classifier"}
 
 
 class DetectorError(RuntimeError):
@@ -70,8 +72,68 @@ def detector_input(markdown: str) -> DetectorInput:
     )
 
 
+@dataclass(frozen=True)
+class DetectorModel:
+    """One selectable detector. ``id`` is the key of its result; ``part`` is what it scores inside a post."""
+
+    id: str
+    label: str
+    summary: str
+    part: Literal["sentences", "paragraphs"]
+    # Needs the one-time PyTorch and model download (everything else runs in the app's own process).
+    heavy: bool
+    size: str
+    # How much the model counts in the average of the selected ones (the light check is a rougher signal).
+    weight: float = 1.0
+    # The key the worker process reads the model's name under (trained models only).
+    worker_kind: str = ""
+
+
+CATALOG: tuple[DetectorModel, ...] = (
+    DetectorModel(
+        "light",
+        LABELS["light"],
+        "Instant and private: reads sentence rhythm, personal markers and concrete detail. A rougher signal than the trained models.",
+        "sentences",
+        False,
+        "built in",
+        weight=0.5,
+    ),
+    DetectorModel(
+        "curvature",
+        LABELS["curvature"],
+        "Fast-DetectGPT on GPT-2: how close each sentence is to what a small language model would have written.",
+        "sentences",
+        True,
+        "about 0.6 GB with PyTorch",
+        worker_kind="zero_shot",
+    ),
+    DetectorModel(
+        "classifier",
+        LABELS["classifier"],
+        "A RoBERTa model trained to tell human from AI text, scored per paragraph.",
+        "paragraphs",
+        True,
+        "about 0.7 GB with PyTorch",
+        worker_kind="classifier",
+    ),
+)
+BY_ID = {m.id: m for m in CATALOG}
+DEFAULT_MODELS = ["light"]
+
+
+def clean_selection(ids: Sequence[str]) -> list[str]:
+    """Known detector ids, once each, in catalog order (an empty list turns the detectors off)."""
+    return [m.id for m in CATALOG if m.id in set(ids)]
+
+
+def selected_models(settings: Settings) -> list[str]:
+    return clean_selection(settings.detector_models)
+
+
 class Detector(Protocol):
-    """Scores texts with the detector models. Each result may hold ``curvature`` and/or ``classifier``."""
+    """Scores texts with the selected detectors. Each result holds one entry per detector id (``light``, ``curvature``,
+    ``classifier``); ``models`` maps each id to the model's name."""
 
     models: dict[str, str]
 
@@ -100,18 +162,53 @@ def _ready_marker(settings: Settings) -> Path:
     return detector_home(settings) / "ready.json"
 
 
-def configured_models(settings: Settings) -> dict[str, str]:
-    models = {"zero_shot": settings.detector_zero_shot_model, "classifier": settings.detector_classifier_model}
-    return {k: v for k, v in models.items() if v}
+def worker_models(settings: Settings, ids: Sequence[str] | None = None) -> dict[str, str]:
+    """The worker's ``{kind: Hugging Face id}`` for these trained detectors (default: all of them)."""
+    names = _names(settings)
+    return {BY_ID[i].worker_kind: names[i] for i in (ids if ids is not None else names) if names.get(i)}
+
+
+def _names(settings: Settings) -> dict[str, str]:
+    return {"curvature": settings.detector_zero_shot_model, "classifier": settings.detector_classifier_model}
+
+
+def installed_models(settings: Settings) -> dict[str, str]:
+    """The ``{kind: Hugging Face id}`` the one-time setup has downloaded."""
+    marker = _ready_marker(settings)
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8")).get("models") if marker.is_file() else {}
+    except (OSError, ValueError):
+        return {}
+    return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+
+
+def _is_installed(settings: Settings, model_id: str) -> bool:
+    if not BY_ID[model_id].heavy:
+        return True
+    return worker_models(settings, [model_id]).items() <= installed_models(settings).items()
+
+
+def _uv(settings: Settings) -> str | None:
+    return None if FROZEN else find_uv()
+
+
+def active_models(settings: Settings) -> list[str]:
+    """The selected detectors that can run right now: the built-in one always, trained ones once set up."""
+    selected = selected_models(settings)
+    if settings.demo:
+        return selected
+    uv = _uv(settings)
+    return [i for i in selected if not BY_ID[i].heavy or (uv is not None and _is_installed(settings, i))]
 
 
 class UvDetector:
     """The real models, in one long-lived worker process started with uv."""
 
-    def __init__(self, settings: Settings, uv: str) -> None:
+    def __init__(self, settings: Settings, uv: str, models: dict[str, str] | None = None) -> None:
         self.settings = settings
         self.uv = uv
-        self.models = configured_models(settings)
+        # {worker kind: Hugging Face id} of the models this process loads.
+        self.models = models if models is not None else worker_models(settings)
         self._process: subprocess.Popen[str] | None = None
         self._lock = threading.Lock()
 
@@ -206,60 +303,105 @@ class UvDetector:
         return dict(json.loads(result.stdout.strip().splitlines()[-1]))
 
 
-_DETECTORS: dict[tuple[str, str, str], UvDetector] = {}
+_DETECTORS: dict[tuple[str, tuple[tuple[str, str], ...]], UvDetector] = {}
+
+
+def model_info(settings: Settings) -> list[dict[str, Any]]:
+    """Every selectable detector, with whether it is selected and (the trained ones) set up."""
+    selected = set(selected_models(settings))
+    return [
+        {
+            "id": m.id,
+            "label": m.label,
+            "summary": m.summary,
+            "heavy": m.heavy,
+            "size": m.size,
+            "selected": m.id in selected,
+            "installed": settings.demo or _is_installed(settings, m.id),
+        }
+        for m in CATALOG
+    ]
 
 
 def status(settings: Settings) -> dict[str, Any]:
-    uv = None if FROZEN else find_uv()
-    marker = _ready_marker(settings)
-    ready = False
-    if marker.is_file():
-        try:
-            ready = json.loads(marker.read_text(encoding="utf-8")).get("models") == configured_models(settings)
-        except (OSError, ValueError):
-            ready = False
+    uv = _uv(settings)
+    selected = selected_models(settings)
+    missing = [i for i in selected if BY_ID[i].heavy and not (settings.demo or _is_installed(settings, i))]
     if settings.demo:
         detail = "Demo mode: simulated detector scores."
-    elif uv is None:
-        detail = "Needs uv (the app's installer tool), which is not available in this build."
-    elif not ready:
-        detail = "Not set up yet: a one-time download of about 1 GB (PyTorch and two small models)."
-    else:
+    elif not selected:
+        detail = "No detector selected: pick at least one to check posts against your own writing."
+    elif missing and uv is None:
+        detail = "The trained models need uv (the app's installer tool), which is not available in this build."
+    elif missing:
+        names = " and ".join(BY_ID[i].label for i in missing)
+        detail = f"{names}: not set up yet. A one-time download of about 1 GB (PyTorch and the model), shared by the trained models."
+    elif any(BY_ID[i].heavy for i in selected):
         detail = "Ready. Models run on this computer; nothing is sent anywhere."
+    else:
+        detail = "Ready. The light check is built in and runs on this computer; nothing is sent anywhere."
     return {
         "available": settings.demo or uv is not None,
-        "ready": settings.demo or ready,
-        "enabled": settings.demo or (settings.deep_check and ready),
-        "models": configured_models(settings),
+        "ready": settings.demo or not missing,
+        "enabled": bool(active_models(settings)),
+        "selected": selected,
+        "models": model_info(settings),
         "detail": detail,
     }
 
 
+class MultiDetector:
+    """Runs the selected detectors together: the light check in this process, the trained models in the uv worker."""
+
+    def __init__(self, settings: Settings, ids: Sequence[str], worker: UvDetector | None) -> None:
+        self.ids = tuple(ids)
+        self.worker = worker
+        names = {"light": "built in", **_names(settings)}
+        self.models = {i: names[i] for i in self.ids if i in names}
+
+    async def score(self, items: Sequence[DetectorInput]) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = [{} for _ in items]
+        if "light" in self.ids:
+            for result, item in zip(results, items, strict=True):
+                result["light"] = light_result(item.sentences)
+        if self.worker is not None:
+            for result, scored in zip(results, await self.worker.score(items), strict=True):
+                result.update({k: v for k, v in scored.items() if k in self.ids})
+        return results
+
+
 def get_detector(settings: Settings) -> Detector | None:
-    """The detector to use for this check, or None when the models are off or not set up."""
+    """The detector for this check: the selected models that can run, or None when none is selected."""
+    ids = active_models(settings)
+    if not ids:
+        return None
     if settings.demo:
-        return FakeDetector()
-    if not settings.deep_check:
-        return None
-    state = status(settings)
-    uv = find_uv()
-    if not state["ready"] or uv is None:
-        return None
-    key = (uv, settings.detector_zero_shot_model, settings.detector_classifier_model)
-    if key not in _DETECTORS:
-        _DETECTORS[key] = UvDetector(settings, uv)
-    return _DETECTORS[key]
+        return FakeDetector(ids=ids)
+    heavy = [i for i in ids if BY_ID[i].heavy]
+    worker: UvDetector | None = None
+    uv = _uv(settings)
+    if heavy and uv is not None:
+        models = worker_models(settings, heavy)
+        key = (uv, tuple(sorted(models.items())))
+        if key not in _DETECTORS:
+            _DETECTORS[key] = UvDetector(settings, uv, models)
+        worker = _DETECTORS[key]
+    return MultiDetector(settings, ids, worker)
 
 
-def setup_detector(settings: Settings) -> dict[str, Any]:
-    """Install and download everything once, then mark the detectors ready. Blocking: run it in a job thread."""
-    uv = None if FROZEN else find_uv()
+def setup_detector(settings: Settings, ids: Sequence[str] | None = None) -> dict[str, Any]:
+    """Install and download the selected trained models once, then mark them ready. Blocking: run it in a job thread."""
+    heavy = [i for i in (ids if ids is not None else selected_models(settings)) if i in BY_ID and BY_ID[i].heavy]
+    if not heavy:
+        return {}
+    uv = _uv(settings)
     if uv is None:
         raise DetectorError("The detector models need uv, which is not available in this build.")
-    info = UvDetector(settings, uv).warmup()
+    wanted = worker_models(settings, heavy)
+    info = UvDetector(settings, uv, wanted).warmup()
     marker = _ready_marker(settings)
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"models": configured_models(settings), "torch": info.get("torch")}), encoding="utf-8")
+    marker.write_text(json.dumps({"models": {**installed_models(settings), **wanted}, "torch": info.get("torch")}), encoding="utf-8")
     return info
 
 
@@ -275,8 +417,10 @@ def shutdown() -> None:
 class FakeDetector:
     """Deterministic scores from the text's shape: even, generic sentences read as "machine"."""
 
-    def __init__(self, curvature: float | None = None, classifier: float | None = None) -> None:
-        self.models = {"zero_shot": "fake-curvature", "classifier": "fake-classifier"}
+    def __init__(self, curvature: float | None = None, classifier: float | None = None, ids: Sequence[str] | None = None) -> None:
+        self.ids = tuple(ids) if ids is not None else ("curvature", "classifier")
+        names = {"light": "built in", "curvature": "fake-curvature", "classifier": "fake-classifier"}
+        self.models = {i: names[i] for i in self.ids}
         self.fixed_curvature = curvature
         self.fixed_classifier = classifier
         self.calls = 0
@@ -300,12 +444,12 @@ class FakeDetector:
             ]
             known = [p for p in paragraphs if p is not None]
             classifier = self.fixed_classifier if self.fixed_classifier is not None else (statistics.fmean(known) if known else None)
-            out.append(
-                {
-                    "curvature": {"score": curvature, "sentences": sentences},
-                    "classifier": {"score": classifier, "paragraphs": paragraphs},
-                }
-            )
+            everything: dict[str, Any] = {
+                "light": light_result(item.sentences),
+                "curvature": {"score": curvature, "sentences": sentences},
+                "classifier": {"score": classifier, "paragraphs": paragraphs},
+            }
+            out.append({k: v for k, v in everything.items() if k in self.ids})
         return out
 
 
@@ -329,14 +473,14 @@ class AuthorRange:
 
 
 def _range_from(results: Sequence[dict[str, Any]]) -> AuthorRange:
-    posts: dict[str, list[float]] = {"curvature": [], "classifier": []}
-    parts: dict[str, list[float]] = {"curvature": [], "classifier": []}
+    posts: dict[str, list[float]] = {m.id: [] for m in CATALOG}
+    parts: dict[str, list[float]] = {m.id: [] for m in CATALOG}
     for result in results:
-        for key, part_key in (("curvature", "sentences"), ("classifier", "paragraphs")):
-            entry = result.get(key) or {}
+        for model in CATALOG:
+            entry = result.get(model.id) or {}
             if entry.get("score") is not None:
-                posts[key].append(float(entry["score"]))
-            parts[key].extend(float(v) for v in entry.get(part_key, []) if v is not None)
+                posts[model.id].append(float(entry["score"]))
+            parts[model.id].extend(float(v) for v in entry.get(model.part, []) if v is not None)
     return AuthorRange(posts=posts, part_p90={k: _percentile(v, 0.9) for k, v in parts.items() if len(v) >= 10})
 
 
@@ -391,25 +535,35 @@ def _verdict(key: str, score: int) -> str:
     return "Reads as machine-written to this model"
 
 
+_REASONS = {
+    "light": "reads as even and impersonal to the light check",
+    "curvature": "reads as machine-written to the zero-shot model",
+}
+
+
 async def detector_report(*, settings: Settings, detector: Detector, markdown: str, author_texts: Sequence[str]) -> dict[str, Any]:
-    """Score a post with every model, compare with the author's range, and list the sentences that read as machine."""
+    """Score a post with every selected model, compare with the author's range, and list the passages that read as machine."""
     data = detector_input(markdown)
     author = await author_range(settings, detector, author_texts)
     [result] = await detector.score([data])
     models: list[dict[str, Any]] = []
     outliers: list[dict[str, Any]] = []
-    for key, part_key, parts in (("curvature", "sentences", data.sentences), ("classifier", "paragraphs", data.paragraphs)):
-        entry = result.get(key) or {}
+    weighted: list[tuple[int, float]] = []
+    for model in CATALOG:
+        entry = result.get(model.id) or {}
         value = entry.get("score")
         if value is None:
             continue
+        key = model.id
+        parts = data.sentences if model.part == "sentences" else data.paragraphs
         posts = author.posts.get(key, []) if author else []
         part_score, low, high = model_score(key, float(value), posts)
+        weighted.append((part_score, model.weight))
         models.append(
             {
                 "id": key,
-                "label": LABELS[key],
-                "model": detector.models.get("zero_shot" if key == "curvature" else "classifier", ""),
+                "label": model.label,
+                "model": detector.models.get(key, ""),
                 "value": round(float(value), 3),
                 "author_low": low,
                 "author_high": high,
@@ -420,22 +574,21 @@ async def detector_report(*, settings: Settings, detector: Detector, markdown: s
         )
         generic_mean, generic_spread = GENERIC[key]
         threshold = (author.part_p90.get(key) if author else None) or generic_mean + 2 * generic_spread
-        for text, part_value in zip(parts, entry.get(part_key, []), strict=False):
+        for text, part_value in zip(parts, entry.get(model.part, []), strict=False):
             if part_value is None or part_value <= threshold or len(text.split()) < MIN_SENTENCE_WORDS:
                 continue
             outliers.append(
                 {
-                    "quote": text.strip() if key == "curvature" else _first_sentences(text),
-                    "reason": "reads as machine-written to the zero-shot model"
-                    if key == "curvature"
-                    else f"the classifier gives this paragraph a {round(100 * part_value)}% AI probability",
+                    "quote": text.strip() if model.part == "sentences" else _first_sentences(text),
+                    "reason": _REASONS.get(key) or f"the classifier gives this paragraph a {round(100 * part_value)}% AI probability",
                     "suggestion": "",
                     "source": "detector",
                     "strength": round(float(part_value) - threshold, 3),
                 }
             )
     outliers.sort(key=lambda o: o["strength"], reverse=True)
-    score = round(statistics.fmean(m["score"] for m in models)) if models else None
+    total = sum(w for _, w in weighted)
+    score = round(sum(v * w for v, w in weighted) / total) if total else None
     return {"score": score, "models": models, "outliers": outliers[:MAX_OUTLIERS]}
 
 

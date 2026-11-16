@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -6,6 +6,12 @@ import { shot } from './screenshots'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SAMPLE = path.resolve(here, 'fixtures/sample-post.md')
+
+/** The editor's side rail groups its cards in collapsible sections; open every one so the tour can reach them. */
+async function openRailGroups(page: Page) {
+  const closed = page.locator('aside section > button[aria-expanded="false"]')
+  while ((await closed.count()) > 0) await closed.first().click()
+}
 
 test('first run: persona, writing sample, voice profile, post, editor, export, themes', async ({ page }) => {
   // The whole first run, A/B test included, takes a few minutes in demo mode.
@@ -69,6 +75,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
 
   // Editor with inline, credited images
   await expect(page.getByRole('heading', { name: 'Title', exact: true })).toBeVisible({ timeout: 90_000 })
+  await openRailGroups(page)
   await expect(page.getByRole('button', { name: /New options/ })).toBeVisible()
   await expect(page.locator('figure img')).toHaveCount(4)
   await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()

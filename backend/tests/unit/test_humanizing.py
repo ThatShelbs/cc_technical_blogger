@@ -145,8 +145,8 @@ def test_detector_report_with_the_fake(tmp_path: Path) -> None:
     assert all(o["source"] == "detector" for o in result["outliers"])
 
 
-def test_detectors_are_off_until_set_up(tmp_path: Path) -> None:
-    settings = Settings(data_dir=tmp_path, _env_file=None)  # type: ignore[call-arg]
+def test_trained_detectors_are_off_until_set_up(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path, detector_models=["curvature", "classifier"], _env_file=None)  # type: ignore[call-arg]
     state = status(settings)
     assert not state["ready"] and not state["enabled"]
     assert status(Settings(data_dir=tmp_path, demo=True, _env_file=None))["enabled"]  # type: ignore[call-arg]

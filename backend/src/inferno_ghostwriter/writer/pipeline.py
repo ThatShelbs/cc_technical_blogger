@@ -635,9 +635,9 @@ async def _generate(
     image_ids = _create_image_rows(engine, project.id, slots)
     finished = 0
     semaphore = asyncio.Semaphore(3)
-    # The closing meme waits for the opening image: when the post opens with a meme too, the closer must know it.
+    # The closing meme waits for the opening image only when that image could be a meme (the closer must know the opener).
     opened = asyncio.Event()
-    if not any(s.kind == "hero" for s in slots):
+    if not any(s.kind == "hero" for s in slots) or not images.opening_may_be_meme(project.id, persona):
         opened.set()
 
     # An image that builds on an earlier one waits for it, then draws from its finished source.
