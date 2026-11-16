@@ -21,6 +21,7 @@ from sqlmodel import Session, col, select
 
 from inferno_ghostwriter.config import Settings
 from inferno_ghostwriter.db import Persona, Project, ProjectImage
+from inferno_ghostwriter.images import remix as remixing
 from inferno_ghostwriter.images.base import PLACEHOLDER_RE, ImageProviderError, draw_with_retry
 from inferno_ghostwriter.images.memes import (
     ArtDirection,
@@ -147,6 +148,15 @@ def meme_spec(image: ProjectImage) -> str:
     return image.spec
 
 
+def remix_dimensions(image: ProjectImage) -> tuple[str, ...]:
+    """What a redraw of this image may vary (colors, cast, staging, medium): it depends on the kind and opening style."""
+    if is_meme(image):
+        # A meme's look and the ghost are its own tools; the twist offers colors and another cast on top.
+        return remixing.KIND_DIMENSIONS["meme"]
+    style = str((load_opening_state(image.spec) or {}).get("style") or "") if image.kind == "hero" else ""
+    return remixing.dimensions_for(image.kind, style)
+
+
 class ImageService:
     def __init__(self, *, engine: Engine, llm: LLM, settings: Settings, storage: Storage) -> None:
         self.engine = engine
@@ -173,9 +183,17 @@ class ImageService:
         meme_look: str | None = None,
         opening_style: str | None = None,
         opening_concept: int | None = None,
+        tweaks: dict[str, str] | None = None,
+        improve: bool = True,
+        remix: bool = True,
         usage: UsageSink | None = None,
     ) -> ProjectImage:
         """Design and render one image, then persist the result.
+
+        A redraw critiques the current image first and adds a twist (``improve``; see ``images/remix.py``); ``tweaks``
+        pins parts of the twist ({"palette": "viridis", "cast": "dogs"}) and ``remix=False`` redraws plainly (used by
+        Redraw all, which must not change a post's look). An image with ``builds_on`` is always drawn from that
+        image's current source, so a redraw keeps the pair matched.
 
         With an ``instruction`` the current image is edited ("make the arrows orange") instead of redrawn.
         ``meme_format`` makes a meme in that catalog format; ``meme_concept`` draws that stored pitch; ``meme_look`` sets its look.
@@ -203,6 +221,9 @@ class ImageService:
                     meme_look=meme_look,
                     opening_style=opening_style,
                     opening_concept=opening_concept,
+                    tweaks=tweaks,
+                    improve=improve,
+                    remix=remix,
                     usage=usage,
                 )
             updates["status"] = "ready"
@@ -316,10 +337,109 @@ class ImageService:
         meme_look: str | None,
         opening_style: str | None,
         opening_concept: int | None,
+        tweaks: dict[str, str] | None,
+        improve: bool,
+        remix: bool,
+        usage: UsageSink | None,
+    ) -> dict[str, Any]:
+        art = self._art_direction(brand_kit, persona, voice_profile)
+        remixed: dict[str, Any] | None = None
+        picked = meme_concept is not None or opening_concept is not None or meme_format is not None or opening_style is not None
+        if remix and (redraw or rethink or tweaks):
+            art, remixed = await self._remix(
+                image,
+                art,
+                persona=persona,
+                title=title,
+                markdown=markdown,
+                brand_kit=brand_kit,
+                pins=tweaks,
+                brainstorm=improve and not picked,
+                usage=usage,
+            )
+        updates = await self._draw(
+            image,
+            art,
+            persona=persona,
+            title=title,
+            markdown=markdown,
+            voice_profile=voice_profile,
+            redraw=redraw,
+            rethink=rethink,
+            brand_kit=brand_kit,
+            meme_format=meme_format,
+            meme_concept=meme_concept,
+            meme_look=meme_look,
+            opening_style=opening_style,
+            opening_concept=opening_concept,
+            usage=usage,
+        )
+        if remixed is not None:
+            updates["remix"] = remixed
+        return updates
+
+    async def _remix(
+        self,
+        image: ProjectImage,
+        art: ArtDirection,
+        *,
+        persona: Persona,
+        title: str,
+        markdown: str,
+        brand_kit: dict[str, Any] | None,
+        pins: dict[str, str] | None,
+        brainstorm: bool,
+        usage: UsageSink | None,
+    ) -> tuple[ArtDirection, dict[str, Any]]:
+        """Critique the current image and choose this redraw's twist; returns the art direction carrying both."""
+        previous = dict(image.remix or {})
+        kind = image.kind
+        chosen = remixing.choose_tweaks(
+            remix_dimensions(image),
+            recent=[str(e) for e in previous.get("recent", [])],
+            pinned=remixing.pins_from(pins),
+            keep_palette=bool(brand_palette(brand_kit)),
+        )
+        plan = None
+        if brainstorm:
+            png = None
+            if image.file_name:
+                path = self.storage.image_dir(image.project_id) / image.file_name
+                png = path.read_bytes() if path.exists() else None
+            plan = await remixing.brainstorm(
+                self.llm,
+                self.settings,
+                kind=kind,
+                title=title,
+                caption=image.caption,
+                design=image.spec,
+                png=png,
+                context=image_context(markdown, image.slot_id, 900, 500),
+                previous=previous,
+                usage=usage,
+            )
+        return remixing.apply_to_art(art, plan, chosen), remixing.to_remix(plan, chosen, previous)
+
+    async def _draw(
+        self,
+        image: ProjectImage,
+        art: ArtDirection,
+        *,
+        persona: Persona,
+        title: str,
+        markdown: str,
+        voice_profile: str,
+        redraw: bool,
+        rethink: bool,
+        brand_kit: dict[str, Any] | None,
+        meme_format: str | None,
+        meme_concept: int | None,
+        meme_look: str | None,
+        opening_style: str | None,
+        opening_concept: int | None,
         usage: UsageSink | None,
     ) -> dict[str, Any]:
         kind = image.kind
-        art = self._art_direction(brand_kit, persona, voice_profile)
         if kind == "hero" and (meme_format is not None or meme_concept is not None) and opening_meme_spec(image.spec):
             # The opening meme's own tools (another format, a stored pitch) work inside the opening image.
             post = self._meme_context(image, persona, title, markdown, voice_profile, position="opening")
@@ -345,6 +465,7 @@ class ImageService:
                 rethink=rethink,
                 style=opening_style,
                 concept_index=opening_concept,
+                meme_format=meme_format,
                 usage=usage,
             )
             return self._opening_result(image, persona, result)
@@ -374,7 +495,10 @@ class ImageService:
                 "This is a redraw: keep the same idea but give it a clearly different composition, metaphor or visual treatment "
                 f"(previous caption: {image.caption!r})."
             )
-        visual_style, brand = brand_guidance(brand_kit, persona)
+        if planned := remixing.variation_for(art, remixing.dimensions_for(kind), kind=kind):
+            # The redraw's own brainstorm and twist replace the generic line.
+            rethought = "\nThrow out the previous concept and design a completely different idea that serves the same purpose."
+            variation = planned + (rethought if rethink else "")
         prompt = render(
             "image_spec",
             kind=kind,
@@ -382,14 +506,15 @@ class ImageService:
             title=title,
             purpose=image.purpose,
             brief=image.prompt or image.purpose,
-            visual_style=visual_style,
-            brand=brand,
+            visual_style=art.visual_style,
+            brand=art.brand,
             variation=variation,
             image_guidance=image_guidance(voice_profile),
             siblings=self._siblings(image),
+            builds_on=self._builds_on(image),
             context=image_context(markdown, image.slot_id),
         )
-        return await self._render_design(image, persona, prompt, task=f"{kind} image design", palette=brand_palette(brand_kit), usage=usage)
+        return await self._render_design(image, persona, prompt, task=f"{kind} image design", palette=art.palette, usage=usage)
 
     async def _edit(
         self,
@@ -599,6 +724,34 @@ class ImageService:
             ).all()
         lines = [f"- {row.kind} `{row.slot_id}`: {row.purpose or row.prompt}" for row in rows if row.id != image.id]
         return "\n".join(lines) or "(none)"
+
+    def _builds_on(self, image: ProjectImage) -> str:
+        """The instruction (and source) for an image that extends an earlier one, or "" when it stands alone."""
+        if not image.builds_on:
+            return ""
+        with Session(self.engine) as session:
+            base = session.exec(
+                select(ProjectImage).where(col(ProjectImage.project_id) == image.project_id, col(ProjectImage.slot_id) == image.builds_on)
+            ).first()
+        if base is None or not base.spec or base.provider in ("upload", "placeholder") or base.position >= image.position:
+            return ""
+        reuse = {
+            "chart": (
+                "Copy the base chart's `data.values` rows exactly (same rows, same numbers, same field names), its scales, "
+                "axis domains, colors, fonts and size, then add what this image adds (another field to split by, an extra layer "
+                "or annotation, a fitted line per group). Do not invent a new dataset or reshuffle the old one: the reader must "
+                "see the same points again."
+            ),
+        }.get(
+            image.kind,
+            "Reuse its palette, shapes, labels and layout where they carry over, keeping every element the reader already "
+            "met in the same place and style, then add what this image adds. Do not restyle what is unchanged.",
+        )
+        return (
+            f"\nThis image BUILDS ON the earlier image `{base.slot_id}` ({base.caption or base.purpose}): the reader has just seen "
+            f"it and must feel this is the same picture taken further. {reuse}\n"
+            f"The base image's source:\n<base>\n{base.spec[:12000]}\n</base>\n"
+        )
 
     def _recent_meme_formats(self, persona: Persona, project_id: int, limit: int = 3) -> tuple[str, ...]:
         """The formats of this author's latest memes in other posts, newest first."""

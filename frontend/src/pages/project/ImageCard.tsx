@@ -1,17 +1,19 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Dices, History, ImagePlus, Lightbulb, PencilLine, Type, Wand2 } from 'lucide-react'
+import { Dices, History, ImagePlus, Layers, Lightbulb, PencilLine, Sparkles, Type, Wand2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { errorText } from '../../api/client'
-import { keys, useImageMutations, useMemeFormats, useMemeLooks, useOpeningStyles, type RedrawPicks } from '../../api/hooks'
+import { keys, useImageMutations, useMemeFormats, useMemeLooks, useOpeningStyles, useRemixOptions, type RedrawPicks } from '../../api/hooks'
 import type { ImageOut } from '../../api/types.gen'
 import { useJob } from '../../api/useJob'
 import { fullCaption } from '../../lib/article'
-import { Badge, Button, Dialog, Field, Input, Notice, Spinner, Textarea } from '../../components/ui'
+import { Badge, Button, Dialog, Field, Input, Notice, Select, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { buildOnChoices, dependentsOf, remixTwists } from '../../lib/remix'
 import { textSyncNote, type TextSyncNote } from '../../lib/textSync'
 import { MemeIdeasDialog, MemeWordsDialog } from './MemeDialogs'
 import { OpeningIdeasDialog } from './OpeningDialogs'
+import { RemixDialog } from './RemixDialog'
 
 const PROVIDER_LABEL: Record<string, string> = {
   'claude-svg': 'Claude SVG',
@@ -32,7 +34,7 @@ const KIND_LABEL: Record<string, string> = {
   screenshot: 'Screenshot',
 }
 
-export function ImageCard({ projectId, image }: { projectId: number; image: ImageOut }) {
+export function ImageCard({ projectId, image, images = [] }: { projectId: number; image: ImageOut; images?: ImageOut[] }) {
   const qc = useQueryClient()
   const mutations = useImageMutations(projectId)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -44,9 +46,12 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
   const fileInput = useRef<HTMLInputElement>(null)
 
   const [textNote, setTextNote] = useState<TextSyncNote | null>(null)
+  // Set when a redraw of this image leaves the images that build on it drawn from its old version.
+  const [unmatched, setUnmatched] = useState(false)
   const job = useJob(jobId, (state) => {
     setJobId(null)
     setTextNote(textSyncNote(state))
+    setUnmatched(((state.result?.dependents as string[] | undefined) ?? []).length > 0)
     void qc.invalidateQueries({ queryKey: keys.project(projectId) })
   })
   const [instructOpen, setInstructOpen] = useState(false)
@@ -57,15 +62,29 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
   // The opening image (also the thumbnail) carries the panel's pitches; an opening meme has the meme tools too.
   const opening = image.kind === 'hero' ? image.opening : null
   const isMeme = image.kind === 'meme' || !!(opening && image.meme)
-  const memeFormats = useMemeFormats(isMeme)
+  // The opening image can become a meme in any format, so it needs the bank even before it is one.
+  const memeFormats = useMemeFormats(isMeme || !!opening)
   const memeLooks = useMemeLooks(isMeme)
   const { data: openingCatalog } = useOpeningStyles()
   const [ideasOpen, setIdeasOpen] = useState(false)
   const [memeIdeasOpen, setMemeIdeasOpen] = useState(false)
   const [wordsOpen, setWordsOpen] = useState(false)
+  const [remixOpen, setRemixOpen] = useState(false)
+  const [buildOpen, setBuildOpen] = useState(false)
+  const remixOptions = useRemixOptions(remixOpen)
+  const canRemix = editable && (image.remix_dimensions ?? []).length > 0
+  // Images that build on each other share one source, so they look like the same data taken further.
+  const bases = buildOnChoices(image, images)
+  const base = images.find((other) => other.slot_id === image.builds_on)
+  const dependents = dependentsOf(image, images)
+  const nameOf = (slotId: string) => {
+    const other = images.find((i) => i.slot_id === slotId)
+    return other ? `${KIND_LABEL[other.kind] ?? other.kind} "${other.caption || other.purpose}"` : slotId
+  }
   const redraw = (rethink: boolean, picks: RedrawPicks = {}) => {
     setIdeasOpen(false)
     setMemeIdeasOpen(false)
+    setRemixOpen(false)
     mutations.redraw.mutate({ id: image.id, rethink, ...picks }, { onSuccess: (j) => setJobId(j.id) })
   }
   // A meme whose format has no art is drawn by the template alone, so there is nothing for Redraw to redraw.
@@ -141,6 +160,39 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           </Notice>
         </div>
       )}
+      {image.remix && !busy && (image.remix.brainstormed || image.remix.tweaks.length > 0) && (
+        <p className="mt-1 text-center text-xs text-muted" aria-label="What the last redraw tried">
+          {image.remix.brainstormed && image.remix.improvements[0] ? `Last redraw set out to: ${image.remix.improvements[0].replace(/\.$/, '')}. ` : ''}
+          {remixTwists(image.remix) ? `Tried ${remixTwists(image.remix)}.` : ''}
+        </p>
+      )}
+      {base && <p className="mt-1 text-center text-xs text-muted">Builds on the {nameOf(base.slot_id)}: same data and look, taken further.</p>}
+      {unmatched && dependents.length > 0 && !busy && (
+        <div className="mt-2">
+          <Notice tone="warn" title="Other images build on this one">
+            <p>
+              {dependents.map(nameOf).join(', ')} {dependents.length === 1 ? 'was' : 'were'} drawn from the previous version.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-2"
+              icon={<Layers className="size-4" />}
+              loading={mutations.matchDependents.isPending}
+              onClick={() =>
+                mutations.matchDependents.mutate(image.id, {
+                  onSuccess: (j) => {
+                    setUnmatched(false)
+                    setJobId(j.id)
+                  },
+                })
+              }
+            >
+              Redraw {dependents.length === 1 ? 'it' : 'them'} to match
+            </Button>
+          </Notice>
+        </div>
+      )}
       {isMeme && image.meme?.premise && (
         <p className="mt-1 text-center text-xs text-muted">
           {image.meme.format_name}: {image.meme.premise}
@@ -200,9 +252,21 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             icon={<Dices className="size-4" />}
             onClick={() => redraw(false)}
             disabled={busy}
-            title="Claude draws the same idea a new way"
+            title="Claude critiques this image, then redraws the same idea to fix its weakest point, with a new twist (colors, cast or staging)"
           >
             Redraw
+          </Button>
+        )}
+        {hasArt && canRemix && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Sparkles className="size-4" />}
+            onClick={() => setRemixOpen(true)}
+            disabled={busy}
+            title="Choose what the redraw experiments with: colors, who is in it, staging, medium"
+          >
+            Remix
           </Button>
         )}
         {hasIdeas ? (
@@ -259,6 +323,21 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
         >
           Caption
         </Button>
+        {(bases.length > 0 || base) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Layers className="size-4" />}
+            onClick={() => {
+              mutations.buildOn.reset()
+              setBuildOpen(true)
+            }}
+            disabled={busy}
+            title="Draw this image from an earlier one, so both share the same data, colors and shapes"
+          >
+            Builds on
+          </Button>
+        )}
         {image.history.length > 1 && (
           <Button size="sm" variant="ghost" icon={<History className="size-4" />} onClick={() => setHistoryOpen(true)}>
             Versions ({image.history.length})
@@ -287,6 +366,8 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
           onPick={(index) => redraw(false, { openingConcept: index })}
           onNext={() => redraw(true)}
           onStyle={(id) => redraw(false, { openingStyle: id })}
+          memeFormats={memeFormats.data ?? []}
+          onMemeFormat={(id) => redraw(false, { memeFormat: id })}
           onMemeIdeas={
             image.meme?.pitches.length
               ? () => {
@@ -327,6 +408,54 @@ export function ImageCard({ projectId, image }: { projectId: number; image: Imag
             : {})}
         />
       )}
+
+      {remixOpen && (
+        <RemixDialog
+          open
+          onClose={() => setRemixOpen(false)}
+          image={image}
+          dimensions={remixOptions.data ?? []}
+          onRemix={(tweaks, improve) => redraw(false, { tweaks, improve })}
+        />
+      )}
+
+      <Dialog open={buildOpen} onClose={() => setBuildOpen(false)} title="Build on an earlier image">
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            When two images tell one story (a chart, then the same chart split into groups), draw the second from the first: it reuses the same data, colors and
+            shapes and adds only what is new.
+          </p>
+          <Field label="This image builds on" htmlFor={`builds-on-${image.id}`}>
+            <Select
+              id={`builds-on-${image.id}`}
+              value={image.builds_on ?? ''}
+              disabled={mutations.buildOn.isPending || mutations.clearBuildOn.isPending}
+              onChange={(e) => {
+                const slotId = e.target.value
+                if (!slotId) return mutations.clearBuildOn.mutate(image.id, { onSuccess: () => setBuildOpen(false) })
+                mutations.buildOn.mutate(
+                  { id: image.id, slotId },
+                  {
+                    onSuccess: (j) => {
+                      setJobId(j.id)
+                      setBuildOpen(false)
+                    },
+                  },
+                )
+              }}
+            >
+              <option value="">Nothing (it stands alone)</option>
+              {bases.map((other) => (
+                <option key={other.id} value={other.slot_id}>
+                  {KIND_LABEL[other.kind] ?? other.kind}: {other.caption || other.purpose}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <p className="text-xs text-muted">Choosing an image redraws this one from it right away. The current version stays in Versions.</p>
+          {mutations.buildOn.error && <Notice tone="error">{errorText(mutations.buildOn.error)}</Notice>}
+        </div>
+      </Dialog>
 
       <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} title="Image versions" wide>
         <div className="grid gap-4 sm:grid-cols-2">

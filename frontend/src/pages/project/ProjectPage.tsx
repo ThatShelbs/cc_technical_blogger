@@ -9,8 +9,13 @@ import type { JobOut, ProjectOut } from '../../api/types.gen'
 import { useJob, type Critique, type JobState } from '../../api/useJob'
 import { Article } from '../../components/Article'
 import { SectionActions, SectionToolbar, type SectionAction, type SectionRun } from '../../components/SectionToolbar'
+import { Tabs, type TabItem } from '../../components/tabs'
+import { useToast } from '../../components/useToast'
+import { panelDomId, tabDomId } from '../../lib/tabs'
 import { Badge, Button, Card, Input, Notice, ProgressBar, Spinner, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
+import { useHotkey } from '../../lib/hotkeys'
+import { RailGroup } from './RailGroup'
 import { referenceForHref } from '../../lib/references'
 import { ABCompare } from './ab/ABCompare'
 import { ABGenerationView } from './ab/ABGenerationView'
@@ -27,6 +32,11 @@ import { useReferenceActions } from './useReferenceActions'
 import { PostSettingsDialog } from './PostSettingsDialog'
 import { BriefCard, HistoryCard, ReviseCard } from './RevisePanel'
 import { StageControl } from './StageControl'
+
+const MODE_TABS: TabItem<'preview' | 'markdown'>[] = [
+  { id: 'preview', label: 'Preview', icon: <Eye className="size-4" aria-hidden /> },
+  { id: 'markdown', label: 'Edit Markdown', icon: <PencilLine className="size-4" aria-hidden /> },
+]
 
 const REFERENCE_JOBS = ['enrich_post', 'redraw_reference']
 const FAILED_TITLE: Record<string, string> = {
@@ -248,6 +258,18 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
   const textarea = useRef<HTMLTextAreaElement>(null)
   const preview = useRef<HTMLDivElement>(null)
   const dirty = text !== project.markdown
+  const toast = useToast()
+
+  const save = () => update.mutate({ markdown: text }, { onSuccess: () => toast.success('Saved your edits.') })
+  // Ctrl/Cmd+S saves while editing Markdown; elsewhere it falls through to the browser.
+  useHotkey(
+    'mod+s',
+    (event) => {
+      event.preventDefault()
+      if (dirty && !busy && !update.isPending) save()
+    },
+    mode === 'markdown',
+  )
 
   // When the saved post changes (save, rewrite, title pick), reset the editor text to it.
   const [savedMarkdown, setSavedMarkdown] = useState(project.markdown)
@@ -295,40 +317,12 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
       <div className="min-w-0 space-y-4">
         {banner}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex rounded-lg border border-line bg-surface p-1" role="tablist" aria-label="Editor mode">
-            {(
-              [
-                ['preview', 'Preview', Eye],
-                ['markdown', 'Edit Markdown', PencilLine],
-              ] as const
-            ).map(([key, label, Icon]) => (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={mode === key}
-                onClick={() => setMode(key)}
-                className={cx(
-                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
-                  mode === key ? 'bg-accent-soft' : 'text-muted hover:text-fg',
-                )}
-              >
-                <Icon className="size-4" aria-hidden /> {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <Tabs tabs={MODE_TABS} value={mode} onChange={setMode} label="Editor mode" idPrefix="editor" variant="segmented" />
+          <div className="hidden flex-wrap gap-2 lg:flex">
             {mode === 'markdown' && (
-              <>
-                <Button
-                  size="sm"
-                  icon={<Save className="size-4" />}
-                  disabled={!dirty || busy}
-                  loading={update.isPending}
-                  onClick={() => update.mutate({ markdown: text })}
-                >
-                  Save
-                </Button>
-              </>
+              <Button size="sm" icon={<Save className="size-4" />} disabled={!dirty || busy} loading={update.isPending} onClick={save} title="Ctrl/Cmd + S">
+                Save
+              </Button>
             )}
             <Button size="sm" variant="flame" icon={<FileDown className="size-4" />} onClick={() => setExportOpen(true)} disabled={dirty}>
               Export
@@ -336,87 +330,112 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
           </div>
         </div>
 
-        {mode === 'preview' ? (
-          <Card padded={false} className="relative p-6 sm:p-10">
-            <div ref={preview}>
-              <Article
-                markdown={project.markdown}
-                images={project.images}
-                renderImage={(_slot, image) => (image ? <ImageCard key={image.id} projectId={project.id} image={image} /> : null)}
-                renderLink={(href, children) => {
-                  const reference = referenceForHref(project.references, href)
-                  return reference ? (
-                    <ReferenceLink reference={reference} actions={referenceActions}>
-                      {children}
-                    </ReferenceLink>
-                  ) : undefined
-                }}
-              />
-            </div>
-            <SectionToolbar
-              container={preview}
-              markdown={project.markdown}
-              pending={pendingAction}
-              disabled={busy || addImage.isPending}
-              onRun={regenerate}
-              onAddImage={addImageAt}
-            />
-          </Card>
-        ) : (
-          <Card padded={false} className="space-y-2 p-3">
-            <p className="px-1 text-xs text-muted">
-              Keep <code>{'{{image:…}}'}</code> lines where images belong. Select a passage to rewrite, compact, expand or add a source or quote.
-            </p>
-            <Textarea
-              ref={textarea}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onSelect={captureSelection}
-              rows={32}
-              className="font-mono text-sm"
-              aria-label="Post markdown"
-            />
-            {selection.trim() && (
-              <div className="rounded-lg border border-line bg-sunken p-2">
-                {dirty ? (
-                  <p className="px-2 py-1 text-sm text-muted">Save your edits first, then regenerate the selection.</p>
-                ) : (
-                  <SectionActions
-                    pending={pendingAction}
-                    disabled={busy || addImage.isPending}
-                    onRun={(run) => regenerate(selection, run)}
-                    onAddImage={() => addImageAt(selection)}
-                  />
-                )}
+        <div role="tabpanel" id={panelDomId('editor', mode)} aria-labelledby={tabDomId('editor', mode)}>
+          {mode === 'preview' ? (
+            <Card padded={false} className="relative p-6 sm:p-10">
+              <div ref={preview}>
+                <Article
+                  markdown={project.markdown}
+                  images={project.images}
+                  renderImage={(_slot, image) => (image ? <ImageCard key={image.id} projectId={project.id} image={image} images={project.images} /> : null)}
+                  renderLink={(href, children) => {
+                    const reference = referenceForHref(project.references, href)
+                    return reference ? (
+                      <ReferenceLink reference={reference} actions={referenceActions}>
+                        {children}
+                      </ReferenceLink>
+                    ) : undefined
+                  }}
+                />
               </div>
-            )}
-          </Card>
-        )}
+              <SectionToolbar
+                container={preview}
+                markdown={project.markdown}
+                pending={pendingAction}
+                disabled={busy || addImage.isPending}
+                onRun={regenerate}
+                onAddImage={addImageAt}
+              />
+            </Card>
+          ) : (
+            <Card padded={false} className="space-y-2 p-3">
+              <p className="px-1 text-xs text-muted">
+                Keep <code>{'{{image:…}}'}</code> lines where images belong. Select a passage to rewrite, compact, expand or add a source or quote.
+              </p>
+              <Textarea
+                ref={textarea}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onSelect={captureSelection}
+                rows={32}
+                className="font-mono text-sm"
+                aria-label="Post markdown"
+              />
+              {selection.trim() && (
+                <div className="rounded-lg border border-line bg-sunken p-2">
+                  {dirty ? (
+                    <p className="px-2 py-1 text-sm text-muted">Save your edits first, then regenerate the selection.</p>
+                  ) : (
+                    <SectionActions
+                      pending={pendingAction}
+                      disabled={busy || addImage.isPending}
+                      onRun={(run) => regenerate(selection, run)}
+                      onAddImage={() => addImageAt(selection)}
+                    />
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
         {update.error && <Notice tone="error">{errorText(update.error)}</Notice>}
         {rewrite.error && <Notice tone="error">{errorText(rewrite.error)}</Notice>}
         {addImage.error && <Notice tone="error">{errorText(addImage.error)}</Notice>}
       </div>
 
-      <aside className="space-y-4">
-        <ReviseCard
-          project={project}
-          dirty={dirty}
-          busy={busy}
-          onTweakStarted={onTweakStarted}
-          onOpenSettings={onOpenSettings}
-          onRegenerate={onRegenerate}
-          onABTest={onABTest}
-        />
-        <EvolutionCard project={project} />
-        <ReferencesCard project={project} actions={referenceActions} />
-        <HistoryCard project={project} busy={busy} dirty={dirty} />
-        <TitlePicker project={project} />
-        <BrandKitCard project={project} disabled={busy} />
-        <AuthenticityPanel project={project} />
-        <FidelityPanel project={project} />
-        <BriefCard project={project} onEdit={onOpenSettings} disabled={busy} />
-        <DialsSummary project={project} onEdit={onOpenSettings} disabled={busy} />
+      <aside className="space-y-4 pb-20 lg:pb-0">
+        <RailGroup id="revise" title="Revise" hint="Feedback, history, title" defaultOpen>
+          <ReviseCard
+            project={project}
+            dirty={dirty}
+            busy={busy}
+            onTweakStarted={onTweakStarted}
+            onOpenSettings={onOpenSettings}
+            onRegenerate={onRegenerate}
+            onABTest={onABTest}
+          />
+          <TitlePicker project={project} />
+          <HistoryCard project={project} busy={busy} dirty={dirty} />
+        </RailGroup>
+        <RailGroup id="sources" title="Sources & look" hint="References, brand kit">
+          <ReferencesCard project={project} actions={referenceActions} />
+          <BrandKitCard project={project} disabled={busy} />
+        </RailGroup>
+        <RailGroup id="quality" title="Quality checks" hint="Authenticity, voice fidelity, persona learning">
+          <AuthenticityPanel project={project} />
+          <FidelityPanel project={project} />
+          <EvolutionCard project={project} />
+        </RailGroup>
+        <RailGroup id="brief" title="Brief & settings" hint="What this post was written from">
+          <BriefCard project={project} onEdit={onOpenSettings} disabled={busy} />
+          <DialsSummary project={project} onEdit={onOpenSettings} disabled={busy} />
+        </RailGroup>
       </aside>
+
+      {/* Phone and tablet: the main actions stay one tap away while scrolling a long post. */}
+      <div className="fixed inset-x-0 bottom-0 z-20 flex items-center gap-2 border-t border-line bg-surface px-4 py-2 lg:hidden">
+        {mode === 'markdown' && (
+          <Button size="sm" icon={<Save className="size-4" />} disabled={!dirty || busy} loading={update.isPending} onClick={save} className="flex-1">
+            Save
+          </Button>
+        )}
+        <Button size="sm" variant="flame" icon={<FileDown className="size-4" />} onClick={() => setExportOpen(true)} disabled={dirty} className="flex-1">
+          Export
+        </Button>
+        <Button size="sm" variant="secondary" icon={<PencilLine className="size-4" />} onClick={onOpenSettings} disabled={busy} className="flex-1">
+          Settings
+        </Button>
+      </div>
 
       <ExportDialog
         projectId={project.id}

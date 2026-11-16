@@ -17,7 +17,7 @@ The code lives in `backend/src/inferno_ghostwriter/images/opening/`:
 | Style | What it is | Built by | Suits |
 | --- | --- | --- | --- |
 | **Visual metaphor** (`editorial`) | The post's core mechanism acted out as one physical scene: marketing spend as coins through a plinko board into channel buckets; a single source of truth as specialists each lighting one part of an elephant | Claude SVG | every post (always in the running) |
-| **Data art** (`data_art`) | Beautiful abstract data: networks, streams sorting by colour, particle flows, chart motifs. It encodes the post's idea but shows no numbers, so it claims nothing | Claude SVG | every post, best for data science, ML, analytics and finance |
+| **Data art** (`data_art`) | Abstract and beautiful: flowing lines, particle fields, soft networks, contours. Never literal objects (no coins, dice, people or icons; that is the visual metaphor's job). The subject shows only as a subtle hint in its structure, rhythm and colour, and it shows no numbers, so it claims nothing | Claude SVG | every post, best for data science, ML, analytics and finance |
 | **Opening meme** (`meme`) | A joke that sets up the tension the post resolves; with the closing meme it makes a *meme sandwich* | The meme room | opinion, lessons learned, listicles, joke openers; humor 3+ |
 | **Cheat sheet** (`cheat_sheet`) | 4-9 numbered tiles: the steps, rules or commands a reader would save | Code template | how-to, tutorial, listicle |
 | **Data story chart** (`data_chart`) | One factual chart that makes a big point: annotated line, slope, dumbbell, waterfall, tornado, ranked bars, heatmap or spider | Code templates + verified data | case study, comparison, explainer, news peg, surprising number |
@@ -68,11 +68,14 @@ Charts are drawn by code too (not Vega-Lite), so scales, labels and colours are 
 
 - **Ideas** opens the board: every pitch ranked as the panel scored it, with each judge's score and note. *Use this one* builds a stored pitch (`POST /api/images/{id}/redraw` with `opening_concept`), *Next best idea* moves to the best untried one, and *Try as…* pitches four new ideas in one style (`opening_style`).
 - **Words** retypes a code-drawn opening's text (`PUT /api/images/{id}/opening-words`) with no call to Claude. Numbers and sources cannot be changed this way, and new words cannot add a number that was not researched.
-- **Redraw** builds the same idea again with fresh wording or staging; **Edit** changes it by instruction; **Replace** uploads your own.
+- **Redraw** critiques the current image and builds the same idea again to fix its weakest point, with an experiment (colors, cast, staging or medium, as the style allows); **Remix** lets you choose the experiment; **Edit** changes it by instruction; **Replace** uploads your own. See *Redraw that improves* in `docs/images.md`.
+- **Open with a meme…** on the Ideas board opens the post with a meme in any format from the meme bank (`POST /api/images/{id}/redraw` with `meme_format`): the meme room pitches five jokes in that format as an opener and draws the best, and the earlier pitches stay on the board.
+
+Data art stays abstract in four places: the style's rules, the pitching prompt, a check on the pitch (`room.literal_objects` sends a data-art pitch that names coins, dice, people and the like back once), and the render review, which fails a data-art image that shows recognizable objects.
 
 ## Meme sandwich
 
-Choosing **Opening meme** (or Auto picking one) opens the post with a meme as well as closing with one. The opening meme is pitched by the meme room as an opener: it sets up the tension, works for someone who has not read the post, and saves the payoff. The closing meme is made after it and is told about it, so it uses a different format family, never repeats the joke, and ideally pays it off as a bookend. Both memes keep the meme tools (Ideas, Words, Edit). Memes are rarely 16:9, so an opening meme's platform thumbnail is padded to keep the whole meme instead of cropped (`thumbnail_fit: contain`).
+Choosing **Opening meme** (or Auto picking one) opens the post with a meme as well as closing with one. The opening meme is pitched by the meme room as an opener: it sets up the tension, works for someone who has not read the post, and saves the payoff. The closing meme is made after it and is told about it, so it uses a different format family, never repeats the joke, and ideally pays it off as a bookend. Both memes keep the meme tools (Ideas, any format from the bank, Look, Words, Edit, Remix). Memes are rarely 16:9, so an opening meme's platform thumbnail is padded to keep the whole meme instead of cropped (`thumbnail_fit: contain`).
 
 ## Reviewing and tuning
 

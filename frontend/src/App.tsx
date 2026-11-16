@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router'
 
 import { usePersonas } from './api/hooks'
 import { AppShell } from './components/AppShell'
+import { ToastProvider } from './components/toast'
 import { Spinner } from './components/ui'
 import { IdeaLabPage } from './pages/ideas/IdeaLabPage'
 import { NewProjectPage } from './pages/NewProjectPage'
@@ -22,7 +23,17 @@ function Home() {
 
 export default function App() {
   return (
-    <AppShell>
+    <ToastProvider>
+      <AppShell>
+        <AppRoutes />
+      </AppShell>
+    </ToastProvider>
+  )
+}
+
+function AppRoutes() {
+  return (
+    <>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/welcome" element={<WelcomePage />} />
@@ -34,6 +45,6 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AppShell>
+    </>
   )
 }

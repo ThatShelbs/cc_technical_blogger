@@ -15,6 +15,7 @@ from inferno_ghostwriter.api.evolution import evolution_out
 from inferno_ghostwriter.api.schemas import (
     ABTestSummary,
     AddImageIn,
+    BuildsOnIn,
     CopyHtmlOut,
     GenerateIn,
     ImageEditIn,
@@ -46,6 +47,10 @@ from inferno_ghostwriter.api.schemas import (
     RedrawIn,
     ReferenceHistoryOut,
     ReferenceOut,
+    RemixDimensionOut,
+    RemixOptionOut,
+    RemixOut,
+    RemixTweakOut,
     RevertIn,
     RevisionOut,
     RewriteIn,
@@ -56,6 +61,7 @@ from inferno_ghostwriter.db import Idea, Persona, PersonaEvolution, Project, Pro
 from inferno_ghostwriter.evolution import change_stage, edit_rate, start_analysis
 from inferno_ghostwriter.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from inferno_ghostwriter.images import ImageProviderError, to_png
+from inferno_ghostwriter.images import remix as remixing
 from inferno_ghostwriter.images.memes import FAMILIES, FORMATS, get_format, load_state
 from inferno_ghostwriter.images.memes.generate import panel_scores
 from inferno_ghostwriter.images.memes.looks import LOOKS, get_look, is_look
@@ -66,7 +72,7 @@ from inferno_ghostwriter.images.opening.room import total as opening_total
 from inferno_ghostwriter.images.opening.specs import OpeningBuild
 from inferno_ghostwriter.images.opening.styles import STYLES, get_style, suggested_by_type
 from inferno_ghostwriter.images.opening.templates import get_template, slot_texts
-from inferno_ghostwriter.images.service import is_meme, meme_spec
+from inferno_ghostwriter.images.service import is_meme, meme_spec, remix_dimensions
 from inferno_ghostwriter.jobs import JobContext
 from inferno_ghostwriter.llm import LLMError
 from inferno_ghostwriter.services import Services
@@ -122,11 +128,29 @@ def image_out(image: ProjectImage) -> ImageOut:
         for i, entry in enumerate(image.history)
     ]
     return ImageOut(
-        **image.model_dump(exclude={"history", "spec", "file_name", "project_id", "anchor"}),
+        **image.model_dump(exclude={"history", "spec", "file_name", "project_id", "anchor", "remix"}),
         url=image_url(image),
         history=history,
         meme=meme_info(image),
         opening=opening_info(image),
+        remix=remix_info(image),
+        remix_dimensions=list(remix_dimensions(image)),
+    )
+
+
+def remix_info(image: ProjectImage) -> RemixOut | None:
+    state = image.remix or {}
+    if not state.get("tweaks") and not state.get("brainstormed"):
+        return None
+    return RemixOut(
+        weakness=str(state.get("weakness") or ""),
+        improvements=[str(i) for i in state.get("improvements") or []],
+        fresh_angle=str(state.get("fresh_angle") or ""),
+        tweaks=[
+            RemixTweakOut(dimension=str(t.get("dimension", "")), id=str(t.get("id", "")), label=str(t.get("label", "")))
+            for t in state.get("tweaks") or []
+        ],
+        brainstormed=bool(state.get("brainstormed")),
     )
 
 
@@ -728,6 +752,8 @@ async def _image_job(
     meme_look: str | None = None,
     opening_style: str | None = None,
     opening_concept: int | None = None,
+    tweaks: dict[str, str] | None = None,
+    improve: bool = True,
 ) -> JobOut:
     image = image_or_404(session, image_id)
     project = project_or_404(session, image.project_id)
@@ -755,12 +781,16 @@ async def _image_job(
             meme_look=meme_look,
             opening_style=opening_style,
             opening_concept=opening_concept,
+            tweaks=tweaks,
+            improve=improve,
             usage=ctx.add_usage,
         )
         if result.status == "error":
             raise ImageProviderError(result.error or "Image generation failed.")
         return {
             "image_id": image_id,
+            # Images that extend this one were drawn from its old version; the card offers to match them.
+            "dependents": dependent_slots(services, image.project_id, image.slot_id),
             **await _sync_text(services, image.project_id, [(result.slot_id, before, describe_image(result))], ctx),
         }
 
@@ -776,7 +806,14 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
     ``meme_concept``. The opening image can pitch again in one style with ``opening_style`` or build one of the
     panel's stored pitches with ``opening_concept``."""
     image = image_or_404(session, image_id)
-    if body.meme_format is not None or body.meme_concept is not None or body.meme_look is not None:
+    for dimension, tweak_id in (body.tweaks or {}).items():
+        if dimension not in remixing.DIMENSIONS or (tweak_id != "auto" and remixing.get_tweak(dimension, tweak_id) is None):
+            raise HTTPException(422, f"Unknown tweak {dimension}={tweak_id!r}.")
+    # The whole meme bank is open to the opening image too: a format on a non-meme opener makes it a meme.
+    if body.meme_format is not None and image.kind == "hero" and not is_meme(image):
+        if not get_format(body.meme_format):
+            raise HTTPException(422, f"Unknown meme format {body.meme_format!r}.")
+    elif body.meme_format is not None or body.meme_concept is not None or body.meme_look is not None:
         if not is_meme(image):
             raise HTTPException(422, "Only memes have formats and pitches.")
         if body.meme_format is not None and not get_format(body.meme_format):
@@ -802,7 +839,103 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
         meme_look=body.meme_look,
         opening_style=body.opening_style,
         opening_concept=body.opening_concept,
+        tweaks=body.tweaks,
+        improve=body.improve,
     )
+
+
+def dependent_slots(services: Services, project_id: int, slot_id: str) -> list[str]:
+    """Slot ids of the images that extend ``slot_id`` (directly or through each other), in post order."""
+    with Session(services.engine) as session:
+        rows = project_images(session, project_id)
+    found: list[str] = []
+    frontier = {slot_id}
+    for row in rows:  # rows are in post order and an image only builds on an earlier one
+        if row.builds_on in frontier:
+            found.append(row.slot_id)
+            frontier.add(row.slot_id)
+    return found
+
+
+@router.post("/images/{image_id}/build-on", response_model=JobOut, status_code=202)
+async def build_on(image_id: int, body: BuildsOnIn, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Make this image extend an earlier one and draw it again from that image's data and look."""
+    image = image_or_404(session, image_id)
+    rows = project_images(session, image.project_id)
+    base = next((r for r in rows if r.slot_id == body.slot_id), None)
+    if base is None or base.position >= image.position:
+        raise HTTPException(422, "An image can only build on one that comes earlier in the post.")
+    if base.kind in ("meme", "hero") or image.kind in ("meme", "hero"):
+        raise HTTPException(422, "The opening image and the closing meme stand on their own.")
+    if not base.spec or base.provider in ("upload", "placeholder"):
+        raise HTTPException(422, "That image has no source to build on (it is an upload or a placeholder). Redraw it first.")
+    image.builds_on = base.slot_id
+    session.add(image)
+    session.commit()
+    return await _image_job(services, session, image_id, improve=False)
+
+
+@router.delete("/images/{image_id}/build-on", response_model=ImageOut)
+def clear_build_on(image_id: int, session: SessionDep) -> ImageOut:
+    """Make an image stand on its own again (it keeps its current picture)."""
+    image = image_or_404(session, image_id)
+    image.builds_on = ""
+    session.add(image)
+    session.commit()
+    session.refresh(image)
+    return image_out(image)
+
+
+@router.post("/images/{image_id}/redraw-dependents", response_model=JobOut, status_code=202)
+async def redraw_dependents(image_id: int, session: SessionDep, services: ServicesDep) -> JobOut:
+    """Redraw the images that build on this one, in order, so they match its current data and look."""
+    image = image_or_404(session, image_id)
+    project = project_or_404(session, image.project_id)
+    slots = dependent_slots(services, image.project_id, image.slot_id)
+    if not slots:
+        raise HTTPException(409, "No other image builds on this one.")
+    persona = Persona.model_validate(persona_or_404(session, project.persona_id).model_dump())
+    brand_kit = dict(project.brand_kit or {})
+    voice_profile = current_voice_profile(session, project.persona_id)
+    markdown, title, voice = project.markdown, project.title, voice_profile.markdown if voice_profile else ""
+    rows = {r.slot_id: r for r in project_images(session, image.project_id)}
+    ids = [i for i in (rows[s].id for s in slots) if i is not None]
+    before = {rows[s].id: (s, describe_image(rows[s])) for s in slots}
+
+    async def run(ctx):  # type: ignore[no-untyped-def]
+        redrawn: dict[int, ProjectImage] = {}
+        for n, dependent_id in enumerate(ids):
+            await ctx.progress(n / len(ids), f"Matching image {n + 1} of {len(ids)}")
+            redrawn[dependent_id] = await services.images.create(
+                dependent_id,
+                persona=persona,
+                title=title,
+                markdown=markdown,
+                voice_profile=voice,
+                redraw=True,
+                remix=False,
+                brand_kit=brand_kit,
+                usage=ctx.add_usage,
+            )
+            await ctx.emit("image_ready", {"image_id": dependent_id})
+        changes = [(before[i][0], before[i][1], describe_image(img)) for i, img in redrawn.items() if i in before]
+        return {"image_ids": ids, **await _sync_text(services, image.project_id, changes, ctx)}
+
+    job = await services.jobs.start("redraw_images", run, project_id=image.project_id)
+    return JobOut(**job.model_dump())
+
+
+@router.get("/remix-options", response_model=list[RemixDimensionOut])
+def remix_options() -> list[RemixDimensionOut]:
+    """What Remix can change in a redraw: colors, who is in it, staging and medium (each also has "auto")."""
+    return [
+        RemixDimensionOut(
+            id=dimension,
+            label=remixing.DIMENSION_LABELS[dimension],
+            options=[RemixOptionOut(id=t.id, label=t.label, swatch=list(t.colors)) for t in remixing.TWEAKS if t.dimension == dimension],
+        )
+        for dimension in remixing.DIMENSIONS
+    ]
 
 
 @router.put("/images/{image_id}/opening-words", response_model=ImageOut)
@@ -898,6 +1031,7 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
                         markdown=markdown,
                         voice_profile=voice,
                         redraw=True,
+                        remix=False,
                         brand_kit=brand_kit,
                         usage=ctx.add_usage,
                     )

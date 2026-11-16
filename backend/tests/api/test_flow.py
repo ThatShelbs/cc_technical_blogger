@@ -588,7 +588,9 @@ def test_meme_formats_new_ideas_and_edits(client: TestClient, sample_docx: bytes
     assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_format": "nutrition_label"}).json()["status"] == "succeeded"
     assert current()["meme"]["format"] == "nutrition_label"
     assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_format": "nope"}).status_code == 422
-    assert client.post(f"/api/images/{hero['id']}/redraw", json={"meme_format": "venn"}).status_code == 422
+    assert (
+        client.post(f"/api/images/{hero['id']}/redraw", json={"meme_format": "nope"}).status_code == 422
+    )  # the opener may take any real format (see test_opening)
 
     looks = client.get("/api/meme-looks").json()
     assert len(looks) >= 10 and {"kawaii", "viridis_lab", "inferno_flat"} <= {look["id"] for look in looks}

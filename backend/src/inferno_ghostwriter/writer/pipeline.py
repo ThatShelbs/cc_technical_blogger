@@ -86,7 +86,17 @@ def normalize_slots(slots: list[ImageSlot], count: int, section_count: int) -> l
     middle = middle[: max(0, count - 2)]
     hero = hero.model_copy(update={"slot_id": "hero", "section_index": -1})
     meme = meme.model_copy(update={"slot_id": "meme", "section_index": max(0, section_count - 1)})
-    renamed = [s.model_copy(update={"slot_id": f"img{i + 2}"}) for i, s in enumerate(middle)]
+    new_ids = {s.slot_id: f"img{i + 2}" for i, s in enumerate(middle)}
+    # An image can only build on an earlier one that is still in the post.
+    renamed = [
+        s.model_copy(
+            update={
+                "slot_id": f"img{i + 2}",
+                "builds_on": new_ids[s.builds_on] if s.builds_on in new_ids and list(new_ids).index(s.builds_on) < i else "",
+            }
+        )
+        for i, s in enumerate(middle)
+    ]
     return [hero, *renamed, meme]
 
 
@@ -630,10 +640,15 @@ async def _generate(
     if not any(s.kind == "hero" for s in slots) or not images.opening_may_be_meme(project.id, persona):
         opened.set()
 
-    async def make(image_id: int, kind: str) -> None:
+    # An image that builds on an earlier one waits for it, then draws from its finished source.
+    drawn = {s.slot_id: asyncio.Event() for s in slots}
+
+    async def make(image_id: int, kind: str, slot_id: str, builds_on: str) -> None:
         nonlocal finished
         if kind == "meme":
             await opened.wait()
+        if builds_on in drawn:
+            await drawn[builds_on].wait()
         try:
             async with semaphore:
                 await images.create(
@@ -646,13 +661,14 @@ async def _generate(
                     usage=ctx.add_usage,
                 )
         finally:
+            drawn[slot_id].set()
             if kind == "hero":
                 opened.set()
         finished += 1
         await ctx.emit("image_ready", {"image_id": image_id})
         await ctx.progress(0.7 + 0.28 * finished / len(image_ids), f"Created {finished} of {len(image_ids)} images")
 
-    await asyncio.gather(*(make(i, s.kind) for i, s in zip(image_ids, slots, strict=True)))
+    await asyncio.gather(*(make(i, s.kind, s.slot_id, s.builds_on) for i, s in zip(image_ids, slots, strict=True)))
     _save(engine, project.id, status="ready")
     await ctx.progress(1.0, "Your post is ready")
     return {"project_id": project.id}
@@ -768,6 +784,7 @@ def _create_image_rows(engine: Engine, project_id: int, slots: list[ImageSlot]) 
                 kind=slot.kind,
                 purpose=slot.purpose,
                 prompt=slot.brief,
+                builds_on=slot.builds_on,
             )
             for i, slot in enumerate(slots)
         ]

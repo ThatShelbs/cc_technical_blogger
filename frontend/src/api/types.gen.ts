@@ -134,6 +134,10 @@ export interface BrandKit {
   motif?: string;
 }
 
+export interface BuildsOnIn {
+  slot_id: string;
+}
+
 export interface CopyHtmlOut {
   html: string;
 }
@@ -553,6 +557,9 @@ export interface ImageOut {
   history: ImageHistoryOut[];
   meme?: MemeInfoOut | null;
   opening?: OpeningInfoOut | null;
+  builds_on?: string;
+  remix?: RemixOut | null;
+  remix_dimensions?: string[];
 }
 
 export interface ImageUpdate {
@@ -945,6 +952,8 @@ export interface RedrawIn {
   meme_look?: string | null;
   opening_style?: string | null;
   opening_concept?: number | null;
+  tweaks?: Record<string, string> | null;
+  improve?: boolean;
 }
 
 export interface ReferenceHistoryOut {
@@ -975,6 +984,32 @@ export interface ReferenceOut {
 
 export interface ReferenceRedrawIn {
   kind?: "source" | "quote" | "social_post" | "resource" | "related_article" | null;
+}
+
+export interface RemixDimensionOut {
+  id: string;
+  label: string;
+  options: RemixOptionOut[];
+}
+
+export interface RemixOptionOut {
+  id: string;
+  label: string;
+  swatch?: string[];
+}
+
+export interface RemixOut {
+  weakness: string;
+  improvements: string[];
+  fresh_angle: string;
+  tweaks: RemixTweakOut[];
+  brainstormed: boolean;
+}
+
+export interface RemixTweakOut {
+  dimension: string;
+  id: string;
+  label: string;
 }
 
 export interface RevertIn {

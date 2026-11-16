@@ -339,6 +339,11 @@ class ProjectImage(SQLModel, table=True):
     status: str = "pending"
     error: str | None = None
     history: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    # The slot id of an earlier image this one extends (a chart then the same chart split by group): it is drawn
+    # from that image's source so both share data, colors and shapes. Empty = stands alone.
+    builds_on: str = ""
+    # What the last redraw tried (see images/remix.py): the critique, the improvements and the twist, newest tweaks first.
+    remix: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 
 
 class ProjectReference(SQLModel, table=True):
