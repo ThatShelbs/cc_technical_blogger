@@ -4,6 +4,10 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ## [Unreleased]
 
+### Added
+
+- **Add a reference by pasting a link.** In the References card, paste any URL (optionally a kind and a note about where it belongs): the app reads the page and works it into the post where it fits best, in a sentence or the *Go deeper* list. Redraw on such a link re-reads it instead of replacing it.
+
 ### Changed
 
 - **Proseferno is now Inferno Ghostwriter** ("The AI Ghostwriter for Technical Minds"). New brand: a friendly spectral ghost with a laptop and a quill replaces the robot, in the app, the memes' recurring character, the README banner and the installer. The Python package is `inferno_ghostwriter`, the command is `inferno-ghostwriter`, settings use the `INFERNO_GHOSTWRITER_` prefix, and the database is `inferno_ghostwriter.db`.

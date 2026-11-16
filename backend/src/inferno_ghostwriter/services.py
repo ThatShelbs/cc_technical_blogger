@@ -22,6 +22,7 @@ from inferno_ghostwriter.llm.router import RoutingLLM
 from inferno_ghostwriter.secrets import KeyringSecretStore, SecretStore
 from inferno_ghostwriter.storage import Storage
 from inferno_ghostwriter.writer.links import HttpLinkChecker, LinkChecker, NoLinkChecker
+from inferno_ghostwriter.writer.pages import HttpPageReader, NoPageReader, PageReader
 
 # Settings the user can change in the app; persisted in the app_setting table.
 RUNTIME_SETTINGS = (
@@ -49,6 +50,8 @@ class Services:
     jobs: JobManager
     # Checks that reference URLs still exist; tests and demo mode trust every link instead of going online.
     links: LinkChecker
+    # Reads a page the author pastes as a reference; tests and demo mode use a canned page.
+    pages: PageReader
     # Reads the Idea Lab's free feeds; tests and demo mode use canned items instead of going online.
     signals: SignalCollector
 
@@ -79,10 +82,12 @@ def build_services(
     auth: ClaudeAuth | None = None,
     inline_jobs: bool = False,
     links: LinkChecker | None = None,
+    pages: PageReader | None = None,
     signals: SignalCollector | None = None,
 ) -> Services:
     # Only the real Claude finds real links worth checking; a stand-in LLM (tests, demo mode) never goes online.
     links = links or (HttpLinkChecker() if llm is None and not settings.demo else NoLinkChecker())
+    pages = pages or (HttpPageReader() if llm is None and not settings.demo else NoPageReader())
     signals = signals or (HttpSignalCollector() if llm is None and not settings.demo else NoSignalCollector())
     engine = make_engine(settings.db_path)
     load_runtime_settings(engine, settings)
@@ -114,5 +119,6 @@ def build_services(
         images=images,
         jobs=jobs,
         links=links,
+        pages=pages,
         signals=signals,
     )

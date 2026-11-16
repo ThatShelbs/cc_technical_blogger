@@ -718,6 +718,8 @@ class ReferenceOut(BaseModel):
     quote: str
     status: str
     error: str | None
+    # True when the author pasted this link themselves.
+    user_supplied: bool = False
     # False once the author edited the reference's text out of the post.
     in_post: bool
     history: list[ReferenceHistoryOut]
@@ -732,6 +734,13 @@ class EnrichIn(BaseModel):
     # How many references to add; left out = enough to reach the post's reference count.
     count: int | None = Field(None, ge=1, le=12)
     kinds: list[ReferenceKind] | None = None
+
+
+class AddReferenceUrlIn(BaseModel):
+    url: str = Field(min_length=4, max_length=2000)
+    # Leave out to let Claude decide what the link is (a source, a resource or a related article).
+    kind: Literal["source", "resource", "related_article"] | None = None
+    note: str = Field("", max_length=500)
 
 
 class ProjectSummary(BaseModel):

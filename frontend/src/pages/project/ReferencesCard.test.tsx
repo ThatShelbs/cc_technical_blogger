@@ -21,6 +21,7 @@ const SOURCE: ReferenceOut = {
   quote: '',
   status: 'ready',
   error: null,
+  user_supplied: false,
   in_post: true,
   history: [
     { index: 0, kind: 'source', url: 'https://example.com/old', title: 'Old paper', created_at: '' },
@@ -51,6 +52,8 @@ function actions(extra: Partial<ReferenceActions> = {}): ReferenceActions {
     remove: vi.fn(),
     revert: vi.fn(),
     enrich: vi.fn(),
+    addUrl: vi.fn(),
+    addingUrl: false,
     ...extra,
   }
 }
@@ -88,6 +91,23 @@ describe('ReferencesCard', () => {
     render(<ReferencesCard project={project([])} actions={a} />)
     await userEvent.click(screen.getByRole('button', { name: 'Find references' }))
     expect(a.enrich).toHaveBeenCalledWith(undefined)
+  })
+
+  it('adds a link the author pastes, only once it is a web address', async () => {
+    const a = actions()
+    render(<ReferencesCard project={project([SOURCE])} actions={a} />)
+    const add = screen.getByRole('button', { name: 'Add link' })
+    expect(add).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('Add your own link'), 'https://mixtape.scunning.com/index.html')
+    await userEvent.selectOptions(screen.getByLabelText('What kind of link is it?'), 'resource')
+    expect(add).toBeEnabled()
+    await userEvent.click(add)
+    expect(a.addUrl).toHaveBeenCalledWith({ url: 'https://mixtape.scunning.com/index.html', kind: 'resource', note: '' }, expect.any(Function))
+  })
+
+  it('marks links the author pasted', () => {
+    render(<ReferencesCard project={project([{ ...SOURCE, user_supplied: true }])} actions={actions()} />)
+    expect(screen.getByText('Your link')).toBeInTheDocument()
   })
 })
 
