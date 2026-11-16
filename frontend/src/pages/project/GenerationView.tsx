@@ -31,8 +31,8 @@ export function GenerationView({ job }: { job: JobState }) {
           />
         ) : (
           <div className="flex min-h-80 flex-col items-center justify-center gap-4 text-center">
-            <img src="/logo-mark.svg" alt="" className="size-20 animate-pulse" />
-            <p className="text-lg font-semibold">{job.message || 'Warming up the robot…'}</p>
+            <img src="/logo-mark.png" alt="" className="size-20 animate-pulse" />
+            <p className="text-lg font-semibold">{job.message || 'Summoning the ghostwriter…'}</p>
             <p className="max-w-sm text-sm text-muted">Your draft will appear here as it is written.</p>
           </div>
         )}

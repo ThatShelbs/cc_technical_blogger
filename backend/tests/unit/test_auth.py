@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from proseferno.llm import LLMNotConfiguredError
-from proseferno.llm.auth import ClaudeAuth
-from proseferno.secrets import MemorySecretStore
+from inferno_ghostwriter.llm import LLMNotConfiguredError
+from inferno_ghostwriter.llm.auth import ClaudeAuth
+from inferno_ghostwriter.secrets import MemorySecretStore
 
 
 def make_auth(tmp_path: Path, env: dict[str, str] | None = None, key: str | None = None) -> ClaudeAuth:

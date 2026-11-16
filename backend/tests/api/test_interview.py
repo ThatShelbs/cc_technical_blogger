@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from proseferno.demo import DEMO_INTERVIEW, FakeLLM
+from inferno_ghostwriter.demo import DEMO_INTERVIEW, FakeLLM
 from tests.api.test_flow import create_persona, upload
 
 

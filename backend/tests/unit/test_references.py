@@ -3,11 +3,11 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from proseferno.db import ProjectReference
-from proseferno.llm import Citation, ResearchResult
-from proseferno.writer.dials import auto_reference_count
-from proseferno.writer.links import HttpLinkChecker
-from proseferno.writer.references import (
+from inferno_ghostwriter.db import ProjectReference
+from inferno_ghostwriter.llm import Citation, ResearchResult
+from inferno_ghostwriter.writer.dials import auto_reference_count
+from inferno_ghostwriter.writer.links import HttpLinkChecker
+from inferno_ghostwriter.writer.references import (
     PlannedReference,
     add_go_deeper,
     check_edit,
@@ -16,7 +16,7 @@ from proseferno.writer.references import (
     plan_references,
     remove_go_deeper,
 )
-from proseferno.writer.schemas import ReferenceEdit, ReferencePlan, ReferenceSlot
+from inferno_ghostwriter.writer.schemas import ReferenceEdit, ReferencePlan, ReferenceSlot
 
 POST = """# Title
 
@@ -138,7 +138,7 @@ async def test_link_checker_only_trusts_clear_evidence() -> None:
 
 
 async def test_demo_research_never_offers_a_tried_url() -> None:
-    from proseferno.demo import FakeLLM
+    from inferno_ghostwriter.demo import FakeLLM
 
     # The demo app's fake restarts its counter with the app, so it must skip what the prompt says was tried.
     prompt = "Reference kind: source\nDo not use these URLs, they were already tried: https://example.com/source/1, https://example.com/source/2\n"

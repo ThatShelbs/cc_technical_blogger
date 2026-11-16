@@ -1,8 +1,8 @@
 # Opening images
 
-The opening image sits right under the title and is also the post's thumbnail. In a feed it shows at about 300 pixels wide next to the title, so it decides whether anyone clicks. Proseferno treats it like the closing meme: a room pitches several ideas, an independent panel judges them, and the winner is built, checked and reviewed. The goal is an image people assume a skilled designer made for this exact post: professional, crisp, accurate, on-title and clickable, never generic AI filler.
+The opening image sits right under the title and is also the post's thumbnail. In a feed it shows at about 300 pixels wide next to the title, so it decides whether anyone clicks. Inferno Ghostwriter treats it like the closing meme: a room pitches several ideas, an independent panel judges them, and the winner is built, checked and reviewed. The goal is an image people assume a skilled designer made for this exact post: professional, crisp, accurate, on-title and clickable, never generic AI filler.
 
-The code lives in `backend/src/proseferno/images/opening/`:
+The code lives in `backend/src/inferno_ghostwriter/images/opening/`:
 
 | Module | Role |
 | --- | --- |

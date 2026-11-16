@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for Proseferno
+about: Suggest an idea for Inferno Ghostwriter
 labels: enhancement
 ---
 

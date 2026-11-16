@@ -1,5 +1,5 @@
 [project]
-name = "proseferno"
+name = "inferno-ghostwriter"
 version = "0.1.0"
 description = "Write engaging technical blog posts in your own voice."
 license = "MIT"
@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.scripts]
-proseferno = "proseferno:main"
+inferno-ghostwriter = "inferno_ghostwriter:main"
 
 [build-system]
 requires = ["uv_build>=0.13.4,<0.14.0"]
@@ -66,13 +66,15 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "BLE"]
 ignore = ["RUF001", "RUF002", "RUF003", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/proseferno/images/render.py" = ["E501"]  # inline SVG template
-"src/proseferno/images/memes/compose.py" = ["E501"]  # inline SVG templates
-"src/proseferno/images/memes/charts.py" = ["E501"]  # inline SVG templates
+"src/inferno_ghostwriter/images/render.py" = ["E501"]  # inline SVG template
+"src/inferno_ghostwriter/demo_showcase.py" = ["E501"]  # canned prose and inline SVG
+"src/inferno_ghostwriter/demo.py" = ["E501"]  # canned prose and inline SVG
+"src/inferno_ghostwriter/images/memes/compose.py" = ["E501"]  # inline SVG templates
+"src/inferno_ghostwriter/images/memes/charts.py" = ["E501"]  # inline SVG templates
 
 [tool.mypy]
 python_version = "3.13"
-packages = ["proseferno"]
+packages = ["inferno_ghostwriter"]
 mypy_path = "src"
 ignore_missing_imports = true
 warn_unused_ignores = false

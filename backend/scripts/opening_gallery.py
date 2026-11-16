@@ -17,11 +17,11 @@ import html
 import sys
 from pathlib import Path
 
-from proseferno.demo import opening_build_payload
-from proseferno.images.opening.room import load_state, total
-from proseferno.images.opening.specs import OpeningBuild
-from proseferno.images.opening.styles import BY_ID, STYLES
-from proseferno.images.opening.templates import TEMPLATES, draw
+from inferno_ghostwriter.demo import opening_build_payload
+from inferno_ghostwriter.images.opening.room import load_state, total
+from inferno_ghostwriter.images.opening.specs import OpeningBuild
+from inferno_ghostwriter.images.opening.styles import BY_ID, STYLES
+from inferno_ghostwriter.images.opening.templates import TEMPLATES, draw
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,9 +39,9 @@ def demo_cards(out: Path, palette: tuple[str, ...]) -> list[tuple[str, str, str]
 async def real_cards(out: Path, projects: int, style: str | None) -> list[tuple[str, str, str]]:
     from sqlmodel import Session, col, select
 
-    from proseferno.db import Persona, Project, ProjectImage
-    from proseferno.services import build_services
-    from proseferno.voice import current_voice_profile
+    from inferno_ghostwriter.db import Persona, Project, ProjectImage
+    from inferno_ghostwriter.services import build_services
+    from inferno_ghostwriter.voice import current_voice_profile
 
     services = build_services()
     cards = []

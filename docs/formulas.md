@@ -13,7 +13,7 @@ A formula decides structure only. The voice profile still decides how every sent
 
 ## The smart default
 
-You do not have to choose anything. With the article type on **Automatic**, Proseferno reads it from your brief: "How to size an A/B test" is a how-to, "X vs. Y" a comparison, "Top 7 ..." a countdown, "What I learned ..." a lessons-learned post. The form shows the guess while you type (*Automatic: How-to*), and the finished post lists it under **Settings used** as read from your brief.
+You do not have to choose anything. With the article type on **Automatic**, Inferno Ghostwriter reads it from your brief: "How to size an A/B test" is a how-to, "X vs. Y" a comparison, "Top 7 ..." a countdown, "What I learned ..." a lessons-learned post. The form shows the guess while you type (*Automatic: How-to*), and the finished post lists it under **Settings used** as read from your brief.
 
 - A signal in the first line of the brief (the working title) is enough. Words further down only count when three of them agree, so one stray bullet never decides the shape of a post.
 - When the brief does not say, nothing is assumed and the post takes the shape you usually give one.

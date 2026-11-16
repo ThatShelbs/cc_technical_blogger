@@ -8,7 +8,7 @@ import zipfile
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from proseferno.demo import FakeLLM
+from inferno_ghostwriter.demo import FakeLLM
 from tests.api.test_flow import create_persona, upload
 
 

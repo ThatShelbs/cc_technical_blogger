@@ -7,7 +7,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from proseferno.demo import DEMO_IMAGE_SYNC, DEMO_PLACEMENT_EDIT, FakeLLM
+from inferno_ghostwriter.demo import DEMO_IMAGE_SYNC, DEMO_PLACEMENT_EDIT, FakeLLM
 from tests.api.test_flow import ready_post
 
 
@@ -56,7 +56,7 @@ def test_a_failed_text_check_never_fails_the_redraw(client: TestClient, sample_d
     async def boom(**_: object) -> dict:
         raise RuntimeError("model fell over")
 
-    monkeypatch.setattr("proseferno.api.projects.sync_text_to_images", boom)
+    monkeypatch.setattr("inferno_ghostwriter.api.projects.sync_text_to_images", boom)
     job = client.post(f"/api/images/{meme['id']}/redraw", json={"rethink": True}).json()
     assert job["status"] == "succeeded", job
     assert job["result"]["text_edits"] == 0 and "could not be checked" in job["result"]["text_error"]

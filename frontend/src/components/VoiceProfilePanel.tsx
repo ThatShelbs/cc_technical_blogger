@@ -234,7 +234,7 @@ export function VoiceProfilePanel({ personaId, onGenerated }: { personaId: numbe
         >
           {ownSamples === 0
             ? 'Add at least one post you wrote, then generate.'
-            : 'Proseferno studies your posts (and any influences), then writes a field guide to your voice that every post follows.'}
+            : 'Inferno Ghostwriter studies your posts (and any influences), then writes a field guide to your voice that every post follows.'}
         </EmptyState>
       ) : editing !== null ? (
         <Card className="space-y-3">

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Proseferno developer setup (macOS / Linux). Safe to run again at any time.
+# Inferno Ghostwriter developer setup (macOS / Linux). Safe to run again at any time.
 # Installs what you need to work on the code: uv, Node.js 22+, the Python and web packages,
 # and (optionally) the browser used by the end-to-end tests.
 # Just want to use the app? Run ./launch.sh in the repository root.
@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo
-echo "  Proseferno developer setup"
+echo "  Inferno Ghostwriter developer setup"
 echo
 
 ask() { read -r -p "  $1 [y/N] " reply && [[ "$reply" =~ ^[Yy] ]]; }
@@ -51,7 +51,7 @@ fi
 
 echo
 echo "  [4/4] Checking this machine..."
-uv run --project backend proseferno doctor || true
+uv run --project backend inferno-ghostwriter doctor || true
 
 cat <<'EOF'
   Next:

@@ -9,11 +9,11 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from proseferno.config import Settings
-from proseferno.db import Persona, Project, Sample, VoiceProfile
-from proseferno.ingest import parse_markdown
-from proseferno.ingest.stylometrics import compute
-from proseferno.services import build_services
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.db import Persona, Project, Sample, VoiceProfile
+from inferno_ghostwriter.ingest import parse_markdown
+from inferno_ghostwriter.ingest.stylometrics import compute
+from inferno_ghostwriter.services import build_services
 
 EVALS = Path(__file__).resolve().parents[2] / "evals"
 

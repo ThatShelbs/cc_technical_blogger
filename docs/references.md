@@ -62,8 +62,8 @@ Both jobs are text jobs (`TEXT_JOBS`), so they never run alongside a tweak or an
 | --- | --- | --- |
 | References per post | automatic (at least 5) | Per post or persona; `reference_count` dial, `Persona.default_reference_count` (null = automatic, 0 = none) |
 | Kinds allowed | all five | Per post; `reference_kinds` dial |
-| `PROSEFERNO_EFFORT_REFERENCES` | `medium` | Effort for planning, research and weaving |
-| `PROSEFERNO_REFERENCE_MAX_SEARCHES` | `3` | Web searches per reference |
-| `PROSEFERNO_CHECK_REFERENCE_LINKS` | `true` | Fetch each URL once and drop dead ones |
+| `INFERNO_GHOSTWRITER_EFFORT_REFERENCES` | `medium` | Effort for planning, research and weaving |
+| `INFERNO_GHOSTWRITER_REFERENCE_MAX_SEARCHES` | `3` | Web searches per reference |
+| `INFERNO_GHOSTWRITER_CHECK_REFERENCE_LINKS` | `true` | Fetch each URL once and drop dead ones |
 
 Tests and demo mode never go online: they use `NoLinkChecker`, and `demo.FakeLLM` returns example.com links and canned quotes.

@@ -1,8 +1,8 @@
 # Persona evolution
 
-A persona should get better with every post you publish. Proseferno learns from two things:
+A persona should get better with every post you publish. Inferno Ghostwriter learns from two things:
 
-1. **What you changed before publishing.** When you mark a post **Published**, the text you shipped is compared with the text Proseferno generated. Your edits become a few small proposed changes to the persona, so the next post needs fewer edits.
+1. **What you changed before publishing.** When you mark a post **Published**, the text you shipped is compared with the text Inferno Ghostwriter generated. Your edits become a few small proposed changes to the persona, so the next post needs fewer edits.
 2. **What worked.** When you rate a published post **Medium hit** or **Big hit**, Claude works out its *secret sauce*: the moves readers probably responded to. These go into the persona's **playbook**, so it keeps writing posts like it.
 
 Nothing changes until you review a proposal and apply it.
@@ -98,7 +98,7 @@ It returns three to six moves that other posts on other topics can reuse. Most o
 | `POST /api/evolutions/{id}/dismiss` | Dismiss a proposal. |
 | `DELETE /api/personas/{id}/playbook?index=` | Forget one playbook entry, or all without `index`. |
 
-`ProjectOut` carries `stage`, `outcome`, `published_at`, `has_baseline`, `edit_rate` and the post's `evolutions`. `PersonaOut` carries `playbook` and `pending_evolutions`. The effort for every evolution call is `PROSEFERNO_EFFORT_EVOLVE` (default `medium`).
+`ProjectOut` carries `stage`, `outcome`, `published_at`, `has_baseline`, `edit_rate` and the post's `evolutions`. `PersonaOut` carries `playbook` and `pending_evolutions`. The effort for every evolution call is `INFERNO_GHOSTWRITER_EFFORT_EVOLVE` (default `medium`).
 
 ## Code map
 

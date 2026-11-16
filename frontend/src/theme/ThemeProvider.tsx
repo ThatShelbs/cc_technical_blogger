@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 
 import { ThemeContext, type ThemeMode } from './useTheme'
 
-const STORAGE_KEY = 'proseferno-theme'
+const STORAGE_KEY = 'inferno-ghostwriter-theme'
 
 function readSaved(): ThemeMode {
   try {

@@ -14,7 +14,7 @@ labels: bug
 
 **Environment**
 - OS:
-- How you started Proseferno (launch.bat / launch.sh / scripts/dev / demo mode):
+- How you started Inferno Ghostwriter (launch.bat / launch.sh / scripts/dev / demo mode):
 - Version (Settings → Advanced):
 
 **Logs or screenshots**

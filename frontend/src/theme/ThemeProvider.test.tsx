@@ -21,16 +21,16 @@ function renderToggle() {
 
 describe('ThemeToggle', () => {
   it('cycles day → night → system and remembers the choice', async () => {
-    localStorage.setItem('proseferno-theme', 'light')
+    localStorage.setItem('inferno-ghostwriter-theme', 'light')
     renderToggle()
     expect(document.documentElement.dataset.theme).toBe('light')
 
     await userEvent.click(screen.getByRole('button', { name: /Day mode/ }))
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(localStorage.getItem('proseferno-theme')).toBe('dark')
+    expect(localStorage.getItem('inferno-ghostwriter-theme')).toBe('dark')
 
     await userEvent.click(screen.getByRole('button', { name: /Night mode/ }))
-    expect(localStorage.getItem('proseferno-theme')).toBe('system')
+    expect(localStorage.getItem('inferno-ghostwriter-theme')).toBe('system')
     // jsdom's matchMedia (see setup) reports a light system theme.
     expect(document.documentElement.dataset.theme).toBe('light')
   })

@@ -7,12 +7,12 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from proseferno.idealab.collect import HttpSignalCollector, NoSignalCollector, parse, parse_date
-from proseferno.idealab.ideate import CORE_MIX, MODES, Candidate, dedupe, plan_mix, select, title_tokens, too_similar
-from proseferno.idealab.research import checked_trends, standing_beats
-from proseferno.idealab.schemas import IdeaDraft, Trend, TrendDigest
-from proseferno.idealab.sources import CustomSource, Source, SourceChanges, build_config
-from proseferno.writer.references import norm_url
+from inferno_ghostwriter.idealab.collect import HttpSignalCollector, NoSignalCollector, parse, parse_date
+from inferno_ghostwriter.idealab.ideate import CORE_MIX, MODES, Candidate, dedupe, plan_mix, select, title_tokens, too_similar
+from inferno_ghostwriter.idealab.research import checked_trends, standing_beats
+from inferno_ghostwriter.idealab.schemas import IdeaDraft, Trend, TrendDigest
+from inferno_ghostwriter.idealab.sources import CustomSource, Source, SourceChanges, build_config
+from inferno_ghostwriter.writer.references import norm_url
 
 RSS = """<?xml version="1.0"?>
 <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Feed</title>
@@ -67,7 +67,7 @@ async def test_one_failing_source_does_not_fail_the_rest() -> None:
         if "bad" in request.url.host:
             return httpx.Response(500)
         # No personal data and a generic client name in every request.
-        assert "Proseferno feed reader" in request.headers["user-agent"]
+        assert "Inferno Ghostwriter feed reader" in request.headers["user-agent"]
         return httpx.Response(200, text=ATOM)
 
     good = Source(id="good", name="Good", group="creator", kind="rss", url="https://good.example.com/feed")
@@ -213,8 +213,8 @@ def test_selection_holds_the_mix_then_tops_up() -> None:
     ],
 )
 def test_an_ideas_stage_follows_its_post(state: str, project: dict[str, str] | None, stage: str) -> None:
-    from proseferno.db import Idea, Project
-    from proseferno.idealab.lifecycle import STAGES, stage_label, stage_of
+    from inferno_ghostwriter.db import Idea, Project
+    from inferno_ghostwriter.idealab.lifecycle import STAGES, stage_label, stage_of
 
     idea = Idea(session_id=1, persona_id=1, approach="emerging", title="T", state=state)
     post = Project(persona_id=1, prompt="p", **project) if project is not None else None

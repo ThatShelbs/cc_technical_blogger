@@ -5,7 +5,7 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
-from proseferno.db import Persona, make_engine
+from inferno_ghostwriter.db import Persona, make_engine
 
 
 def test_older_databases_gain_new_columns_with_defaults(tmp_path: Path) -> None:
@@ -30,7 +30,7 @@ def test_older_databases_gain_new_columns_with_defaults(tmp_path: Path) -> None:
 
 
 def test_voice_soul_data_is_carried_over_to_voice_profile(tmp_path: Path) -> None:
-    db = tmp_path / "proseferno.db"
+    db = tmp_path / "inferno_ghostwriter.db"
     with sqlite3.connect(db) as conn:
         conn.execute("CREATE TABLE persona (id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, pinned_voice_soul_version INTEGER)")
         conn.execute("INSERT INTO persona (id, name, pinned_voice_soul_version) VALUES (1, 'Shelby', 2)")

@@ -81,7 +81,7 @@ export function BrandKitFields({
             id={id('motif')}
             value={kit.motif}
             maxLength={200}
-            placeholder="A tiny robot in every image"
+            placeholder="A tiny ghost in every image"
             onChange={(e) => onChange({ ...kit, motif: e.target.value })}
           />
         </Field>

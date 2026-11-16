@@ -1,0 +1,319 @@
+"""Platform-optimized export bundles (zip) and copy-ready HTML."""
+
+from __future__ import annotations
+
+import io
+import re
+import zipfile
+from pathlib import Path
+from typing import Literal
+
+from PIL import Image, ImageStat
+
+from inferno_ghostwriter.db import Project, ProjectImage
+from inferno_ghostwriter.export.linkedin import carousel_pdf, carousel_pptx, carousel_slides, template_post
+from inferno_ghostwriter.export.render import (
+    Figure,
+    body_html,
+    data_uri,
+    figures_for,
+    markdown_with_images,
+    standalone_html,
+    strip_title,
+)
+from inferno_ghostwriter.export.x import HEADER_SIZE as X_HEADER_SIZE
+from inferno_ghostwriter.export.x import teaser_post
+from inferno_ghostwriter.images.opening.room import fit_of
+from inferno_ghostwriter.images.opening.room import load_state as load_opening_state
+from inferno_ghostwriter.storage import slugify
+from inferno_ghostwriter.writer import split_title
+
+Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
+PLATFORMS: tuple[Platform, ...] = ("medium", "substack", "linkedin", "x", "gumroad", "markdown")
+
+# Thumbnail sizes: Medium and Substack crop previews from a wide image; 1200x630 is the
+# common social-card size and suits Gumroad covers too. LinkedIn article covers are 1920x1080; X Article headers are 5:2.
+THUMBNAIL_SIZE = {
+    "medium": (1400, 788),
+    "substack": (1200, 630),
+    "linkedin": (1920, 1080),
+    "x": X_HEADER_SIZE,
+    "gumroad": (1280, 720),
+    "markdown": (1000, 420),
+}
+
+INSTRUCTIONS = {
+    "medium": """Publishing on Medium
+====================
+1. In Inferno Ghostwriter's export dialog, click "Copy for Medium" and paste into a new Medium story
+   (images are embedded in the copied content). If any image does not come through, drag it in
+   from the images/ folder and paste its caption from post.md.
+2. Medium uses the first image as the story preview; thumbnail.png is sized for that.
+3. Headings are mapped to Medium's two heading sizes (large = section, small = subsection).
+4. Add up to five tags: {tags}
+""",
+    "substack": """Publishing on Substack
+======================
+1. Paste the title and subtitle below into Substack's Title and Subtitle fields.
+   Title: {title}
+   Subtitle: {subtitle}
+2. In Inferno Ghostwriter's export dialog, click "Copy for Substack" and paste into the post body.
+   If an image does not come through, upload it from images/ and add its caption from post.md.
+3. Set thumbnail.png as the post's social preview image in Settings > Social preview.
+""",
+    "linkedin": """Publishing on LinkedIn
+======================
+Article
+1. On LinkedIn, choose "Write article". Upload thumbnail.png (1920x1080) as the cover image.
+2. Paste the title into the title field: {title}
+3. In Inferno Ghostwriter's export dialog, click "Copy for LinkedIn" and paste into the article body
+   (## headings become LinkedIn headings). If an image does not come through, upload it from
+   images/ and add its caption from post.md.
+
+Feed post
+4. feed-post.txt is a companion post (under 3,000 characters; the first ~210 show before
+   "...see more"). Share the article with it, or post it on its own and put the link in a comment.
+
+Document carousel
+5. carousel.pdf is a swipeable 1080x1350 document post: "Start a post" > "Add a document".
+   carousel.pptx is the same deck, editable in PowerPoint, Keynote or Google Slides.
+""",
+    "x": """Publishing an X Article
+=======================
+1. On X, open Articles and start a new article. Upload thumbnail.png (1500x600, 5:2) as the header image.
+2. Paste the title into the title field: {title}
+3. In Inferno Ghostwriter's export dialog, click "Copy for X" and paste into the article body
+   (## headings become X headings). If an image does not come through, upload it from
+   images/ and add its caption from post.md. X Articles have no code blocks or tables,
+   so check any code and paste long snippets as images or links.
+
+Teaser post
+4. teaser-post.txt announces the article in under 280 characters. Publish the article,
+   then share it from the article page with this text.
+""",
+    "gumroad": """Publishing on Gumroad
+=====================
+post.pdf is a print-ready version of the post for a Gumroad product or post attachment.
+post.html is a styled web version; cover.png (thumbnail.png) works as the product cover.
+""",
+    "markdown": """Markdown export
+===============
+post.md has front matter for dev.to, Hashnode, Ghost or a static site, with images in images/.
+post.docx is a Word version for editors who prefer Word or Google Docs.
+""",
+}
+
+
+def copy_html(project: Project, images: list[ProjectImage], image_dir: Path, platform: Platform) -> str:
+    """HTML for the clipboard: images embedded as data URIs so a paste carries them."""
+    figures = figures_for(images, image_dir)
+    if platform == "medium":
+        # Medium: title h1, subtitle h2, sections h3 (large heading), subsections h4 (small heading).
+        return body_html(project.markdown, figures, src=data_uri, heading_shift=1)
+    if platform in ("substack", "linkedin", "x"):
+        # The title (and subtitle) go in the platform's own fields; ## and ### map to its two heading sizes.
+        return body_html(strip_title(project.markdown), figures, src=data_uri, include_title=True)
+    return body_html(project.markdown, figures, src=data_uri)
+
+
+def linkedin_post(project: Project) -> tuple[str, bool]:
+    """The saved Claude-written feed post if there is one, else a template built from the article."""
+    saved = (project.social or {}).get("linkedin_post")
+    if saved:
+        return str(saved), True
+    return template_post(project.markdown, (project.plan or {}).get("tags", [])), False
+
+
+def build_bundle(
+    project: Project, images: list[ProjectImage], image_dir: Path, platform: Platform, *, author: str = ""
+) -> tuple[str, bytes]:
+    figures = figures_for(images, image_dir)
+    title, subtitle = split_title(project.markdown)
+    title = title or project.title or "Untitled post"
+    subtitle = subtitle or project.subtitle
+    tags = ", ".join((project.plan or {}).get("tags", [])[:5]) or "(choose your own)"
+    slug = slugify(title)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fig in figures.values():
+            if fig.path is not None and fig.path.exists():
+                zf.write(fig.path, f"images/{fig.file_name}")
+        hero = figures.get("hero")
+        if hero is not None and hero.path is not None and hero.path.exists():
+            zf.writestr("thumbnail.png", _thumbnail(hero.path, THUMBNAIL_SIZE[platform], thumbnail_fit(images)))
+
+        relative = lambda f: f"images/{f.file_name}"  # noqa: E731
+        if platform == "medium":
+            body = body_html(project.markdown, figures, src=relative, heading_shift=1)
+        else:
+            body = body_html(project.markdown, figures, src=relative)
+        zf.writestr("post.html", standalone_html(title, body))
+
+        md = markdown_with_images(project.markdown, figures)
+        if platform == "markdown":
+            md = _front_matter(title, subtitle, (project.plan or {}).get("tags", []), figures) + strip_title(md)
+            zf.writestr("post.docx", _docx(project.markdown, figures, title, subtitle))
+        zf.writestr("post.md", md)
+
+        if platform == "gumroad":
+            zf.writestr("post.pdf", _pdf(title, body_html(project.markdown, figures, src=lambda f: f.file_name or ""), image_dir))
+
+        if platform == "linkedin":
+            zf.writestr("feed-post.txt", linkedin_post(project)[0] + "\n")
+            slides = carousel_slides(project.markdown, figures, author)
+            zf.writestr("carousel.pdf", carousel_pdf(slides, title))
+            zf.writestr("carousel.pptx", carousel_pptx(slides))
+
+        if platform == "x":
+            zf.writestr("teaser-post.txt", teaser_post(project.markdown) + "\n")
+
+        zf.writestr("README.txt", INSTRUCTIONS[platform].format(title=title, subtitle=subtitle, tags=tags))
+    return f"{slug}-{platform}.zip", buffer.getvalue()
+
+
+def thumbnail_fit(images: list[ProjectImage]) -> str:
+    """How the thumbnail is cut from the opening image: "contain" for styles that must stay whole (an opening meme),
+    else "cover" (a centre crop; the other styles keep everything important in the centre band)."""
+    hero = next((i for i in images if i.slot_id == "hero"), None)
+    if hero is None or hero.provider == "upload":
+        return "cover"
+    return fit_of(load_opening_state(hero.spec))
+
+
+def _edge_color(img: Image.Image) -> tuple[int, int, int]:
+    """The average colour of the image's border, to pad it without a visible seam."""
+    width, height = img.size
+    strips = [
+        img.crop((0, 0, width, 4)),
+        img.crop((0, height - 4, width, height)),
+        img.crop((0, 0, 4, height)),
+        img.crop((width - 4, 0, width, height)),
+    ]
+    means = [ImageStat.Stat(strip).mean for strip in strips]
+    return tuple(round(sum(m[c] for m in means) / len(means)) for c in range(3))  # type: ignore[return-value]
+
+
+def _thumbnail(path: Path, size: tuple[int, int], fit: str = "cover") -> bytes:
+    with Image.open(path) as source:
+        img = source.convert("RGB")
+        target_w, target_h = size
+        out = io.BytesIO()
+        if fit == "contain":
+            scale = min(target_w / img.width, target_h / img.height)
+            resized = img.resize((round(img.width * scale), round(img.height * scale)), Image.Resampling.LANCZOS)
+            canvas = Image.new("RGB", size, _edge_color(img))
+            canvas.paste(resized, ((target_w - resized.width) // 2, (target_h - resized.height) // 2))
+            canvas.save(out, format="PNG")
+            return out.getvalue()
+        scale = max(target_w / img.width, target_h / img.height)
+        resized = img.resize((round(img.width * scale), round(img.height * scale)), Image.Resampling.LANCZOS)
+        left = (resized.width - target_w) // 2
+        top = (resized.height - target_h) // 2
+        resized.crop((left, top, left + target_w, top + target_h)).save(out, format="PNG")
+        return out.getvalue()
+
+
+def _front_matter(title: str, subtitle: str, tags: list[str], figures: dict[str, Figure]) -> str:
+    def q(text: str) -> str:
+        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    lines = ["---", f"title: {q(title)}", f"description: {q(subtitle)}"]
+    if tags:
+        lines.append("tags: [" + ", ".join(q(re.sub(r"[^a-z0-9]", "", t.lower())) for t in tags[:4]) + "]")
+    hero = figures.get("hero")
+    if hero is not None and hero.file_name:
+        lines.append(f"cover_image: images/{hero.file_name}")
+    lines += ["published: false", "---", "", f"*{subtitle}*" if subtitle else "", ""]
+    return "\n".join(lines)
+
+
+def _pdf(title: str, body: str, image_dir: Path) -> bytes:
+    import pymupdf
+
+    css = """
+    body { font-family: serif; font-size: 11pt; line-height: 1.5; color: #1b0c41; }
+    h1 { font-family: sans-serif; font-size: 24pt; color: #000004; }
+    h2 { font-family: sans-serif; font-size: 16pt; color: #4a0c6b; }
+    h3 { font-family: sans-serif; font-size: 13pt; color: #4a0c6b; }
+    .subtitle { color: #781c6d; font-size: 13pt; }
+    figcaption { font-family: sans-serif; font-size: 9pt; color: #5b4a6b; text-align: center; }
+    pre { font-family: monospace; font-size: 9pt; background-color: #f4effa; padding: 6pt; }
+    blockquote { color: #4a0c6b; }
+    """
+    # Images: scale to the text width.
+    body = re.sub(r'width="\d+" height="\d+"', 'width="468"', body)
+    out = io.BytesIO()
+    story = pymupdf.Story(html=f"<body>{body}</body>", user_css=css, archive=pymupdf.Archive(str(image_dir)))
+    writer = pymupdf.DocumentWriter(out)
+    mediabox = pymupdf.paper_rect("letter")
+    where = mediabox + (72, 72, -72, -72)  # noqa: RUF005 - pymupdf Rect arithmetic (margins), not tuple concat
+    more = True
+    while more:
+        device = writer.begin_page(mediabox)
+        more, _ = story.place(where)
+        story.draw(device)
+        writer.end_page()
+    writer.close()
+    data = out.getvalue()
+    with pymupdf.open(stream=data, filetype="pdf") as doc:
+        doc.set_metadata({"title": title, "creator": "Inferno Ghostwriter"})
+        return doc.tobytes()
+
+
+def _docx(markdown: str, figures: dict[str, Figure], title: str, subtitle: str) -> bytes:
+    from docx import Document
+    from docx.shared import Inches, Pt
+    from markdown_it import MarkdownIt
+
+    from inferno_ghostwriter.images import PLACEHOLDER_RE
+
+    document = Document()
+    document.add_heading(title, level=0)
+    if subtitle:
+        document.add_paragraph().add_run(subtitle).italic = True
+
+    tokens = MarkdownIt("commonmark").parse(strip_title(markdown))
+    list_stack: list[str] = []
+    quote_depth = 0
+    for i, tok in enumerate(tokens):
+        if tok.type == "blockquote_open":
+            quote_depth += 1
+        elif tok.type == "blockquote_close":
+            quote_depth -= 1
+        elif tok.type in ("bullet_list_open", "ordered_list_open"):
+            list_stack.append("List Number" if tok.type == "ordered_list_open" else "List Bullet")
+        elif tok.type in ("bullet_list_close", "ordered_list_close"):
+            list_stack.pop()
+        elif tok.type == "heading_open":
+            document.add_heading(tokens[i + 1].content, level=min(3, max(1, int(tok.tag[1]) - 1)))
+        elif tok.type == "inline" and tokens[i - 1].type == "paragraph_open":
+            content = tok.content.strip()
+            placeholder = PLACEHOLDER_RE.fullmatch(content)
+            if placeholder:
+                fig = figures.get(placeholder.group(1))
+                if fig is not None and fig.path is not None and fig.path.exists():
+                    document.add_picture(str(fig.path), width=Inches(6))
+                    if fig.full_caption:
+                        cap = document.add_paragraph()
+                        run = cap.add_run(fig.full_caption)
+                        run.italic = True
+                        run.font.size = Pt(9)
+                continue
+            style = list_stack[-1] if list_stack else ("Quote" if quote_depth else None)
+            document.add_paragraph(_plain(content), style=style)
+        elif tok.type in ("fence", "code_block"):
+            para = document.add_paragraph()
+            run = para.add_run(tok.content.rstrip("\n"))
+            run.font.name = "Consolas"
+            run.font.size = Pt(9)
+    out = io.BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
+def _plain(markdown_inline: str) -> str:
+    text = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), markdown_inline)
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|_(.+?)_", lambda m: m.group(1) or m.group(2), text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Word has no Markdown links; keep the URL so sources and references survive the export.
+    return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r"\1 (\2)", text)

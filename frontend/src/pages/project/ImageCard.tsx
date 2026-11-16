@@ -17,7 +17,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   'claude-svg': 'Claude SVG',
   'vega-lite': 'Claude + Vega-Lite',
   'claude-meme': 'Claude meme',
-  'claude-opening': 'Claude + Proseferno layout',
+  'claude-opening': 'Claude + Inferno Ghostwriter layout',
   placeholder: 'Placeholder',
   upload: 'Your upload',
 }

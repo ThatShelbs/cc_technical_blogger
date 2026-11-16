@@ -1,4 +1,4 @@
-# --- Proseferno runtime data (personas, samples, projects, exports, database) ---
+# --- Inferno Ghostwriter runtime data (personas, samples, projects, exports, database) ---
 data/
 my_writing_examples/
 *.db

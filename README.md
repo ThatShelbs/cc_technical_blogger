@@ -1,13 +1,10 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-dark.svg">
-    <img alt="Proseferno" src="assets/brand/logo.svg" width="560">
-  </picture>
+  <img alt="Inferno Ghostwriter: The AI Ghostwriter for Technical Minds" src="assets/brand/banner.png" width="100%">
 </p>
 
 <p align="center">
-  <strong>Write engaging technical blog posts in your own voice.</strong><br>
-  Proseferno learns how <em>you</em> write from your past posts, then drafts new ones (with diagrams, charts, a thumbnail and a closing meme) that your readers would swear you wrote yourself.
+  <strong>The AI ghostwriter for technical minds.</strong><br>
+  Inferno Ghostwriter learns how <em>you</em> write from your past posts, finds what is worth writing next, then drafts, illustrates, tests and exports posts your readers would swear you wrote yourself.
 </p>
 
 <p align="center">
@@ -17,21 +14,52 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-ed6925">
 </p>
 
+<p align="center">
+  <a href="docs/getting-started.md"><strong>Get started in 10 minutes (no tech skills needed)</strong></a> ·
+  <a href="#why-not-just-use-an-ai-chat">Why this, not a chat?</a> ·
+  <a href="docs/onboarding.md">Contribute</a>
+</p>
+
 ---
 
-![Proseferno editor in day mode](docs/screenshots/editor-day.png)
+![Inferno Ghostwriter editor in day mode, showing a finished post with its opening image](docs/screenshots/editor-day.png)
 
-> **New here?** Read [docs/onboarding.md](docs/onboarding.md). It covers using the app, exploring it with no files or API keys, and working on the code.
+> **Just curious?** Run `launch.bat --demo` (Windows) or `./launch.sh --demo` (macOS/Linux). It opens on a finished example post with no account, no API key and no cost. **Never opened a terminal?** Follow the [step-by-step guide with screenshots](docs/getting-started.md).
 
-## Why Proseferno
+## Why not just use an AI chat?
 
-Most AI writing tools produce the same polished, generic voice. Proseferno is built around one idea: **the post must sound like you.** It studies your writing, measures it, writes a field guide to your voice (your *voice profile*), and then has an editor check every draft against that guide before you see it.
+A chat window gives you a draft in *its* voice, once, with no memory, no pictures you can use and no idea whether anyone will read it. Inferno Ghostwriter is a whole writing studio built around one promise: **the post must sound like you, and it must be ready to publish.**
 
-It is specialized for technical writing about data science, Python, data visualization, machine learning, causal inference and experimentation, analytics leadership, analytics at large companies, AI/LLMs/agents, ML platforms (AWS, Snowflake), and building with agentic coding tools.
+| | A general AI chat or a generic AI ghostwriter | Inferno Ghostwriter |
+| --- | --- | --- |
+| **Voice** | A style prompt you retype every time; drifts toward the same polished, generic tone | Measures your real writing (sentence rhythm, openers, humor, structure), writes a versioned **voice profile**, and an editor checks every draft against it |
+| **What to write** | You bring the idea | **Idea Lab** researches public feeds and the web, reads your own gaps, and ranks 10, 25 or 50 ideas with sources |
+| **Quality control** | One shot, you review it | A **writers' room**: a plan, a draft, an editor's critique, a revision; an independent judge panel picks your opening image; a meme room pitches and scores the closer |
+| **Is it better?** | You guess | **A/B Test Mode** writes two versions, you read them blind, pick a winner, and the winning changes are adopted into your persona |
+| **Images** | Text only, or stock art | Opening image, diagrams, data charts, mock screenshots and a closing meme, all drawn for *this* post, credited, editable and redrawable |
+| **Facts and links** | Plausible-sounding, sometimes invented | Every source, quote and link is checked against a real web search, or left out |
+| **Sounds human?** | Unknown | A **reads-as-human score** (0-100) calibrated to your own writing, with one-click Humanize |
+| **Where it goes** | Copy, paste, reformat | One-click optimized export for **Medium, Substack, LinkedIn** (article, feed post, PDF/PowerPoint carousel), **X Articles** and **Gumroad** |
+| **Getting better** | Starts from zero every chat | Learns from every edit you make, and from which posts you publish and how they perform |
+| **Your data** | In someone else's history | Stays on your computer; keys live in your operating system's keychain |
+
+**When a plain chat is enough:** a one-off email, a quick summary, anything where nobody needs to recognize your voice. Reach for Inferno Ghostwriter when you publish under your name and want it to keep sounding like you.
+
+## How it works
+
+Every step is in the banner: **Research, Outline, Write, Optimize, Publish.**
+
+1. **Research.** [Idea Lab](docs/idea-lab.md) reads free public feeds and sends web-search scouts to find launches, claims, creator waves and industry patterns, then ranks ideas against what you have already written. Optional web research also gathers current best practice for titles, storytelling and skimmable structure.
+2. **Outline.** Pick a **persona** (you can keep several: a deep-dive voice, a playful LinkedIn voice, and so on; one is on at a time) and a [formula](docs/formulas.md) (11 article types, 16 openers, 18 bodies, 12 closers), or leave both on automatic. Type a sentence or a bullet outline.
+3. **Write.** A plan, a streamed draft in your voice, an editor's critique against your voice profile and your closest example posts, and a revision. References, images and an AI-detection report follow.
+4. **Optimize.** Tweak with feedback, rewrite or expand a highlighted section, redraw any image, and [A/B test](docs/ab-testing.md) a challenger version. Platform exports are shaped for where the post is going.
+5. **Publish.** Export for the platform you picked. Mark the post Published and rate how it did: Inferno Ghostwriter [learns](docs/evolution.md) what your edits and your hits have in common.
+
+It is specialized for technical writing: data science, Python, data visualization, machine learning, causal inference and experimentation, analytics leadership, AI/LLMs/agents, ML platforms and building with agentic coding tools. It suits developers, data scientists, analysts, engineers, technical marketers, researchers and subject-matter experts.
 
 ## Features
 
-- **Learns your voice.** Upload your posts (Word, PDF, Markdown, HTML, or a URL; Medium exports are cleaned up automatically). Add writers you admire as *influences*: Proseferno borrows their techniques, never their identity.
+- **Learns your voice.** Upload your posts (Word, PDF, Markdown, HTML, or a URL; Medium exports are cleaned up automatically). Add writers you admire as *influences*: Inferno Ghostwriter borrows their techniques, never their identity.
 - **Voice profile.** A versioned `voice_profile.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing. Regenerate or edit it any time.
 - **Optional web research** on current best practices for titles, storytelling, skimmable structure, humor, insight, credibility and teaching.
 - **Personas.** Create several (different names, different voices); exactly one is on at a time. Switch personas and pin any earlier voice profile version from the sidebar, name versions, rename personas, or branch a version into a new, separately named persona.
@@ -46,16 +74,18 @@ It is specialized for technical writing about data science, Python, data visuali
 - **A copilot that fills the blanks like you.** The writer invents vivid anecdotes, examples and stories in your storytelling style, written next to your own real paragraphs; facts and sources stay real. Optionally, Claude interviews you first (3-5 questions) and works your answers in.
 - **An opening image a panel picks.** The first picture is also the thumbnail, so Claude pitches several openings (a visual metaphor of the post's idea, beautiful data art, a cheat sheet, a sourced data chart, a big number, a versus split, a framework diagram, a screen mock, or an opening meme for a meme sandwich) and a panel of four judges (scroller, art director, fact checker, author) picks the most clickable one. Charts and big numbers print only researched, cited numbers; Claude looks at the finished image and sends it back once if it is not ready. Choose a style per post or per persona, or leave it on Auto.
 - **Images that earn their place, drawn by Claude.** The opening image, concept icons, clarifying diagrams, data visualizations, mock screenshots of what the post describes, and a closing meme, all authored by Claude as SVG or Vega-Lite, rendered locally, placed inline and credited ("Author: You; Made with Claude Opus 5.5 (SVG)"). No other image service, nothing to set up. **Edit** any image by describing the change, **Redraw** it for a new take, **Replace** it with your own, or roll back through its versions. Give each post its own **brand kit** (style, palette, font, motif) and redraw every image in one click.
-- **Gets better as you edit.** Proseferno remembers what you cut, swap and ask for in its drafts and writes so you don't have to fix it again. Posts plan their own callbacks, so key ideas and running jokes come back and pay off.
-- **Evolves with every post you publish.** Mark posts Draft, Ready or Published and rate how they did (Too early, Small hit, Medium hit, Big hit). Publishing compares your final version with what Proseferno generated and proposes a few small changes to the persona; a hit is read for its secret sauce, which goes into the persona's playbook. Review and apply what you agree with (profile changes become a new voice profile version) and watch the share of text you need to edit fall.
+- **Gets better as you edit.** Inferno Ghostwriter remembers what you cut, swap and ask for in its drafts and writes so you don't have to fix it again. Posts plan their own callbacks, so key ideas and running jokes come back and pay off.
+- **Evolves with every post you publish.** Mark posts Draft, Ready or Published and rate how they did (Too early, Small hit, Medium hit, Big hit). Publishing compares your final version with what Inferno Ghostwriter generated and proposes a few small changes to the persona; a hit is read for its secret sauce, which goes into the persona's playbook. Review and apply what you agree with (profile changes become a new voice profile version) and watch the share of text you need to edit fall.
 - **Export** for Medium, Substack, LinkedIn (article, feed post and a PDF/PowerPoint document carousel), X (an X Article with a 5:2 header and a teaser post), Gumroad (PDF), or Markdown/Word, as a zip or copy-and-paste HTML with images embedded.
 - **Day and night themes** in an inferno palette, a one-click Windows launcher, and a demo mode to try everything without API keys.
 
 ## Quick start
 
+> **Never used a terminal, or want screenshots of every step?** Follow [Getting started: from zero to your first post](docs/getting-started.md).
+
 **Windows:** double-click **`launch.bat`**. The first run installs what it needs (it asks before installing [uv](https://docs.astral.sh/uv/) or Node.js with winget), builds the app, and opens it in your browser.
 
-**Windows, no developer tools:** build a standalone app and installer once with `packaging\build_windows.bat` (needs uv and Node.js on the build machine; [Inno Setup 6](https://jrsoftware.org/isinfo.php) for the installer). It produces `Proseferno-Setup-<version>.exe`: a per-user install with Start menu and desktop shortcuts that needs no Python, Node or admin rights. Your data then lives in `%LOCALAPPDATA%\Proseferno`.
+**Windows, no developer tools:** build a standalone app and installer once with `packaging\build_windows.bat` (needs uv and Node.js on the build machine; [Inno Setup 6](https://jrsoftware.org/isinfo.php) for the installer). It produces `InfernoGhostwriter-Setup-<version>.exe`: a per-user install with Start menu and desktop shortcuts that needs no Python, Node or admin rights. Your data then lives in `%LOCALAPPDATA%\Inferno Ghostwriter`.
 
 **macOS / Linux:**
 
@@ -89,7 +119,7 @@ Then click **New post**, describe the post, and watch it being written. Not sure
 
 You can switch to Claude Sonnet 5.5 (faster, cheaper) or Claude Fable 5.1 (most capable) in **Settings → Advanced**, and choose 0–2 editing passes.
 
-## How Proseferno keeps your voice
+## How Inferno Ghostwriter keeps your voice
 
 ```mermaid
 flowchart LR
@@ -119,7 +149,8 @@ Everything stays on your computer in the `data/` folder: samples, voice profiles
 
 ## Documentation
 
-- [Onboarding: start here](docs/onboarding.md)
+- [Getting started: step by step with screenshots](docs/getting-started.md)
+- [Onboarding for contributors](docs/onboarding.md)
 - [Architecture and repository layout](docs/architecture.md)
 - [Voice pipeline and evaluation](docs/voice-pipeline.md)
 - [Idea Lab: live research and ranked ideas](docs/idea-lab.md)
@@ -135,9 +166,17 @@ Everything stays on your computer in the `data/` folder: samples, voice profiles
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](.github/SECURITY.md) and [Code of Conduct](.github/CODE_OF_CONDUCT.md)
 
+## A look around
+
+| Idea Lab | A/B Test Mode |
+| --- | --- |
+| ![Idea Lab: researched, ranked ideas to write next](docs/screenshots/idea-lab.png) | ![A/B Test Mode: two versions side by side, roles hidden](docs/screenshots/ab-compare.png) |
+| **Persona insights** | **Formulas** |
+| ![Persona insights: your voice, measured](docs/screenshots/persona-insights.png) | ![Choosing a post's formula](docs/screenshots/formula.png) |
+
 ## Night mode
 
-![Proseferno editor in night mode](docs/screenshots/editor-night.png)
+![Inferno Ghostwriter editor in night mode](docs/screenshots/editor-night.png)
 
 ## License
 

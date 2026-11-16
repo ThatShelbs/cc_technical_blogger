@@ -13,10 +13,11 @@ test('demo opens on a finished example post', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Posts', exact: true })).toBeVisible()
   await expect(page.getByText('Example', { exact: true }).first()).toBeVisible()
 
-  await page.getByRole('link', { name: 'Pie Charts Are Lame' }).last().click()
+  await page.getByRole('link', { name: 'With Great Models Comes Great Responsibility (and a Pager)' }).last().click()
   await expect(page.getByText('This is an example post')).toBeVisible()
   await expect(page.locator('figure img')).toHaveCount(4, { timeout: 30_000 })
   await expect(page.getByText(/Author: Sample Author; Made with/).first()).toBeVisible()
+  await shot(page, 'getting-started/05-demo-example')
 
   await page.getByRole('link', { name: 'Personas' }).first().click()
   await expect(page.getByText('3 of my posts')).toBeVisible()
@@ -96,7 +97,10 @@ test('idea lab: brainstorm ten ideas, order them three ways, add a search, and w
 
   // Save another idea; it lands in the saved bank next to the one now being written.
   await page.getByRole('button', { name: 'To consider (9)' }).click()
-  await page.getByRole('button', { name: /^Save / }).first().click()
+  await page
+    .getByRole('button', { name: /^Save / })
+    .first()
+    .click()
   await page.getByRole('tab', { name: 'Saved bank' }).click()
   await expect(page.getByRole('button', { name: 'To write (1)' })).toBeVisible()
   await page.getByRole('button', { name: 'Add your own idea' }).click()
@@ -116,7 +120,7 @@ test('with no files of your own: remove the example, use the sample posts, write
 
   // An empty app lands on the setup guide.
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: /Welcome to Prose/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Welcome to Inferno Ghostwriter/ })).toBeVisible()
   await page.getByRole('button', { name: /^3 Persona$/ }).click()
   await page.getByLabel('Persona name').fill('No Files Writer')
   await page.getByRole('button', { name: 'Create and continue' }).click()

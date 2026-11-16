@@ -1,6 +1,6 @@
 """Read every feed in the Idea Lab source catalog once and report which ones answer.
 
-Run after editing ``src/proseferno/idealab/catalog.json``:
+Run after editing ``src/inferno_ghostwriter/idealab/catalog.json``:
 
     uv run python scripts/check_idea_sources.py            # every source, switched on or not
     uv run python scripts/check_idea_sources.py --titles   # also print the first few titles of each
@@ -15,8 +15,8 @@ import asyncio
 import sys
 from datetime import UTC, datetime, timedelta
 
-from proseferno.idealab.collect import HttpSignalCollector
-from proseferno.idealab.sources import SourceChanges, build_config
+from inferno_ghostwriter.idealab.collect import HttpSignalCollector
+from inferno_ghostwriter.idealab.sources import SourceChanges, build_config
 
 
 async def main() -> int:

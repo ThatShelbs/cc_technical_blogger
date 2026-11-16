@@ -144,8 +144,8 @@ function LessonsCard({ persona }: { persona: PersonaOut }) {
         <div>
           <h2 className="text-lg font-bold">Learned from your edits</h2>
           <p className="text-sm text-muted">
-            When you edit a post or give feedback, Proseferno remembers what you change and writes so you won&rsquo;t have to change it again. It also feeds the
-            next voice profile.
+            When you edit a post or give feedback, Inferno Ghostwriter remembers what you change and writes so you won&rsquo;t have to change it again. It also
+            feeds the next voice profile.
           </p>
         </div>
         {lessons.length > 0 && (

@@ -566,8 +566,8 @@ export function ProjectPage() {
       {allPersonas?.find((p) => p.id === project.persona_id)?.is_example && (
         <div className="mb-6">
           <Notice title="This is an example post">
-            It was built offline to show what Proseferno produces: the illustrations are placeholders and no Claude call was made. Set up your own persona to
-            write in your voice, then remove the example from the Personas page.
+            It was built offline to show what Inferno Ghostwriter produces: the illustrations are placeholders and no Claude call was made. Set up your own
+            persona to write in your voice, then remove the example from the Personas page.
           </Notice>
         </div>
       )}

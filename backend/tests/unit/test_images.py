@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from proseferno.db import Persona
-from proseferno.demo import CHART_SPEC, DIAGRAM_SVG, png_bytes
-from proseferno.images import ImageProviderError, credit_line, model_label
-from proseferno.images.base import draw_with_retry
-from proseferno.images.render import (
+from inferno_ghostwriter.db import Persona
+from inferno_ghostwriter.demo import CHART_SPEC, DIAGRAM_SVG, png_bytes
+from inferno_ghostwriter.images import ImageProviderError, credit_line, model_label
+from inferno_ghostwriter.images.base import draw_with_retry
+from inferno_ghostwriter.images.render import (
     FONT_DIR,
     ILLUSTRATIVE,
     add_meme_text,
@@ -20,7 +20,7 @@ from proseferno.images.render import (
     svg_to_png,
     vega_to_png,
 )
-from proseferno.images.service import image_context, image_guidance
+from inferno_ghostwriter.images.service import image_context, image_guidance
 
 
 def test_svg_sanitizer_removes_scripts_handlers_and_external_refs() -> None:
@@ -83,7 +83,7 @@ def test_model_label() -> None:
 
 
 def test_fonts_are_bundled_so_images_look_the_same_everywhere() -> None:
-    from proseferno.images.memes.text import _FILES, font_path
+    from inferno_ghostwriter.images.memes.text import _FILES, font_path
 
     for role, files in _FILES.items():
         path = font_path(role)
@@ -136,7 +136,7 @@ async def test_draw_with_retry_quotes_the_problems_back_once() -> None:
 
 
 def test_rich_svg_features_render() -> None:
-    from proseferno.demo import HERO_SVG
+    from inferno_ghostwriter.demo import HERO_SVG
 
     png, width, height = svg_to_png(HERO_SVG, width=800)
     assert png[1:4] == b"PNG" and (width, height) == (800, 450)

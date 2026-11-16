@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from proseferno.services import Services
+from inferno_ghostwriter.services import Services
 
 
 def test_example_is_a_finished_persona_you_can_look_at(client: TestClient) -> None:

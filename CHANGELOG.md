@@ -1,8 +1,15 @@
 # Changelog
 
-All notable changes to Proseferno are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
+All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+### Changed
+
+- **Proseferno is now Inferno Ghostwriter** ("The AI Ghostwriter for Technical Minds"). New brand: a friendly spectral ghost with a laptop and a quill replaces the robot, in the app, the memes' recurring character, the README banner and the installer. The Python package is `inferno_ghostwriter`, the command is `inferno-ghostwriter`, settings use the `INFERNO_GHOSTWRITER_` prefix, and the database is `inferno_ghostwriter.db`.
+- **Existing installs carry over.** On first start the app renames `proseferno.db`, moves the old Windows app folder, copies the saved API key from the old keychain entry (the old one is kept) and honors `PROSEFERNO_*` variables.
+- **A better demo.** Demo mode and the example persona now show "With Great Models Comes Great Responsibility (and a Pager)": a post about shipping machine learning responsibly, with a diagram, an annotated chart, a code snippet and a closing meme starring the ghost.
+- **README and docs.** A "Why not just use an AI chat?" comparison, a pipeline overview, and [Getting started](docs/getting-started.md): a step-by-step guide with screenshots for people who have never used a terminal.
 
 ### Fixed
 

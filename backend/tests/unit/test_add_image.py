@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from proseferno.writer.add_image import next_slot_id, place_placeholder
+from inferno_ghostwriter.writer.add_image import next_slot_id, place_placeholder
 
 TAG = "{{image:img9}}"
 

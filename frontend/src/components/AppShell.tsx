@@ -16,11 +16,11 @@ const NAV = [
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <Link to="/" className="flex items-center gap-2.5" aria-label="Proseferno home">
-      <img src="/logo-mark.svg" alt="" className="size-9 shrink-0" />
+    <Link to="/" className="flex items-center gap-2.5" aria-label="Inferno Ghostwriter home">
+      <img src="/logo-mark.png" alt="" className="size-9 shrink-0" />
       {!compact && (
         <span className="text-xl font-extrabold tracking-tight">
-          Prose<span className="flame-text">ferno</span>
+          Inferno <span className="flame-text">Ghostwriter</span>
         </span>
       )}
     </Link>

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proseferno.ingest import parse_file, parse_markdown
-from proseferno.ingest.stylometrics import aggregate, compute, fidelity
+from inferno_ghostwriter.ingest import parse_file, parse_markdown
+from inferno_ghostwriter.ingest.stylometrics import aggregate, compute, fidelity
 
 
 def test_medium_export_is_cleaned(sample_docx: bytes) -> None:
@@ -43,7 +43,7 @@ def test_markdown_parser_handles_lists_code_and_images() -> None:
 def test_unsupported_extension_is_rejected() -> None:
     import pytest
 
-    from proseferno.ingest import UnsupportedFormatError
+    from inferno_ghostwriter.ingest import UnsupportedFormatError
 
     with pytest.raises(UnsupportedFormatError):
         parse_file("notes.xyz", b"hello")
