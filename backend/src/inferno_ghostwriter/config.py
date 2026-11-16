@@ -105,7 +105,9 @@ class Settings(BaseSettings):
     effort_twin: Effort = "low"
     twin_pairs: int = 4
     # Real AI-text detector models, run on this computer (see authenticity.local_detector). Off until set up in Settings.
-    deep_check: bool = False
+    # Which detectors score a post (authenticity.local_detector.CATALOG): "light" is built in and needs no download;
+    # "curvature" (Fast-DetectGPT) and "classifier" need the one-time setup. Any mix works; empty turns detection off.
+    detector_models: list[str] = ["light"]
     detector_zero_shot_model: str = "openai-community/gpt2"
     detector_classifier_model: str = "fakespot-ai/roberta-base-ai-text-detection-v1"
     # Humanize rounds after the editor: rewrite only what the detectors and the twin test flag, keep the better version.

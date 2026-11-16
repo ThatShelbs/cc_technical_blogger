@@ -78,8 +78,19 @@ def test_humanize_a_passage(client: TestClient, sample_docx: bytes, fake_llm: Fa
 
 def test_detector_settings(client: TestClient) -> None:
     state = client.get("/api/detector").json()
-    assert state["available"] in (True, False) and not state["enabled"] and state["detail"]
+    # The light check is built in, so detection works with no download.
+    assert state["enabled"] and state["ready"] and state["selected"] == ["light"] and state["detail"]
+    assert [m["id"] for m in state["models"]] == ["light", "curvature", "classifier"]
+    assert [m["heavy"] for m in state["models"]] == [False, True, True]
     settings = client.get("/api/settings").json()
-    assert settings["deep_check"] is False and settings["humanize_rounds"] == 1
+    assert settings["detector_models"] == ["light"] and settings["humanize_rounds"] == 1
+    # Any mix can be selected; a trained model that is not set up yet is selected but cannot run.
+    mixed = client.put("/api/settings", json={"detector_models": ["classifier", "light"]}).json()
+    assert mixed["detector_models"] == ["light", "classifier"]
+    assert client.get("/api/detector").json()["ready"] is False
+    assert client.put("/api/settings", json={"detector_models": []}).json()["detector_models"] == []
+    assert not client.get("/api/detector").json()["enabled"]
+    assert client.put("/api/settings", json={"detector_models": ["nope"]}).status_code == 422
+    client.put("/api/settings", json={"detector_models": ["light"]})
     assert client.put("/api/settings", json={"humanize_rounds": 2}).json()["humanize_rounds"] == 2
     assert client.put("/api/settings", json={"humanize_rounds": 5}).status_code == 422
