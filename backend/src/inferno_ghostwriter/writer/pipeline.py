@@ -71,7 +71,8 @@ def writer_system(voice_profile: str, exemplars: str, lessons: str = "", playboo
         )
     if emphasis:
         blocks.append(SystemBlock(emphasis))
-    return [*blocks, SystemBlock(exemplars, cache=True)]
+    # One-hour lifetime: the author reads, then tweaks, rewrites or redraws minutes later, and this is the big prefix.
+    return [*blocks, SystemBlock(exemplars, cache=True, ttl="1h")]
 
 
 def normalize_slots(slots: list[ImageSlot], count: int, section_count: int) -> list[ImageSlot]:

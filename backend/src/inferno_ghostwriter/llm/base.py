@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Protocol, TypeVar
+from typing import Literal, Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -45,10 +45,15 @@ class LLMImagesUnsupportedError(LLMError):
 
 @dataclass(frozen=True)
 class SystemBlock:
-    """One block of a system prompt. ``cache`` marks the end of a stable prefix."""
+    """One block of a system prompt. ``cache`` marks the end of a stable prefix.
+
+    ``ttl`` is how long Claude keeps that prefix: "5m" (default, cheapest write) or "1h" for a big prefix an
+    author comes back to between edits. A "1h" block must come before any "5m" block in the same prompt.
+    """
 
     text: str
     cache: bool = False
+    ttl: Literal["5m", "1h"] = "5m"
 
 
 @dataclass

@@ -231,7 +231,10 @@ def article_type_lines() -> str:
 
 def author_blocks(author: str) -> list[SystemBlock]:
     """The stable system prefix shared by every idea call in a session, cached after the author block."""
-    return [SystemBlock(raw("idea_system")), SystemBlock("# The author\n\n" + (author.strip() or "_No voice profile yet._"), cache=True)]
+    return [
+        SystemBlock(raw("idea_system")),
+        SystemBlock("# The author\n\n" + (author.strip() or "_No voice profile yet._"), cache=True, ttl="1h"),
+    ]
 
 
 # -- generation ----------------------------------------------------------------------------

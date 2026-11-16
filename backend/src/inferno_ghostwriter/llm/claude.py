@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
+import hashlib
+import json
 import logging
-from collections.abc import Awaitable, Callable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 import anthropic
@@ -34,6 +38,21 @@ class ClaudeLLM:
     def __init__(self, settings: Settings, client_factory: Callable[[], AsyncAnthropic]) -> None:
         self.settings = settings
         self._client_factory = client_factory
+        self._gate = _PrefixGate()
+
+    @contextlib.asynccontextmanager
+    async def _warm(self, system: list[SystemBlock]) -> AsyncIterator[_Warmup]:
+        """Hold back a request whose cached prefix another in-flight request is still writing."""
+        keyed = _prefix_key(self.settings.model, _system_param(system))
+        if keyed is None:
+            yield _Warmup(None, "", None)
+            return
+        key, ttl = keyed
+        warm = _Warmup(self._gate, key, await self._gate.enter(key, ttl))
+        try:
+            yield warm
+        finally:
+            warm.abandon()  # no-op once started()
 
     # -- public API ---------------------------------------------------------
 
@@ -60,17 +79,21 @@ class ClaudeLLM:
                 {"type": "text", "text": prompt},
             ]
 
-        async def attempt() -> Any:
-            # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
-            # requests whose max_tokens could take longer than 10 minutes.
-            async with client.beta.messages.stream(
-                **self._common(system, effort, max_tokens),
-                messages=[{"role": "user", "content": content}],
-                output_format=schema,
-            ) as stream:
-                return await stream.get_final_message()
+        async with self._warm(system) as warm:
 
-        response = await _with_retries(task, attempt)
+            async def attempt() -> Any:
+                # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
+                # requests whose max_tokens could take longer than 10 minutes.
+                async with client.beta.messages.stream(
+                    **self._common(system, effort, max_tokens),
+                    messages=[{"role": "user", "content": content}],
+                    output_format=schema,
+                ) as stream:
+                    async for _ in stream:
+                        warm.started()
+                    return await stream.get_final_message()
+
+            response = await _with_retries(task, attempt)
         self._check(response, task)
         self._record(response, usage)
         parsed = response.parsed_output
@@ -92,20 +115,26 @@ class ClaudeLLM:
         client = self._client_factory()
         streamed = False
 
-        async def attempt() -> Any:
-            nonlocal streamed
-            async with client.beta.messages.stream(
-                **self._common(system, effort, max_tokens),
-                messages=[{"role": "user", "content": prompt}],
-            ) as stream:
-                async for chunk in stream.text_stream:
-                    streamed = streamed or bool(chunk)
-                    if on_delta is not None:
-                        await on_delta(chunk)
-                return await stream.get_final_message()
+        async with self._warm(system) as warm:
 
-        # Retrying after text reached the reader would duplicate it.
-        final = await _with_retries(task, attempt, can_retry=lambda: not streamed)
+            async def attempt() -> Any:
+                nonlocal streamed
+                async with client.beta.messages.stream(
+                    **self._common(system, effort, max_tokens),
+                    messages=[{"role": "user", "content": prompt}],
+                ) as stream:
+                    # Raw events (not text_stream) so the first one, before any thinking, releases waiting twins.
+                    async for event in stream:
+                        warm.started()
+                        chunk = event.text if event.type == "text" else ""
+                        if chunk:
+                            streamed = True
+                            if on_delta is not None:
+                                await on_delta(chunk)
+                    return await stream.get_final_message()
+
+            # Retrying after text reached the reader would duplicate it.
+            final = await _with_retries(task, attempt, can_retry=lambda: not streamed)
         self._check(final, task)
         self._record(final, usage)
         return "".join(block.text for block in final.content if block.type == "text")
@@ -125,23 +154,26 @@ class ClaudeLLM:
         response: Any = None
         # Text written before a pause is not repeated after it, so keep the content of every round.
         content: list[Any] = []
-        for _ in range(6):
+        async with self._warm(system) as warm:
+            for _ in range(6):
 
-            async def attempt() -> Any:
-                async with client.beta.messages.stream(
-                    **self._common(system, effort, 32000),
-                    messages=messages,
-                    tools=tools,
-                ) as stream:
-                    return await stream.get_final_message()
+                async def attempt() -> Any:
+                    async with client.beta.messages.stream(
+                        **self._common(system, effort, 32000),
+                        messages=messages,
+                        tools=tools,
+                    ) as stream:
+                        async for _event in stream:
+                            warm.started()
+                        return await stream.get_final_message()
 
-            response = await _with_retries("web research", attempt)
-            self._record(response, usage)
-            content.extend(response.content)
-            if response.stop_reason != "pause_turn":
-                break
-            # Server tool hit its per-turn iteration limit: send the turn back to resume.
-            messages.append({"role": "assistant", "content": response.content})
+                response = await _with_retries("web research", attempt)
+                self._record(response, usage)
+                content.extend(response.content)
+                if response.stop_reason != "pause_turn":
+                    break
+                # Server tool hit its per-turn iteration limit: send the turn back to resume.
+                messages.append({"role": "assistant", "content": response.content})
         assert response is not None
         self._check(response, "web research")
 
@@ -236,9 +268,77 @@ def _system_param(blocks: list[SystemBlock]) -> list[dict[str, Any]]:
             continue
         entry: dict[str, Any] = {"type": "text", "text": block.text}
         if block.cache:
-            entry["cache_control"] = {"type": "ephemeral"}
+            entry["cache_control"] = {"type": "ephemeral", **({"ttl": "1h"} if block.ttl == "1h" else {})}
         out.append(entry)
     return out
+
+
+_TTL_SECONDS = {"5m": 300.0, "1h": 3600.0}
+_MAX_WAIT = 90.0
+
+
+class _Warmup:
+    """Handle for one request: call :meth:`started` once the response begins streaming."""
+
+    def __init__(self, gate: _PrefixGate | None, key: str, event: asyncio.Event | None) -> None:
+        self._gate, self._key, self._event = gate, key, event
+
+    def started(self) -> None:
+        if self._gate is not None and self._event is not None:
+            self._gate.started(self._key, self._event)
+            self._event = None
+
+    def abandon(self) -> None:
+        if self._gate is not None and self._event is not None:
+            self._gate.abandon(self._key, self._event)
+            self._event = None
+
+
+class _PrefixGate:
+    """Lets one request write a cached prefix before its concurrent twins send theirs.
+
+    A cache entry is readable only once the first response starts streaming, so N parallel calls over the same
+    prefix would each pay a full write. The first becomes the leader; the rest wait for its first event (at most
+    ``_MAX_WAIT`` seconds) and then read the cache. Later calls inside the TTL go straight through.
+    """
+
+    def __init__(self) -> None:
+        self._state: dict[str, float | asyncio.Event] = {}
+
+    async def enter(self, key: str, ttl: float) -> asyncio.Event | None:
+        """Return an event when this call must write the prefix, else None (after waiting if a write is in flight)."""
+        state = self._state.get(key)
+        if isinstance(state, asyncio.Event):
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(state.wait(), _MAX_WAIT)
+            return None
+        now = time.monotonic()
+        if state is not None and now - state < ttl:
+            self._state[key] = now  # every read refreshes the cache's lifetime
+            return None
+        event = asyncio.Event()
+        self._state[key] = event
+        return event
+
+    def started(self, key: str, event: asyncio.Event) -> None:
+        self._state[key] = time.monotonic()
+        event.set()
+
+    def abandon(self, key: str, event: asyncio.Event) -> None:
+        if self._state.get(key) is event:
+            del self._state[key]
+        event.set()
+
+
+def _prefix_key(model: str, system: list[dict[str, Any]]) -> tuple[str, float] | None:
+    """Key and shortest TTL of the cached prefix (everything up to the last cache marker), or None if nothing is cached."""
+    last = max((i for i, b in enumerate(system) if "cache_control" in b), default=None)
+    if last is None:
+        return None
+    prefix = system[: last + 1]
+    ttl = min(_TTL_SECONDS[b["cache_control"].get("ttl", "5m")] for b in prefix if "cache_control" in b)
+    digest = hashlib.sha256(json.dumps([model, prefix], sort_keys=True).encode()).hexdigest()
+    return digest, ttl
 
 
 class _translate_errors:
