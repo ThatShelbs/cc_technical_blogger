@@ -15,7 +15,7 @@ const CONNECTIONS: [Connection, string, string][] = [
 ]
 
 const SOURCE_LABEL: Record<string, string> = {
-  app_api_key: 'API key saved in Proseferno',
+  app_api_key: 'API key saved in Inferno Ghostwriter',
   env_api_key: 'ANTHROPIC_API_KEY environment variable',
   env_auth_token: 'ANTHROPIC_AUTH_TOKEN environment variable',
   claude_sign_in: 'Signed in with Claude',
@@ -55,7 +55,7 @@ export function ClaudeConnect() {
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How Proseferno uses Claude">
+      <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How Inferno Ghostwriter uses Claude">
         {CONNECTIONS.map(([value, label, hint]) => (
           <button
             key={value}
@@ -102,8 +102,8 @@ export function ClaudeConnect() {
         </p>
       ) : (
         <p className="text-xs text-muted">
-          Proseferno runs your own Claude Code, signed in through Anthropic&apos;s sign-in, and never sees your Claude credentials. Usage counts toward your
-          plan&apos;s limits.{' '}
+          Inferno Ghostwriter runs your own Claude Code, signed in through Anthropic&apos;s sign-in, and never sees your Claude credentials. Usage counts toward
+          your plan&apos;s limits.{' '}
           <a className="underline" href="https://code.claude.com/docs/en/legal-and-compliance" target="_blank" rel="noreferrer">
             Anthropic&apos;s usage policy
           </a>

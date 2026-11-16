@@ -8,15 +8,15 @@ import pytest
 from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
-from proseferno.config import Settings
-from proseferno.demo import DEMO_MEME_TEXTS, FakeLLM, meme_build_payload, meme_ideas_payload
-from proseferno.images import ImageProviderError
-from proseferno.images.memes import FORMATS, ArtDirection, MemeContext, MemeMaker, get_format, load_state, plan_callbacks
-from proseferno.images.memes.compose import compose, region_svg
-from proseferno.images.memes.formats import ArtRegion, build_spec, menu
-from proseferno.images.memes.generate import clip_post
-from proseferno.images.memes.specs import MemeBuild
-from proseferno.images.memes.text import STYLES, fit_text
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.demo import DEMO_MEME_TEXTS, FakeLLM, meme_build_payload, meme_ideas_payload
+from inferno_ghostwriter.images import ImageProviderError
+from inferno_ghostwriter.images.memes import FORMATS, ArtDirection, MemeContext, MemeMaker, get_format, load_state, plan_callbacks
+from inferno_ghostwriter.images.memes.compose import compose, region_svg
+from inferno_ghostwriter.images.memes.formats import ArtRegion, build_spec, menu
+from inferno_ghostwriter.images.memes.generate import clip_post
+from inferno_ghostwriter.images.memes.specs import MemeBuild
+from inferno_ghostwriter.images.memes.text import STYLES, fit_text
 
 POST = MemeContext(title="Pie Charts Are Lame", markdown="# Pie Charts Are Lame\n\nUse bars.", voice_profile="", brief="Closing laugh")
 ART = ArtDirection(visual_style="flat vector")

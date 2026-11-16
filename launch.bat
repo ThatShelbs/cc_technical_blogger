@@ -1,18 +1,18 @@
 @echo off
 rem ============================================================================
-rem  Proseferno launcher (Windows). Double-click to start the app.
+rem  Inferno Ghostwriter launcher (Windows). Double-click to start the app.
 rem  Extra arguments are passed through, e.g.  launch.bat --demo
 rem ============================================================================
 setlocal EnableExtensions EnableDelayedExpansion
-title Proseferno
+title Inferno Ghostwriter
 cd /d "%~dp0"
 
 set "PORT=8732"
-if defined PROSEFERNO_PORT set "PORT=%PROSEFERNO_PORT%"
+if defined INFERNO_GHOSTWRITER_PORT set "PORT=%INFERNO_GHOSTWRITER_PORT%"
 
 echo.
 echo   ==============================================
-echo     Proseferno  -  technical blogs in your voice
+echo     Inferno Ghostwriter  -  technical blogs in your voice
 echo   ==============================================
 echo.
 
@@ -20,7 +20,7 @@ rem --- Already running? Just open it. ---------------------------------------
 netstat -ano | findstr /r /c:":%PORT% .*LISTENING" >nul 2>&1
 if not errorlevel 1 (
   echo   Something is already running on port %PORT%. Opening it in your browser.
-  echo   If that is not Proseferno, set PROSEFERNO_PORT to another port and try again.
+  echo   If that is not Inferno Ghostwriter, set INFERNO_GHOSTWRITER_PORT to another port and try again.
   start "" "http://127.0.0.1:%PORT%"
   goto :eof
 )
@@ -28,7 +28,7 @@ if not errorlevel 1 (
 rem --- 1. uv (manages Python and the backend environment) --------------------
 call :find_uv
 if not defined UV_OK (
-  echo   uv is not installed. Proseferno uses it to manage Python.
+  echo   uv is not installed. Inferno Ghostwriter uses it to manage Python.
   choice /c YN /m "  Install uv now with winget"
   if errorlevel 2 goto :need_uv
   winget install --id=astral-sh.uv -e --accept-source-agreements --accept-package-agreements
@@ -76,10 +76,10 @@ if not errorlevel 1 (
 
 rem --- 5. Start ------------------------------------------------------------------
 echo.
-echo   Starting Proseferno at http://127.0.0.1:%PORT%
+echo   Starting Inferno Ghostwriter at http://127.0.0.1:%PORT%
 echo   Your browser will open when it is ready. Close this window to stop.
 echo.
-uv run --project backend proseferno --open --port %PORT% %*
+uv run --project backend inferno-ghostwriter --open --port %PORT% %*
 goto :eof
 
 rem ===============================================================================
@@ -106,8 +106,8 @@ exit /b 1
 echo.
 echo   Setup failed. Scroll up for the error. Common fixes:
 echo     - Check your internet connection (first run downloads packages).
-echo     - Close other Proseferno windows and try again.
+echo     - Close other Inferno Ghostwriter windows and try again.
 echo   To see exactly what is wrong on this machine, run:
-echo     uv run --project backend proseferno doctor
+echo     uv run --project backend inferno-ghostwriter doctor
 pause
 exit /b 1

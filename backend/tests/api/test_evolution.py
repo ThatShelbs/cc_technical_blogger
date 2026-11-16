@@ -5,9 +5,9 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from proseferno.db import Project
-from proseferno.demo import FakeLLM
-from proseferno.services import Services
+from inferno_ghostwriter.db import Project
+from inferno_ghostwriter.demo import FakeLLM
+from inferno_ghostwriter.services import Services
 from tests.api.test_flow import ready_post
 
 

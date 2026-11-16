@@ -10,11 +10,11 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from proseferno.config import Settings
-from proseferno.demo import FakeLLM
-from proseferno.llm import LLMError, SystemBlock
-from proseferno.llm.claude_code import ClaudeCodeCLI, ClaudeCodeLLM
-from proseferno.llm.router import RoutingLLM
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.demo import FakeLLM
+from inferno_ghostwriter.llm import LLMError, SystemBlock
+from inferno_ghostwriter.llm.claude_code import ClaudeCodeCLI, ClaudeCodeLLM
+from inferno_ghostwriter.llm.router import RoutingLLM
 
 FAKE = Path(__file__).parents[1] / "fixtures" / "fake_claude.py"
 SYSTEM = [SystemBlock("You are the writer.", cache=True), SystemBlock("Voice profile here.")]

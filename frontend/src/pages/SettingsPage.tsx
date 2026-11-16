@@ -130,7 +130,7 @@ function HumanizeCard() {
       <div>
         <h2 className="text-lg font-bold">Humanizing</h2>
         <p className="text-sm text-muted">
-          After the editor&apos;s pass, Proseferno checks each post against your own writing and rewrites only the passages that read as machine-made.
+          After the editor&apos;s pass, Inferno Ghostwriter checks each post against your own writing and rewrites only the passages that read as machine-made.
         </p>
       </div>
       <Field

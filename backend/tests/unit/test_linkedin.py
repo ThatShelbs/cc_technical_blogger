@@ -5,10 +5,10 @@ from pathlib import Path
 
 from pptx import Presentation
 
-from proseferno.demo import DRAFT, png_bytes
-from proseferno.export.linkedin import POST_LIMIT, carousel_pdf, carousel_pptx, carousel_slides, fit_post, hashtags, template_post
-from proseferno.export.render import Figure
-from proseferno.export.x import teaser_post
+from inferno_ghostwriter.demo import DRAFT, png_bytes
+from inferno_ghostwriter.export.linkedin import POST_LIMIT, carousel_pdf, carousel_pptx, carousel_slides, fit_post, hashtags, template_post
+from inferno_ghostwriter.export.render import Figure
+from inferno_ghostwriter.export.x import teaser_post
 
 
 def figures(tmp_path: Path) -> dict[str, Figure]:

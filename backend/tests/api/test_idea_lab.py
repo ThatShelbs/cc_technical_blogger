@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from proseferno.demo import FakeLLM
+from inferno_ghostwriter.demo import FakeLLM
 
 
 def _persona(client: TestClient, name: str = "Me") -> int:

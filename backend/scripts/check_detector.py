@@ -15,8 +15,8 @@ import statistics
 import sys
 from pathlib import Path
 
-from proseferno.authenticity.local_detector import UvDetector, detector_report, find_uv, setup_detector, status
-from proseferno.config import Settings
+from inferno_ghostwriter.authenticity.local_detector import UvDetector, detector_report, find_uv, setup_detector, status
+from inferno_ghostwriter.config import Settings
 
 
 def read(paths: list[str]) -> list[tuple[str, str]]:

@@ -10,11 +10,11 @@ const TOUR_PORT = 8791
 function server(port: number, name: string, env: Record<string, string>) {
   return {
     // Start from an empty data folder every run.
-    command: `node -e "require('fs').rmSync('../data/${name}', { recursive: true, force: true })" && uv run --project ../backend proseferno --demo --port ${port}`,
+    command: `node -e "require('fs').rmSync('../data/${name}', { recursive: true, force: true })" && uv run --project ../backend inferno-ghostwriter --demo --port ${port}`,
     url: `http://127.0.0.1:${port}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { PROSEFERNO_DATA_DIR: `../data/${name}`, PROSEFERNO_SEED_SAMPLES_DIR: `../data/${name}/__no_seed__`, ...env },
+    env: { INFERNO_GHOSTWRITER_DATA_DIR: `../data/${name}`, INFERNO_GHOSTWRITER_SEED_SAMPLES_DIR: `../data/${name}/__no_seed__`, ...env },
   }
 }
 
@@ -35,5 +35,5 @@ export default defineConfig({
     { name: 'first-run', testMatch: 'smoke.spec.ts', use: { ...desktop, baseURL: `http://127.0.0.1:${FIRST_RUN_PORT}` } },
     { name: 'demo-tour', testMatch: 'tour.spec.ts', use: { ...desktop, baseURL: `http://127.0.0.1:${TOUR_PORT}` } },
   ],
-  webServer: [server(FIRST_RUN_PORT, 'e2e', { PROSEFERNO_DEMO_SEED: 'false' }), server(TOUR_PORT, 'e2e-tour', {})],
+  webServer: [server(FIRST_RUN_PORT, 'e2e', { INFERNO_GHOSTWRITER_DEMO_SEED: 'false' }), server(TOUR_PORT, 'e2e-tour', {})],
 })

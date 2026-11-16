@@ -8,12 +8,12 @@ import pytest
 from docx import Document
 from fastapi.testclient import TestClient
 
-from proseferno.config import Settings
-from proseferno.demo import FakeLLM
-from proseferno.llm.auth import ClaudeAuth
-from proseferno.main import create_app
-from proseferno.secrets import MemorySecretStore
-from proseferno.services import Services, build_services
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.demo import FakeLLM
+from inferno_ghostwriter.llm.auth import ClaudeAuth
+from inferno_ghostwriter.main import create_app
+from inferno_ghostwriter.secrets import MemorySecretStore
+from inferno_ghostwriter.services import Services, build_services
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -87,7 +87,7 @@ def medium_export_docx() -> bytes:
 
 
 def _tiny_png() -> bytes:
-    from proseferno.demo import png_bytes
+    from inferno_ghostwriter.demo import png_bytes
 
     return png_bytes(16, 16)
 

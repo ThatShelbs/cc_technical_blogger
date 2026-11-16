@@ -1,17 +1,17 @@
 @echo off
 rem ============================================================================
-rem  Proseferno developer setup (Windows). Safe to run again at any time.
+rem  Inferno Ghostwriter developer setup (Windows). Safe to run again at any time.
 rem  Installs what you need to work on the code: uv, Node.js, the Python and web
 rem  packages, and (optionally) the browser used by the end-to-end tests.
 rem  Just want to use the app? Double-click launch.bat in the repository root.
 rem ============================================================================
 setlocal EnableExtensions EnableDelayedExpansion
-title Proseferno setup
+title Inferno Ghostwriter setup
 cd /d "%~dp0.."
 
 echo.
 echo   ==============================================
-echo     Proseferno developer setup
+echo     Inferno Ghostwriter developer setup
 echo   ==============================================
 echo.
 
@@ -67,7 +67,7 @@ if not errorlevel 2 (
 
 echo.
 echo   [4/4] Checking this machine...
-uv run --project backend proseferno doctor
+uv run --project backend inferno-ghostwriter doctor
 
 echo   Next:
 echo     launch.bat --demo        try the app with canned responses, no keys needed
@@ -95,7 +95,7 @@ exit /b 1
 :failed
 echo.
 echo   Setup failed. Scroll up for the error, then run:
-echo     uv run --project backend proseferno doctor
+echo     uv run --project backend inferno-ghostwriter doctor
 echo   Common fixes are in docs\onboarding.md under Troubleshooting.
 pause
 exit /b 1

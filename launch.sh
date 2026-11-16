@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Proseferno launcher (macOS / Linux). Extra arguments pass through, e.g. ./launch.sh --demo
+# Inferno Ghostwriter launcher (macOS / Linux). Extra arguments pass through, e.g. ./launch.sh --demo
 set -euo pipefail
 cd "$(dirname "$0")"
-PORT="${PROSEFERNO_PORT:-8732}"
+PORT="${INFERNO_GHOSTWRITER_PORT:-8732}"
 
 echo
-echo "  Proseferno - technical blogs in your own voice"
+echo "  Inferno Ghostwriter - technical blogs in your own voice"
 echo
 
 # Already running? Just open it.
 if curl -fs "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
-  echo "  Proseferno is already running on port ${PORT}. Opening it in your browser."
+  echo "  Inferno Ghostwriter is already running on port ${PORT}. Opening it in your browser."
   (command -v open >/dev/null && open "http://127.0.0.1:${PORT}") || (command -v xdg-open >/dev/null && xdg-open "http://127.0.0.1:${PORT}") || true
   exit 0
 fi
 
-trap 'echo; echo "  Setup failed. To see what is wrong on this machine, run:"; echo "    uv run --project backend proseferno doctor"' ERR
+trap 'echo; echo "  Setup failed. To see what is wrong on this machine, run:"; echo "    uv run --project backend inferno-ghostwriter doctor"' ERR
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv is required. Install it with:  curl -LsSf https://astral.sh/uv/install.sh | sh"
@@ -42,5 +42,5 @@ fi
 
 trap - ERR
 echo
-echo "  Starting Proseferno at http://127.0.0.1:${PORT} (Ctrl+C to stop)"
-exec uv run --project backend proseferno --open --port "${PORT}" "$@"
+echo "  Starting Inferno Ghostwriter at http://127.0.0.1:${PORT} (Ctrl+C to stop)"
+exec uv run --project backend inferno-ghostwriter --open --port "${PORT}" "$@"

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from proseferno.demo import FakeLLM
-from proseferno.llm import ResearchResult
+from inferno_ghostwriter.demo import FakeLLM
+from inferno_ghostwriter.llm import ResearchResult
 from tests.api.test_flow import create_persona, ready_post, upload
 
 
@@ -155,7 +155,7 @@ def test_invented_links_and_quotes_are_rejected(client: TestClient, sample_docx:
 def test_regeneration_replaces_references_and_deletes_clean_up(client: TestClient, sample_docx: bytes, services) -> None:  # type: ignore[no-untyped-def]
     from sqlmodel import Session, select
 
-    from proseferno.db import ProjectReference
+    from inferno_ghostwriter.db import ProjectReference
 
     project = ready_post(client, sample_docx)
     old_urls = {r["url"] for r in project["references"]}

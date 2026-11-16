@@ -12,7 +12,7 @@ Claude draws every image itself: vector art as SVG and data visualizations as Ve
 | **diagram** | Concepts, workflows, architectures, comparisons, decision trees | Claude SVG |
 | **chart** | Data visualization (real numbers from the post, or labeled illustrative data) | Claude Vega-Lite spec with inline data |
 | **screenshot** | The post shows what a screen looks like (an app page, settings, a chat, an editor, a terminal) | Claude SVG: a faithful mock of that screen with the post's real content; **Replace** it with a real capture if you have one |
-| **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Proseferno owns layout and type ([below](#closing-memes)) |
+| **meme** | The closing joke | One of 18 meme formats: Claude writes the joke and draws the art, Inferno Ghostwriter owns layout and type ([below](#closing-memes)) |
 
 Each image is told what the post's other images show, so the set looks like one piece of work and no two images repeat each other. Platforms crop the thumbnail from the center of the opening image (as wide as 5:2), so it keeps everything that matters in the middle band. The opening image has its own pitch, panel and review; see [Opening images](opening-images.md).
 
@@ -47,11 +47,11 @@ The meme is the last thing a reader sees and the thing they share, so it gets it
 2. **Production** (`prompts/meme_build.md`), only for formats with art. Claude draws SVG art for each art region (characters defined once as `<symbol>`s so they look the same in every panel) and may tighten the words. Missing pieces or overlong text get one retry with the problems quoted back. The seven formats with no art (chat, terminal, Nutrition Facts, alignment chart, pie, spurious correlation, Venn) skip this call: they are composed straight from the pitch.
 3. **Composer** (`compose.py`). Code draws the layout, panel frames, speech bubbles, charts and chrome, places Claude's art in its regions (sanitized, ids made unique), and typesets every string with Pillow: each one is sized to the largest font that fits its box, parallel slots (rows, cells, panels) share one size, and words are only broken when nothing else fits. Text cannot overflow.
 
-If a build still cannot be drawn, the meme becomes the best other pitch in a format with no art (which cannot fail), so the reader still gets a whole joke. Only when there is none (for example, the author asked for one format) does it fall back to a classic top/bottom caption meme over the Proseferno robot. Either way the card says which format could not be drawn (`fallback_from` in the meme's state).
+If a build still cannot be drawn, the meme becomes the best other pitch in a format with no art (which cannot fail), so the reader still gets a whole joke. Only when there is none (for example, the author asked for one format) does it fall back to a classic top/bottom caption meme over the Inferno Ghostwriter robot. Either way the card says which format could not be drawn (`fallback_from` in the meme's state).
 
 | Family | Formats |
 | --- | --- |
-| Famous formats, recast with our robot (no real people or characters) | Nope / Yep (Drake), pointing twins, distracted robot, expanding brain, This is fine, two buttons, midwit bell curve, four-step plan (Gru) |
+| Famous formats, recast with our ghost (no real people or characters) | Nope / Yep (Drake), pointing twins, distracted ghost, expanding brain, This is fine, two buttons, midwit bell curve, four-step plan (Gru) |
 | Chart jokes, drawn with real chart machinery | terrible 3D exploded pie, spurious correlation (dual-axis Vega-Lite), Venn diagram |
 | Comics | three-panel strip, four-panel grid |
 | Fake artifacts | team chat thread, terminal session, Nutrition Facts label, alignment chart |

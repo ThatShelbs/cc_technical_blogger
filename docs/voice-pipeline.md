@@ -1,6 +1,6 @@
 # Voice pipeline
 
-Proseferno succeeds only if posts sound like their author. This page explains each step and how to measure the result.
+Inferno Ghostwriter succeeds only if posts sound like their author. This page explains each step and how to measure the result.
 
 ![A generated voice profile with the measured style baseline](screenshots/voice-profile.png)
 
@@ -46,7 +46,7 @@ When a persona has web research turned on, Claude searches for current guidance 
 
 `prompts/voice_synthesize.md` turns the baseline, analyses and research into `voice_profile.md` with fixed sections: Soul · Voice & Tone · Signature Moves · Structure Blueprint · Titles & Subtitles · Humor · Teaching Style · Credibility & Trust · Images & Captions (including a one-line **visual style** for generated images) · Lexicon (including a *never use* list of generic AI-writing tells) · Do / Don't · Voice Anchors (verbatim passages).
 
-Every version is kept. Editing it in the app saves a new version. The synthesis also sees what Proseferno has learned from your edits (below), so the next version's Lexicon and Do / Don't reflect it.
+Every version is kept. Editing it in the app saves a new version. The synthesis also sees what Inferno Ghostwriter has learned from your edits (below), so the next version's Lexicon and Do / Don't reflect it.
 
 ### Learning from your edits
 

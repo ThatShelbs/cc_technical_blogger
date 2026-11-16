@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import itertools
 
-from proseferno.db import Persona
-from proseferno.evolution import diff_digest, diff_segments, edit_rate
-from proseferno.evolution.service import add_rules
-from proseferno.voice.playbook import MAX_PLAYBOOK, add_playbook, forget_playbook, format_playbook
+from inferno_ghostwriter.db import Persona
+from inferno_ghostwriter.evolution import diff_digest, diff_segments, edit_rate
+from inferno_ghostwriter.evolution.service import add_rules
+from inferno_ghostwriter.voice.playbook import MAX_PLAYBOOK, add_playbook, forget_playbook, format_playbook
 
 BASE = "# Title\n\n{{image:hero}}\n\nFirst paragraph stays the same.\n\nIt is worth noting that this one changes.\n\nLast one."
 

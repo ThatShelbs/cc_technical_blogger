@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Proseferno developer mode (macOS / Linux): API with auto-reload + Vite dev server with hot
+# Inferno Ghostwriter developer mode (macOS / Linux): API with auto-reload + Vite dev server with hot
 # module replacement. Add --demo to use canned AI responses. Ctrl+C stops both.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -11,7 +11,7 @@ uv sync --project backend --quiet
 [ -d frontend/node_modules ] || (cd frontend && npm ci --no-audit --no-fund)
 
 trap 'kill 0' EXIT
-uv run --project backend proseferno --reload "$@" &
+uv run --project backend inferno-ghostwriter --reload "$@" &
 (cd frontend && npm run dev) &
 
 echo

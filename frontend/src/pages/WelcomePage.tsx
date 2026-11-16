@@ -27,9 +27,9 @@ export function WelcomePage() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-8 flex flex-col items-center text-center">
-        <img src="/logo-mark.svg" alt="" className="mb-4 size-24" />
+        <img src="/logo-mark.png" alt="" className="mb-4 size-24" />
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-          Welcome to Prose<span className="flame-text">ferno</span>
+          Welcome to Inferno <span className="flame-text">Ghostwriter</span>
         </h1>
         <p className="mt-2 max-w-xl text-muted">
           Five quick steps and every technical post you generate will sound like you wrote it, because it learned from what you wrote.
@@ -66,8 +66,8 @@ export function WelcomePage() {
             {!health.data?.demo && (
               <Notice title="Just looking around?">
                 <p>
-                  You do not need a Claude connection to explore. Look at a finished example post, built offline with no Claude call, or start Proseferno in
-                  demo mode (<code>launch.bat --demo</code> or <code>./launch.sh --demo</code>) to try the whole flow with canned responses.
+                  You do not need a Claude connection to explore. Look at a finished example post, built offline with no Claude call, or start Inferno
+                  Ghostwriter in demo mode (<code>launch.bat --demo</code> or <code>./launch.sh --demo</code>) to try the whole flow with canned responses.
                 </p>
                 <Button
                   className="mt-3"
@@ -102,7 +102,8 @@ export function WelcomePage() {
           <Card>
             <h2 className="mb-1 text-lg font-bold">Add posts you wrote</h2>
             <p className="mb-4 text-sm text-muted">
-              Three or more is ideal. You can also add posts by writers you admire as “influences”; Proseferno borrows their techniques, never their identity.
+              Three or more is ideal. You can also add posts by writers you admire as “influences”; Inferno Ghostwriter borrows their techniques, never their
+              identity.
             </p>
             <SampleUploader personaId={persona.id} />
           </Card>

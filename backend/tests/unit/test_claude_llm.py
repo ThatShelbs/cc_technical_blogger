@@ -5,9 +5,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from proseferno.config import Settings
-from proseferno.llm.base import SystemBlock
-from proseferno.llm.claude import ClaudeLLM
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.llm.base import SystemBlock
+from inferno_ghostwriter.llm.claude import ClaudeLLM
 
 
 class Answer(BaseModel):

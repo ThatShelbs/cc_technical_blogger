@@ -1,8 +1,8 @@
-"""Entry point of the Windows build: start Proseferno and open it in the browser."""
+"""Entry point of the Windows build: start Inferno Ghostwriter and open it in the browser."""
 
 import sys
 
-from proseferno import main
+from inferno_ghostwriter import main
 
 if __name__ == "__main__":
     if "--open" not in sys.argv:

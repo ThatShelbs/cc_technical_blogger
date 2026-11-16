@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import random
 
-from proseferno.abtest.blend import closer_span, opener_span, take_closer, take_opener, take_title
-from proseferno.abtest.perturb import PRINCIPLES, build_challenger, bullets, research_principles, voice_habits
-from proseferno.db import Persona, Sample, VoiceProfile
-from proseferno.voice import select_exemplars
-from proseferno.writer import Dials, resolve
-from proseferno.writer.dials import STYLE_DIALS
-from proseferno.writer.formulas import ARTICLE_TYPES, OPENERS, shuffle_part
+from inferno_ghostwriter.abtest.blend import closer_span, opener_span, take_closer, take_opener, take_title
+from inferno_ghostwriter.abtest.perturb import PRINCIPLES, build_challenger, bullets, research_principles, voice_habits
+from inferno_ghostwriter.db import Persona, Sample, VoiceProfile
+from inferno_ghostwriter.voice import select_exemplars
+from inferno_ghostwriter.writer import Dials, resolve
+from inferno_ghostwriter.writer.dials import STYLE_DIALS
+from inferno_ghostwriter.writer.formulas import ARTICLE_TYPES, OPENERS, shuffle_part
 
 PROFILE = """# Voice Profile: Me
 

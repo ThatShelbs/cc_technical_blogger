@@ -1,4 +1,4 @@
-# Contributing to Proseferno
+# Contributing to Inferno Ghostwriter
 
 Thanks for helping! This guide gets you from clone to a passing pull request. If you are new to the project, read [docs/onboarding.md](docs/onboarding.md) first: it has the cheat sheet, a map of "I want to change X, so edit Y", a glossary and troubleshooting.
 
@@ -9,7 +9,7 @@ scripts\setup.bat      # Windows
 scripts/setup.sh       # macOS / Linux
 ```
 
-This installs [uv](https://docs.astral.sh/uv/) (Python 3.13 and the backend environment) and [Node.js](https://nodejs.org) 22 LTS if you agree, installs all packages, and finishes by running `proseferno doctor`, which tells you how to fix anything still missing. Re-run it any time; it is safe to repeat. The [Anthropic CLI](https://github.com/anthropics/anthropic-cli/releases) is optional, only for testing *Sign in with Claude*.
+This installs [uv](https://docs.astral.sh/uv/) (Python 3.13 and the backend environment) and [Node.js](https://nodejs.org) 22 LTS if you agree, installs all packages, and finishes by running `inferno-ghostwriter doctor`, which tells you how to fix anything still missing. Re-run it any time; it is safe to repeat. The [Anthropic CLI](https://github.com/anthropics/anthropic-cli/releases) is optional, only for testing *Sign in with Claude*.
 
 You do **not** need API keys or any writing of your own to develop: demo mode and the test suite use a fake Claude and a fake image model, and the app ships with sample posts and an example persona.
 
@@ -32,7 +32,7 @@ It runs everything CI runs, in CI order, and prints a summary: ruff (lint and fo
 
 ## Changing the API
 
-The frontend's TypeScript types are generated from the FastAPI schema. After changing a model in `backend/src/proseferno/api/schemas.py` (or anything else that changes the OpenAPI schema), regenerate them:
+The frontend's TypeScript types are generated from the FastAPI schema. After changing a model in `backend/src/inferno_ghostwriter/api/schemas.py` (or anything else that changes the OpenAPI schema), regenerate them:
 
 ```bash
 uv run --project backend python backend/scripts/export_types.py
@@ -42,7 +42,7 @@ CI fails if `frontend/src/api/types.gen.ts` is out of date.
 
 ## Changing prompts
 
-Prompts live in `backend/src/proseferno/prompts/*.md` with `$placeholders`. The most important ones are `voice_synthesize.md` (what a voice profile contains) and `writer_system.md` / `draft.md` / `critique.md` / `revise.md` (how posts are written). Voice quality is the product, so measure prompt changes with the [voice-fidelity eval](docs/voice-pipeline.md#measuring-voice-fidelity) on real writing before and after.
+Prompts live in `backend/src/inferno_ghostwriter/prompts/*.md` with `$placeholders`. The most important ones are `voice_synthesize.md` (what a voice profile contains) and `writer_system.md` / `draft.md` / `critique.md` / `revise.md` (how posts are written). Voice quality is the product, so measure prompt changes with the [voice-fidelity eval](docs/voice-pipeline.md#measuring-voice-fidelity) on real writing before and after.
 
 ## Good first tasks
 
@@ -58,13 +58,13 @@ Each one touches a small, well-contained part of the code and is covered by the 
 ## Conventions
 
 - Python: typed, small modules, `ruff` formatting (140 columns). Business logic stays out of route handlers.
-- Long-running work runs as a job (`proseferno.jobs`) and streams progress to the UI over Server-Sent Events.
-- Everything model-related goes through the `LLM` protocol (`proseferno.llm.base`) so tests can use `proseferno.demo.FakeLLM`. When you add a structured-output schema, add a payload for it in `demo.py`.
+- Long-running work runs as a job (`inferno_ghostwriter.jobs`) and streams progress to the UI over Server-Sent Events.
+- Everything model-related goes through the `LLM` protocol (`inferno_ghostwriter.llm.base`) so tests can use `inferno_ghostwriter.demo.FakeLLM`. When you add a structured-output schema, add a payload for it in `demo.py`.
 - Tests must never touch real services: fixtures use `ClaudeAuth(..., discover_ant=False)` and `MemorySecretStore`.
 - Model-authored visuals are never executed: SVG is sanitized and rasterized, charts are declarative Vega-Lite.
 - React: function components, TanStack Query for server state, Tailwind classes with the theme tokens in `src/index.css` (never hard-code colors in components).
 - Accessibility: every control has a label; check both day and night mode.
-- Secrets go in the OS keychain via `proseferno.secrets`, never in the database, logs, or repo.
+- Secrets go in the OS keychain via `inferno_ghostwriter.secrets`, never in the database, logs, or repo.
 - Keep the repository tidy: new files go in the folder that already holds their kind (`scripts/`, `docs/`, `backend/scripts/`); avoid adding loose files at the root.
 - Batch files (`*.bat`) keep CRLF line endings; `.gitattributes` handles it.
 

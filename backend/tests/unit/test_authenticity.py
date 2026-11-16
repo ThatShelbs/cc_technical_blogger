@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proseferno.authenticity import AuthorProfile, band, profile_author, report, scan
-from proseferno.authenticity.detector import AIDetectionJudgement
+from inferno_ghostwriter.authenticity import AuthorProfile, band, profile_author, report, scan
+from inferno_ghostwriter.authenticity.detector import AIDetectionJudgement
 
 HUMAN = """# Pie Charts Are Lame
 

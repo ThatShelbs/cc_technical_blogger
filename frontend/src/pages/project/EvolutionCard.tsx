@@ -123,8 +123,8 @@ export function EvolutionCard({ project }: { project: ProjectOut }) {
       )}
       {!published && (
         <p className="text-xs text-muted">
-          Mark the post Published when it goes out: Proseferno compares your version with what it generated and suggests small changes to the persona, so the
-          next post needs fewer edits. Rate it Medium hit or Big hit later to learn its secret sauce.
+          Mark the post Published when it goes out: Inferno Ghostwriter compares your version with what it generated and suggests small changes to the persona,
+          so the next post needs fewer edits. Rate it Medium hit or Big hit later to learn its secret sauce.
         </p>
       )}
       {latest.size > 0 && (

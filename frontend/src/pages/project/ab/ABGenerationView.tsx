@@ -45,7 +45,7 @@ function LaneCard({ name, state }: { name: string; state: JobState | undefined }
         </div>
       ) : (
         <div className="flex min-h-48 items-center justify-center">
-          <img src="/logo-mark.svg" alt="" className="size-14 animate-pulse" />
+          <img src="/logo-mark.png" alt="" className="size-14 animate-pulse" />
         </div>
       )}
     </Card>

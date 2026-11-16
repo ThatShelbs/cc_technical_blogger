@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from proseferno.writer import ensure_placeholders, normalize_slots
-from proseferno.writer.dials import auto_image_count
-from proseferno.writer.examples import add_example_slots, find_dangling_leadins, format_missing_examples
-from proseferno.writer.pipeline import strip_image_captions
-from proseferno.writer.schemas import ImageSlot
+from inferno_ghostwriter.writer import ensure_placeholders, normalize_slots
+from inferno_ghostwriter.writer.dials import auto_image_count
+from inferno_ghostwriter.writer.examples import add_example_slots, find_dangling_leadins, format_missing_examples
+from inferno_ghostwriter.writer.pipeline import strip_image_captions
+from inferno_ghostwriter.writer.schemas import ImageSlot
 
 POST = """# Title
 

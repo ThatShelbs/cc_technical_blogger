@@ -7,8 +7,8 @@ import zipfile
 
 from fastapi.testclient import TestClient
 
-from proseferno.config import Settings
-from proseferno.demo import FakeLLM, png_bytes
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.demo import FakeLLM, png_bytes
 
 
 def create_persona(client: TestClient, name: str = "Shelby") -> dict:
@@ -30,7 +30,7 @@ def upload(client: TestClient, persona_id: int, data: bytes, kind: str = "own", 
 def test_health_and_spa_fallback(client: TestClient) -> None:
     assert client.get("/api/health").json()["status"] == "ok"
     page = client.get("/projects/1")
-    assert page.status_code == 200 and "Proseferno" in page.text
+    assert page.status_code == 200 and "Inferno Ghostwriter" in page.text
     assert client.get("/api/does-not-exist").status_code == 404
 
 
@@ -348,7 +348,7 @@ def test_a_broken_image_does_not_fail_the_post(client: TestClient, sample_docx: 
 def test_orphaned_pending_images_are_failed(client: TestClient, sample_docx: bytes, services) -> None:  # type: ignore[no-untyped-def]
     from sqlmodel import Session
 
-    from proseferno.db import ProjectImage
+    from inferno_ghostwriter.db import ProjectImage
 
     project = ready_post(client, sample_docx)
     image_id = project["images"][0]["id"]
@@ -652,7 +652,7 @@ def test_an_image_that_cannot_be_drawn_gets_one_more_try(client: TestClient, sam
 
 
 def test_examples_a_post_introduces_are_drawn(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM, monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    from proseferno import demo
+    from inferno_ghostwriter import demo
 
     draft = demo.DRAFT.replace("\n## ", "\nHere is what the settings page looks like:\n\n## ", 1)
     monkeypatch.setattr(demo, "DRAFT", draft)

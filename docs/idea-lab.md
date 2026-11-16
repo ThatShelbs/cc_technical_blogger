@@ -67,7 +67,7 @@ A full refresh has three depths: quick, standard and deep (`idea_max_searches` s
 
 ### Sources
 
-The default catalog is `backend/src/proseferno/idealab/catalog.json`. It is the only place a source, person or industry is named: prompts receive names from the catalog or from what the research found.
+The default catalog is `backend/src/inferno_ghostwriter/idealab/catalog.json`. It is the only place a source, person or industry is named: prompts receive names from the catalog or from what the research found.
 
 | Group | Read directly | Covered by web search only |
 |---|---|---|

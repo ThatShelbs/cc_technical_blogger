@@ -1,6 +1,6 @@
 # A/B Test Mode
 
-Proseferno has two ways to write a post:
+Inferno Ghostwriter has two ways to write a post:
 
 - **Generate & tweak** (the default): one post in your voice, then you refine it with feedback, section rewrites or new settings.
 - **A/B test**: two complete posts from the same brief. One is written exactly as your persona is set up (the **control**). The other is written with almost everything nudged (the **challenger**). You read them side by side without knowing which is which, pick the one you like better, and only then find out. If the challenger's choices won, you can make them part of your persona.

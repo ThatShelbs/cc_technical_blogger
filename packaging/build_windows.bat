@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================================
-rem  Build the Windows app (packaging\dist\Proseferno\Proseferno.exe) and, when
+rem  Build the Windows app (packaging\dist\Inferno Ghostwriter\InfernoGhostwriter.exe) and, when
 rem  Inno Setup 6 is installed, the installer (packaging\installer\*.exe).
 rem  Needs uv and Node.js, like launch.bat. End users need neither.
 rem ============================================================================
@@ -15,7 +15,7 @@ popd
 
 echo   [2/3] Bundling Python and the backend with PyInstaller...
 uv run --project backend --group package pyinstaller --noconfirm --clean ^
-  --distpath packaging\dist --workpath packaging\dist\build packaging\proseferno.spec
+  --distpath packaging\dist --workpath packaging\dist\build packaging\inferno_ghostwriter.spec
 if errorlevel 1 goto :failed
 rmdir /s /q packaging\dist\build 2>nul
 
@@ -26,14 +26,14 @@ for %%P in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Set
 )
 if not defined ISCC (
   echo   Inno Setup 6 is not installed, so only the app folder was built:
-  echo     packaging\dist\Proseferno\Proseferno.exe
+  echo     packaging\dist\Inferno Ghostwriter\InfernoGhostwriter.exe
   echo   For an installer: winget install JRSoftware.InnoSetup, then run this again.
   goto :eof
 )
-for /f "delims=" %%V in ('uv run --project backend python -c "import proseferno; print(proseferno.__version__)"') do set "VERSION=%%V"
-"%ISCC%" /Qp /DAppVersion=%VERSION% packaging\proseferno.iss
+for /f "delims=" %%V in ('uv run --project backend python -c "import inferno_ghostwriter; print(inferno_ghostwriter.__version__)"') do set "VERSION=%%V"
+"%ISCC%" /Qp /DAppVersion=%VERSION% packaging\inferno_ghostwriter.iss
 if errorlevel 1 goto :failed
-echo   Installer: packaging\installer\Proseferno-Setup-%VERSION%.exe
+echo   Installer: packaging\installer\InfernoGhostwriter-Setup-%VERSION%.exe
 goto :eof
 
 :failed

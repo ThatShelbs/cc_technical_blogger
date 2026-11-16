@@ -1,0 +1,20 @@
+Inferno Ghostwriter
+
+Positioning:  
+The AI Ghostwriter for Technical Minds
+
+Visual identity:
+- Inferno colormap: deep indigo/purple → violet → magenta → red → orange → yellow
+- Friendly spectral mascot rather than an evil ghost
+- Subtle technical charts, documents, code/data motifs
+- Warm glowing accents without turning the entire brand into flames
+- Clean, modern typography
+- Broad enough to appeal to developers, data scientists, analysts, engineers, technical marketers, researchers, and subject-matter experts
+I particularly like the ghost + laptop + quill combination because it communicates the product immediately without falling into the generic robot/AI aesthetic.
+
+A strong system would therefore be:
+
+Hero: full spectral ghost + laptop + technical visualizations
+Logo: simplified spectral ghost/quill mark
+Wordmark: Inferno Ghostwriter
+Tagline: The AI Ghostwriter for Technical Minds

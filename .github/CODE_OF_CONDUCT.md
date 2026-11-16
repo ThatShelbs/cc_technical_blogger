@@ -1,6 +1,6 @@
 # Code of Conduct
 
-Proseferno follows the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+Inferno Ghostwriter follows the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
 
 In short: be welcoming, be kind, assume good intent, give and take feedback gracefully, and focus on what is best for the community. Harassment, insults, and personal or political attacks are not acceptable in any project space.
 

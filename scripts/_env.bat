@@ -27,7 +27,7 @@ set /a ENV_COUNT+=1
 goto :count
 :counted
 if %ENV_COUNT% GTR 110 (
-  set "UV_PROJECT_ENVIRONMENT=%USERPROFILE%\.venvs\proseferno"
-  echo   Note: this folder's path is long, so the Python environment lives in %USERPROFILE%\.venvs\proseferno
+  set "UV_PROJECT_ENVIRONMENT=%USERPROFILE%.venvs\inferno-ghostwriter"
+  echo   Note: this folder's path is long, so the Python environment lives in %USERPROFILE%.venvs\inferno-ghostwriter
 )
 goto :eof

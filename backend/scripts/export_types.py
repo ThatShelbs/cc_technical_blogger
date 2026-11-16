@@ -12,10 +12,10 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from proseferno.config import REPO_ROOT, Settings
-from proseferno.main import create_app
-from proseferno.secrets import MemorySecretStore
-from proseferno.services import build_services
+from inferno_ghostwriter.config import REPO_ROOT, Settings
+from inferno_ghostwriter.main import create_app
+from inferno_ghostwriter.secrets import MemorySecretStore
+from inferno_ghostwriter.services import build_services
 
 OUT = REPO_ROOT / "frontend" / "src" / "api" / "types.gen.ts"
 SKIP = {"HTTPValidationError", "ValidationError"}

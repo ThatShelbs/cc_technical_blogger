@@ -19,7 +19,7 @@ Start here, whichever of these you are. Every path works **without any API keys 
 | Run every check CI runs | `scripts\check.bat` | `scripts/check.sh` |
 | Fix formatting, then check | `scripts\check.bat --fix` | `scripts/check.sh --fix` |
 | Add the browser tests | `scripts\check.bat --e2e` | `scripts/check.sh --e2e` |
-| Is my machine set up right? | `uv run --project backend proseferno doctor` | same |
+| Is my machine set up right? | `uv run --project backend inferno-ghostwriter doctor` | same |
 
 | Thing | Where |
 | --- | --- |
@@ -33,7 +33,7 @@ Start here, whichever of these you are. Every path works **without any API keys 
 
 ## No files, no keys? Start here
 
-You do not need to have written anything, or have a Claude account, to see how Proseferno works.
+You do not need to have written anything, or have a Claude account, to see how Inferno Ghostwriter works.
 
 1. **See a finished result.** `launch.bat --demo` opens on an example persona ("Sample Author") with a voice profile and a finished post: a hero image, diagram, chart and closing meme, each credited. Click the post, then **Personas** to read the voice profile. Everything is canned, nothing costs money, and your real data is untouched.
 2. **Try the whole flow with no files.** In the setup guide, **Your writing** offers **Use 3 sample posts**: short posts by the fictional Sample Author. Generate a voice profile from them, then on **New post** click **Use an example prompt**. Replace the samples with your own writing whenever you like.
@@ -46,10 +46,10 @@ If you start `launch.bat` on a fresh machine with no Claude connection, it offer
 
 About 30 minutes.
 
-1. **Set up** (5 min): `scripts\setup.bat`. It installs [uv](https://docs.astral.sh/uv/) and Node.js 22+ if you agree, installs the Python and web packages, and finishes with `proseferno doctor`.
+1. **Set up** (5 min): `scripts\setup.bat`. It installs [uv](https://docs.astral.sh/uv/) and Node.js 22+ if you agree, installs the Python and web packages, and finishes with `inferno-ghostwriter doctor`.
 2. **Run it** (2 min): `scripts\dev.bat --demo`. Open <http://localhost:5173>.
 3. **Write a post** (5 min): click through the example, then try **Tweak with feedback** and **Edit brief & settings** on the post.
-4. **Read** (10 min): [architecture.md](architecture.md), especially *Life of a post*, then skim one pipeline: `backend/src/proseferno/writer/pipeline.py`.
+4. **Read** (10 min): [architecture.md](architecture.md), especially *Life of a post*, then skim one pipeline: `backend/src/inferno_ghostwriter/writer/pipeline.py`.
 5. **Prove your setup** (3 min): `scripts\check.bat`. All ten checks should pass before you change anything.
 6. **Make a first change** (5 min): pick one from *Good first tasks* in [CONTRIBUTING.md](../CONTRIBUTING.md#good-first-tasks), then run `scripts\check.bat` again.
 
@@ -59,7 +59,7 @@ About 30 minutes.
 | --- | --- |
 | `launch.bat`, `launch.sh` | One-click start for people using the app. |
 | `scripts/` | Developer scripts: `setup`, `dev`, `check` (plus the shared `_env.bat`). |
-| `backend/` | FastAPI + [uv](https://docs.astral.sh/uv/) (Python 3.13). `src/proseferno/` is the app, `tests/` uses a fake Claude, `evals/` are opt-in real-API quality evals, `scripts/` holds the type exporter and brand renderer. |
+| `backend/` | FastAPI + [uv](https://docs.astral.sh/uv/) (Python 3.13). `src/inferno_ghostwriter/` is the app, `tests/` uses a fake Claude, `evals/` are opt-in real-API quality evals, `scripts/` holds the type exporter and brand renderer. |
 | `frontend/` | React 19 + Vite + Tailwind CSS 4. `src/pages/` are screens, `src/api/` the typed client, `e2e/` the Playwright tests. |
 | `docs/` | Guides. This file is the way in. |
 | `assets/brand/` | Logo and palette. |
@@ -78,7 +78,7 @@ uv run ruff check src tests scripts evals
 uv run ruff format src tests scripts evals
 uv run mypy
 uv run python scripts/export_types.py        # after changing the API; CI checks it is current
-uv run proseferno --demo --open
+uv run inferno-ghostwriter --demo --open
 ```
 
 Frontend, from `frontend/`:
@@ -99,10 +99,10 @@ npm run e2e          # Playwright, against the real backend in demo mode
 
 | Change | Edit | Then |
 | --- | --- | --- |
-| How the voice profile is written | `backend/src/proseferno/prompts/voice_synthesize.md` | Run the [voice-fidelity eval](voice-pipeline.md#measuring-voice-fidelity) before and after. |
+| How the voice profile is written | `backend/src/inferno_ghostwriter/prompts/voice_synthesize.md` | Run the [voice-fidelity eval](voice-pipeline.md#measuring-voice-fidelity) before and after. |
 | How posts are written | `prompts/writer_system.md`, `plan.md`, `draft.md`, `critique.md`, `revise.md` | Same eval. |
 | A post setting (a "dial") | `writer/dials.py`, `api/schemas.py`, `frontend/src/pages/dials.ts`, `components/DialsFields.tsx` | Regenerate types. |
-| An export platform | `backend/src/proseferno/export/` and `PLATFORMS` in `export/bundle.py` | Add a writing guide, see [exporting.md](exporting.md). |
+| An export platform | `backend/src/inferno_ghostwriter/export/` and `PLATFORMS` in `export/bundle.py` | Add a writing guide, see [exporting.md](exporting.md). |
 | An article type, opener, body or closer style (formulas) | `writer/formulas.py` (the catalog; the UI reads it from the API) | See [formulas.md](formulas.md); `uv run pytest tests/unit/test_formulas.py tests/api/test_formulas.py`. |
 | Which references a post gets, and how they are checked | `prompts/reference_*.md`, `writer/references.py` | See [references.md](references.md); `uv run pytest tests/unit/test_references.py tests/api/test_references.py`. |
 | How the persona learns from published posts | `prompts/evolve_*.md`, `secret_sauce.md`, `evolution/service.py` | See [evolution.md](evolution.md); `uv run pytest tests/unit/test_evolution.py tests/api/test_evolution.py`. |
@@ -111,15 +111,15 @@ npm run e2e          # Playwright, against the real backend in demo mode
 | How a post opens (opening image styles, the judging panel, templates) | `images/opening/` (`styles.py` is the catalog), `prompts/opening_*.md` | See [opening-images.md](opening-images.md); `uv run pytest tests/unit/test_opening.py tests/api/test_opening.py`; `uv run python scripts/opening_gallery.py`. |
 | A screen | `frontend/src/pages/` | Check day and night mode. |
 | Colors | `frontend/src/index.css` tokens only | Never raw colors in components. |
-| An API endpoint | `backend/src/proseferno/api/` plus a model in `api/schemas.py` | `uv run python scripts/export_types.py`, then add a payload to `demo.py` for any new structured output. |
+| An API endpoint | `backend/src/inferno_ghostwriter/api/` plus a model in `api/schemas.py` | `uv run python scripts/export_types.py`, then add a payload to `demo.py` for any new structured output. |
 | A database column | `db/models.py` | Give it a default; `add_missing_columns` migrates old databases. |
-| The example persona or sample posts | `backend/src/proseferno/sample_content/`, `example.py` | `uv run pytest tests/unit/test_example.py`. |
+| The example persona or sample posts | `backend/src/inferno_ghostwriter/sample_content/`, `example.py` | `uv run pytest tests/unit/test_example.py`. |
 | Settings or environment variables | `config.py` | Update [configuration.md](configuration.md) and `.env.example`. |
 
 ## Glossary
 
 - **Persona**: one writing voice with its own samples and voice profile. Exactly one is **on** at a time.
-- **Sample**: a post you give Proseferno to learn from. *Own* samples define your voice; *influence* samples are writers you admire, whose techniques (not identity) are borrowed.
+- **Sample**: a post you give Inferno Ghostwriter to learn from. *Own* samples define your voice; *influence* samples are writers you admire, whose techniques (not identity) are borrowed.
 - **Voice profile**: the generated, versioned `voice_profile.md` describing how a persona writes. Regenerate it, edit it, name versions, or pin an old one.
 - **Dials**: per-post settings (length, images, humor, education level, formality, technical depth...). The 0-10 style dials are relative to the author: 5 means "as they write".
 - **Exemplars**: the most similar of your own posts, included in full as examples when drafting.
@@ -127,7 +127,7 @@ npm run e2e          # Playwright, against the real backend in demo mode
 - **Tweak, rewrite, regenerate**: the three ways to revise a post. A tweak is a list of small edits, never a full rewrite.
 - **Revisions**: the last ten text versions, for Undo. Images keep their own history.
 - **Stage and outcome**: where a post is (Draft, Ready, Published) and how a published one did (Too early, Small hit, Medium hit, Big hit).
-- **Baseline**: the text exactly as Proseferno last generated it. Publishing compares your final text with it.
+- **Baseline**: the text exactly as Inferno Ghostwriter last generated it. Publishing compares your final text with it.
 - **Evolution**: proposals learned from published posts (from your edits, or a hit's secret sauce). You review and apply them.
 - **Playbook**: moves from your best-received posts, fed to every writer call.
 - **Idea Lab**: live research plus the persona's portfolio, turned into ranked ideas with a title, brief and outline that go to the writer in one click (see [idea-lab.md](idea-lab.md)).
@@ -140,13 +140,13 @@ npm run e2e          # Playwright, against the real backend in demo mode
 
 ## Troubleshooting
 
-Run `uv run --project backend proseferno doctor` first. It checks the items below and prints a fix for each.
+Run `uv run --project backend inferno-ghostwriter doctor` first. It checks the items below and prints a fix for each.
 
 | Symptom | Fix |
 | --- | --- |
 | `uv` is not recognised right after installing it | Open a new terminal. `launch.bat` and `scripts\*.bat` also look in the usual install folders. |
-| Imports fail or `uv sync` fails with "path too long" (Windows) | Deep folders exceed Windows' 260-character limit. The scripts move the environment to `%USERPROFILE%\.venvs\proseferno` automatically; for manual commands set `UV_PROJECT_ENVIRONMENT` to a short path. Doctor reports "Windows path length". |
-| "Something is already running on port 8732" | Close the other Proseferno window, or set `PROSEFERNO_PORT`. |
+| Imports fail or `uv sync` fails with "path too long" (Windows) | Deep folders exceed Windows' 260-character limit. The scripts move the environment to `%USERPROFILE%.venvs\inferno-ghostwriter` automatically; for manual commands set `UV_PROJECT_ENVIRONMENT` to a short path. Doctor reports "Windows path length". |
+| "Something is already running on port 8732" | Close the other Inferno Ghostwriter window, or set `INFERNO_GHOSTWRITER_PORT`. |
 | The page says "the web app has not been built" or looks stale | Run `launch.bat` (it rebuilds when sources changed) or `npm run build` in `frontend/`. |
 | `npm ci` errors or the build fails | Check `node --version` is 22 or newer. |
 | "Not signed in" | Settings → Claude. Or explore with `--demo`. |

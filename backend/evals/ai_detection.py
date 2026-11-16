@@ -1,10 +1,10 @@
-"""AI-detection eval: how human do Proseferno's posts read next to the author's real posts?
+"""AI-detection eval: how human do Inferno Ghostwriter's posts read next to the author's real posts?
 
 Scores 0-100 (100 = authentic human prose, 0 = almost certainly flagged as AI) for:
 
 1. the author's own posts (calibration: these should score high; if they do not, the
    detector is miscalibrated for this author, not the author for the detector), and
-2. every post Proseferno has generated for the persona.
+2. every post Inferno Ghostwriter has generated for the persona.
 
 Each post is checked by the deterministic scan (free; calibrated to the author with each
 real post held out of its own calibration) and, with --judge, by the Claude judge as well.
@@ -31,11 +31,11 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from proseferno.authenticity import analyze, author_profile
-from proseferno.config import Settings, get_settings
-from proseferno.db import Persona, Project, Sample
-from proseferno.services import build_services
-from proseferno.voice import current_voice_profile
+from inferno_ghostwriter.authenticity import analyze, author_profile
+from inferno_ghostwriter.config import Settings, get_settings
+from inferno_ghostwriter.db import Persona, Project, Sample
+from inferno_ghostwriter.services import build_services
+from inferno_ghostwriter.voice import current_voice_profile
 
 
 def _mean(values: list[int]) -> float | None:

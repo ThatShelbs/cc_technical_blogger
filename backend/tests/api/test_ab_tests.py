@@ -5,10 +5,10 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from proseferno.abtest.service import fail_interrupted
-from proseferno.db import ABTest, Persona, PersonaEvolution, Project, ProjectImage, Sample
-from proseferno.demo import FakeLLM
-from proseferno.services import Services
+from inferno_ghostwriter.abtest.service import fail_interrupted
+from inferno_ghostwriter.db import ABTest, Persona, PersonaEvolution, Project, ProjectImage, Sample
+from inferno_ghostwriter.demo import FakeLLM
+from inferno_ghostwriter.services import Services
 from tests.api.test_flow import create_persona, ready_post, upload
 
 

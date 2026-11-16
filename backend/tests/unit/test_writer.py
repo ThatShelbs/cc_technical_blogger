@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proseferno.db import Persona, Project, Sample
-from proseferno.voice import rank_by_similarity, select_exemplars
-from proseferno.writer import (
+from inferno_ghostwriter.db import Persona, Project, Sample
+from inferno_ghostwriter.voice import rank_by_similarity, select_exemplars
+from inferno_ghostwriter.writer import (
     MAX_REVISIONS,
     Dials,
     ImageSlot,
@@ -18,7 +18,7 @@ from proseferno.writer import (
     set_title,
     split_title,
 )
-from proseferno.writer.pipeline import strip_image_captions, strip_todos
+from inferno_ghostwriter.writer.pipeline import strip_image_captions, strip_todos
 
 
 def slot(slot_id: str, kind: str, section: int = 0) -> ImageSlot:
@@ -212,7 +212,7 @@ def test_revisions_are_newest_first_and_capped() -> None:
 
 
 def test_extract_and_record_lessons() -> None:
-    from proseferno.voice.lessons import extract_lessons, format_lessons, record_lessons
+    from inferno_ghostwriter.voice.lessons import extract_lessons, format_lessons, record_lessons
 
     before = "Let's delve into it. Honestly, the model is a total game-changer for most teams."
     after = "Let's dig into it. The model helps most teams."

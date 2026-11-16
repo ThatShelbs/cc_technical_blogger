@@ -2,8 +2,8 @@ import anthropic
 import httpx
 import pytest
 
-from proseferno.llm import LLMError
-from proseferno.llm import claude as claude_mod
+from inferno_ghostwriter.llm import LLMError
+from inferno_ghostwriter.llm import claude as claude_mod
 
 
 def _status_error(status: int) -> anthropic.APIStatusError:

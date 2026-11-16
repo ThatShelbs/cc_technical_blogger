@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from proseferno.config import Settings
-from proseferno.doctor import Check, data_dir_writable, format_report, frontend_state, run_checks, should_offer_demo
-from proseferno.llm.auth import ClaudeAuth
-from proseferno.secrets import MemorySecretStore
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.doctor import Check, data_dir_writable, format_report, frontend_state, run_checks, should_offer_demo
+from inferno_ghostwriter.llm.auth import ClaudeAuth
+from inferno_ghostwriter.secrets import MemorySecretStore
 
 
 def make_auth(tmp_path: Path, secrets: MemorySecretStore | None = None, env: dict[str, str] | None = None) -> ClaudeAuth:

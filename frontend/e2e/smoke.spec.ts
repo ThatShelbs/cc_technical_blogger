@@ -10,22 +10,25 @@ const SAMPLE = path.resolve(here, 'fixtures/sample-post.md')
 test('first run: persona, writing sample, voice profile, post, editor, export, themes', async ({ page }) => {
   // The whole first run, A/B test included, takes a few minutes in demo mode.
   test.setTimeout(300_000)
-  await page.addInitScript(() => localStorage.setItem('proseferno-theme', 'light'))
+  await page.addInitScript(() => localStorage.setItem('inferno-ghostwriter-theme', 'light'))
   await page.goto('/')
 
   // First run lands on the setup guide.
-  await expect(page.getByRole('heading', { name: /Welcome to Prose/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Welcome to Inferno Ghostwriter/ })).toBeVisible()
   await expect(page.getByText(/Claude is simulated/)).toBeVisible()
+  await shot(page, 'getting-started/04-welcome')
 
   // Persona
   await page.getByRole('button', { name: /^3 Persona$/ }).click()
   await page.getByLabel('Persona name').fill('E2E Writer')
+  await shot(page, 'getting-started/06-persona')
   await page.getByRole('button', { name: 'Create and continue' }).click()
 
   // Writing sample
   await expect(page.getByRole('heading', { name: 'Add posts you wrote' })).toBeVisible()
   await page.getByLabel('Choose sample files').setInputFiles(SAMPLE)
   await expect(page.getByText('Added 1 sample.')).toBeVisible()
+  await shot(page, 'getting-started/07-add-writing')
   await page.getByRole('button', { name: 'Continue' }).click()
 
   // Voice profile (streams, then shows the measured baseline)
@@ -33,10 +36,13 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText('Version 1')).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText('Words per sentence')).toBeVisible()
   await shot(page, 'voice-profile')
+  await shot(page, 'getting-started/08-voice-profile')
 
   // New post from a single sentence
   await page.getByRole('button', { name: 'Write my first post' }).click()
-  await page.getByLabel(/What should this post be about/).fill('Why pie charts are lame and what to use instead')
+  await page
+    .getByLabel(/What should this post be about/)
+    .fill('Why shipping a model is a promise, and the habits that keep it: evals, drift checks and a rollback plan')
   // Formula: the type is read from the brief, and a shuffle draws parts that suit it
   await page.getByLabel(/What should this post be about/).fill('How to replace a pie chart')
   await expect(page.getByRole('option', { name: 'Automatic: How-to' })).toBeAttached()
@@ -44,7 +50,9 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByLabel('Body', { exact: true })).not.toHaveValue('auto')
   await page.getByRole('button', { name: 'Shuffle the closer' }).click()
   await expect(page.getByLabel('Closer', { exact: true })).not.toHaveValue('auto')
-  await page.getByLabel(/What should this post be about/).fill('Why pie charts are lame and what to use instead')
+  await page
+    .getByLabel(/What should this post be about/)
+    .fill('Why shipping a model is a promise, and the habits that keep it: evals, drift checks and a rollback plan')
   // Then an article type chosen by hand, its classic parts, and a different opener
   await page.getByLabel('Article type').selectOption({ label: 'Opinion / thought leadership' })
   await page.getByRole('button', { name: /Use the classic opinion formula/ }).click()
@@ -55,6 +63,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText(/Pitches ideas across .*Versus split/)).toBeVisible()
   await page.locator('#opening-style').selectOption({ label: 'Versus split · suits this post' })
   await expect(page.getByText('Two columns: before and after, myth and reality, the old way and the new.')).toBeVisible()
+  await shot(page, 'getting-started/09-customize')
   await page.getByRole('button', { name: /Write my post/ }).click()
   await expect(page.getByText('Writing your post')).toBeVisible()
 
@@ -64,6 +73,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.locator('figure img')).toHaveCount(4)
   await expect(page.getByText(/Author: E2E Writer; Made with Claude Opus 5\.5 \(SVG\)/).first()).toBeVisible()
   await shot(page, 'editor-day')
+  await shot(page, 'getting-started/10-editor')
 
   // The opening image: the panel's pitches, each scored by four judges, with the words retypeable
   const opening = page.locator('figure').filter({ hasText: 'Opening image · Versus split' })
@@ -90,8 +100,8 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText('5 of 5 in the post')).toBeVisible()
 
   // Pick another title
-  await page.getByRole('button', { name: 'Stop Baking Pies', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Stop Baking Pies' }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Your Model Is a Promise, Not a Prototype', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Your Model Is a Promise, Not a Prototype' }).first()).toBeVisible()
 
   // Tweak with feedback keeps the post and its images, then undo it
   await page.getByLabel(/Tweak with feedback/).fill('Add a joke to the opening')
@@ -103,7 +113,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await expect(page.getByText(/nobody stopped them/)).toHaveCount(0)
 
   // Highlight a sentence in the preview, compact it in place, then undo
-  const sentence = 'Bar charts. Seriously, bar charts.'
+  const sentence = 'A model in a notebook is a hypothesis.'
   const highlight = () =>
     page.evaluate((needle) => {
       const walker = document.createTreeWalker(document.querySelector('.article')!, NodeFilter.SHOW_TEXT)
@@ -123,7 +133,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await highlight()
   await expect(page.getByRole('toolbar', { name: 'Section actions' })).toBeVisible()
   await page.getByRole('button', { name: 'Compact' }).click()
-  await expect(page.getByText(/Bar charts win\./)).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/Ship it like you expect it to misbehave./)).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText(sentence)).toHaveCount(0)
   await expect(page.locator('figure img')).toHaveCount(4)
   await page.getByRole('button', { name: 'Undo last change' }).click()
@@ -154,10 +164,12 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   // Brief & settings: the original brief, the planned outline, every dial
   await page.getByRole('button', { name: 'Edit brief & settings' }).click()
   const settings = page.getByRole('dialog', { name: 'Brief & settings' })
-  await expect(settings.getByLabel(/Brief or outline/)).toHaveValue('Why pie charts are lame and what to use instead')
+  await expect(settings.getByLabel(/Brief or outline/)).toHaveValue(
+    'Why shipping a model is a promise, and the habits that keep it: evals, drift checks and a rollback plan',
+  )
   await settings.getByRole('button', { name: /Outline Claude planned/ }).click()
   await settings.getByRole('button', { name: 'Use as my outline' }).click()
-  await expect(settings.getByLabel(/Brief or outline/)).toHaveValue(/- Why People Love Pies/)
+  await expect(settings.getByLabel(/Brief or outline/)).toHaveValue(/- The Launch Is the Easy Part/)
   await expect(settings.getByLabel('Publishing on')).toBeVisible()
   await expect(settings.getByLabel(/Audience/)).toBeVisible()
   await expect(settings.getByLabel('Opener', { exact: true })).toHaveValue('joke_confession')
@@ -168,12 +180,13 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
 
   // Export dialog offers platform bundles
   await page.getByRole('button', { name: 'Export' }).click()
+  await shot(page, 'getting-started/11-export')
   await page.getByRole('radio', { name: 'Gumroad' }).click()
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download bundle/ }).click()])
-  expect(download.suggestedFilename()).toBe('stop-baking-pies-gumroad.zip')
+  expect(download.suggestedFilename()).toBe('your-model-is-a-promise-not-a-prototype-gumroad.zip')
   await page.getByRole('radio', { name: 'LinkedIn' }).click()
   await page.getByRole('button', { name: 'Write with Claude' }).click()
-  await expect(page.getByLabel('LinkedIn feed post')).toHaveValue(/I stopped making pie charts/)
+  await expect(page.getByLabel('LinkedIn feed post')).toHaveValue(/I shipped a 94% accurate model on a Friday/)
   await page.getByRole('button', { name: 'Close' }).click()
 
   // AI-detection report
@@ -222,12 +235,12 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
 
   // Posts list shows the thumbnail
   await page.getByRole('link', { name: 'Posts' }).click()
-  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Your Model Is a Promise, Not a Prototype' })).toBeVisible()
   await expect(page.getByText('Medium hit')).toBeVisible()
   await page.getByRole('button', { name: /^Draft/ }).click()
-  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Your Model Is a Promise, Not a Prototype' })).toHaveCount(0)
   await page.getByRole('button', { name: /^Published/ }).click()
-  await expect(page.getByRole('link', { name: 'Stop Baking Pies' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Your Model Is a Promise, Not a Prototype' })).toBeVisible()
 
   // A/B Test Mode: two blind versions, a pick with parts of the other one, then adopt what won
   await page.goto('/projects/new')

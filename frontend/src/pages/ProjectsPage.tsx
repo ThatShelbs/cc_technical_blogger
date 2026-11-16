@@ -70,7 +70,7 @@ export function ProjectsPage() {
     <>
       <PageHeader
         title="Posts"
-        subtitle="One project per article. Give Proseferno a prompt or outline and it writes the post in your voice."
+        subtitle="One project per article. Give Inferno Ghostwriter a prompt or outline and it writes the post in your voice."
         actions={
           <>
             <Link to="/ideas">
@@ -142,7 +142,7 @@ export function ProjectsPage() {
                   <img src={project.thumbnail_url} alt="" className="size-full object-cover" />
                 ) : (
                   <div className="flex size-full items-center justify-center">
-                    <img src="/logo-mark.svg" alt="" className="size-16 opacity-60" />
+                    <img src="/logo-mark.png" alt="" className="size-16 opacity-60" />
                   </div>
                 )}
               </Link>

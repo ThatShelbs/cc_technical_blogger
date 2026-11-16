@@ -1,6 +1,6 @@
 # Configuration
 
-Proseferno works with zero configuration. Most settings live in the app (**Settings**); a few can be set with environment variables or a `.env` file at the repository root (copy `.env.example`).
+Inferno Ghostwriter works with zero configuration. Most settings live in the app (**Settings**); a few can be set with environment variables or a `.env` file at the repository root (copy `.env.example`).
 
 ## In the app
 
@@ -28,35 +28,35 @@ Proseferno works with zero configuration. Most settings live in the app (**Setti
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `PROSEFERNO_DATA_DIR` | Where the database, samples, voice profiles, images and exports live | `./data` |
-| `PROSEFERNO_PORT` | Port for the local app | `8732` |
-| `PROSEFERNO_SEED_SAMPLES_DIR` | Folder offered for one-click import of your writing | `./my_writing_examples` |
-| `PROSEFERNO_CLAUDE_CONNECTION` | `api` (Console credits) or `subscription` (your Pro/Max plan through Claude Code) | `api` |
-| `PROSEFERNO_MODEL` | Claude model | `claude-opus-5-5` |
-| `PROSEFERNO_USE_FALLBACKS` | Server-side refusal fallback | `true` |
-| `PROSEFERNO_REVISION_PASSES` | Editing passes per post | `1` |
-| `PROSEFERNO_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `OPENING_IDEAS`, `OPENING_JUDGE`, `OPENING_REVIEW`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE`, `IDEA_RESEARCH`, `IDEA_IDEAS`, `IDEA_RANK` | see `config.py` |
-| `PROSEFERNO_REFERENCE_MAX_SEARCHES` | Web searches per reference | `3` |
-| `PROSEFERNO_OPENING_MAX_SEARCHES` | Web searches for the numbers behind a data opener (chart or big number) | `4` |
-| `PROSEFERNO_IDEA_MAX_SEARCHES` | Idea Lab: web searches per research scout at standard depth | `8` |
-| `PROSEFERNO_IDEA_WINDOW_DAYS` | Idea Lab: how many days back the feeds and scouts look | `14` |
-| `PROSEFERNO_CHECK_REFERENCE_LINKS` | Fetch each reference URL once and drop the ones that are gone | `true` |
-| `PROSEFERNO_DEMO` | Demo mode (canned responses) | `false` |
-| `PROSEFERNO_DEMO_SEED` | In demo mode, start an empty database with the example persona and post | `true` |
-| `PROSEFERNO_NO_BROWSER` | Do not open a browser on start | unset |
+| `INFERNO_GHOSTWRITER_DATA_DIR` | Where the database, samples, voice profiles, images and exports live | `./data` |
+| `INFERNO_GHOSTWRITER_PORT` | Port for the local app | `8732` |
+| `INFERNO_GHOSTWRITER_SEED_SAMPLES_DIR` | Folder offered for one-click import of your writing | `./my_writing_examples` |
+| `INFERNO_GHOSTWRITER_CLAUDE_CONNECTION` | `api` (Console credits) or `subscription` (your Pro/Max plan through Claude Code) | `api` |
+| `INFERNO_GHOSTWRITER_MODEL` | Claude model | `claude-opus-5-5` |
+| `INFERNO_GHOSTWRITER_USE_FALLBACKS` | Server-side refusal fallback | `true` |
+| `INFERNO_GHOSTWRITER_REVISION_PASSES` | Editing passes per post | `1` |
+| `INFERNO_GHOSTWRITER_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `OPENING_IDEAS`, `OPENING_JUDGE`, `OPENING_REVIEW`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE`, `IDEA_RESEARCH`, `IDEA_IDEAS`, `IDEA_RANK` | see `config.py` |
+| `INFERNO_GHOSTWRITER_REFERENCE_MAX_SEARCHES` | Web searches per reference | `3` |
+| `INFERNO_GHOSTWRITER_OPENING_MAX_SEARCHES` | Web searches for the numbers behind a data opener (chart or big number) | `4` |
+| `INFERNO_GHOSTWRITER_IDEA_MAX_SEARCHES` | Idea Lab: web searches per research scout at standard depth | `8` |
+| `INFERNO_GHOSTWRITER_IDEA_WINDOW_DAYS` | Idea Lab: how many days back the feeds and scouts look | `14` |
+| `INFERNO_GHOSTWRITER_CHECK_REFERENCE_LINKS` | Fetch each reference URL once and drop the ones that are gone | `true` |
+| `INFERNO_GHOSTWRITER_DEMO` | Demo mode (canned responses) | `false` |
+| `INFERNO_GHOSTWRITER_DEMO_SEED` | In demo mode, start an empty database with the example persona and post | `true` |
+| `INFERNO_GHOSTWRITER_NO_BROWSER` | Do not open a browser on start | unset |
 | `ANTHROPIC_API_KEY` | Claude API key (overrides *Sign in with Claude*) | unset |
-| `PROSEFERNO_AI_DETECTION` | Twin test (or Claude judge) in the AI-detection report | `true` |
-| `PROSEFERNO_HUMANIZE_ROUNDS` | Humanize rounds after the editor's pass (0-2) | `1` |
-| `PROSEFERNO_DEEP_CHECK` | Use the local AI-detector models once set up | `false` |
-| `PROSEFERNO_DETECTOR_ZERO_SHOT_MODEL` | Fast-DetectGPT language model (Hugging Face id) | `openai-community/gpt2` |
-| `PROSEFERNO_DETECTOR_CLASSIFIER_MODEL` | AI-text classifier (Hugging Face id) | `fakespot-ai/roberta-base-ai-text-detection-v1` |
-| `PROSEFERNO_TWIN_PAIRS` | Passages in the twin test | `4` |
+| `INFERNO_GHOSTWRITER_AI_DETECTION` | Twin test (or Claude judge) in the AI-detection report | `true` |
+| `INFERNO_GHOSTWRITER_HUMANIZE_ROUNDS` | Humanize rounds after the editor's pass (0-2) | `1` |
+| `INFERNO_GHOSTWRITER_DEEP_CHECK` | Use the local AI-detector models once set up | `false` |
+| `INFERNO_GHOSTWRITER_DETECTOR_ZERO_SHOT_MODEL` | Fast-DetectGPT language model (Hugging Face id) | `openai-community/gpt2` |
+| `INFERNO_GHOSTWRITER_DETECTOR_CLASSIFIER_MODEL` | AI-text classifier (Hugging Face id) | `fakespot-ai/roberta-base-ai-text-detection-v1` |
+| `INFERNO_GHOSTWRITER_TWIN_PAIRS` | Passages in the twin test | `4` |
 
 Values saved in the app (connection, model, passes, fallback, AI-detection judge, humanize rounds, detector models) take precedence over environment defaults.
 
 ## Claude credentials, in order
 
-1. An API key saved in Proseferno (OS keychain).
+1. An API key saved in Inferno Ghostwriter (OS keychain).
 2. `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` in the environment.
 3. The active Anthropic CLI profile from *Sign in with Claude* (`ant auth login`).
 
@@ -66,9 +66,9 @@ These apply to the **Anthropic API** connection only.
 
 ## Using your Claude subscription (Pro or Max)
 
-Choose **Settings → Claude → Claude subscription** to have Proseferno use your Claude plan instead of API credits.
+Choose **Settings → Claude → Claude subscription** to have Inferno Ghostwriter use your Claude plan instead of API credits.
 
-How it works: Anthropic does not let third-party apps sign in with a Claude.ai account or use subscription credentials themselves ([Anthropic's policy](https://code.claude.com/docs/en/legal-and-compliance)). It does allow you to use your own subscription in the unmodified Claude Code CLI. So Proseferno runs *your* Claude Code in headless mode (`claude -p`) for every model call. Proseferno never sees your Claude credentials.
+How it works: Anthropic does not let third-party apps sign in with a Claude.ai account or use subscription credentials themselves ([Anthropic's policy](https://code.claude.com/docs/en/legal-and-compliance)). It does allow you to use your own subscription in the unmodified Claude Code CLI. So Inferno Ghostwriter runs *your* Claude Code in headless mode (`claude -p`) for every model call. Inferno Ghostwriter never sees your Claude credentials.
 
 Setup:
 
@@ -79,15 +79,15 @@ Setup:
 What to expect:
 
 - Usage counts toward your plan's 5-hour and weekly limits. A full post with images is many calls. When you hit a limit, the error says when it resets, and you can switch to the API meanwhile.
-- Each call is isolated. Proseferno's prompt replaces Claude Code's own system prompt, and the call runs with no tools (web search only for research), no MCP servers, no settings, hooks or CLAUDE.md, no saved session, and an empty working folder. Claude Code still adds a little context of its own, such as today's date.
+- Each call is isolated. Inferno Ghostwriter's prompt replaces Claude Code's own system prompt, and the call runs with no tools (web search only for research), no MCP servers, no settings, hooks or CLAUDE.md, no saved session, and an empty working folder. Claude Code still adds a little context of its own, such as today's date.
 - `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from Claude Code's environment, because Claude Code would otherwise bill the API instead of your plan.
-- The refusal fallback and Proseferno's prompt-cache hints do not apply. Claude Code handles caching, retries and thinking itself.
-- Proseferno runs at most three Claude Code processes at once.
+- The refusal fallback and Inferno Ghostwriter's prompt-cache hints do not apply. Claude Code handles caching, retries and thinking itself.
+- Inferno Ghostwriter runs at most three Claude Code processes at once.
 
 ## Command line
 
 ```bash
-uv run --project backend proseferno --help
+uv run --project backend inferno-ghostwriter --help
 ```
 
 ```text

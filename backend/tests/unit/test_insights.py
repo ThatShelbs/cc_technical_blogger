@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proseferno.voice.insights import count_mix, prose_sentences, sample_sentences, verbatim_only
-from proseferno.voice.schemas import MixCategory, SentenceLabel, VoiceInsights
+from inferno_ghostwriter.voice.insights import count_mix, prose_sentences, sample_sentences, verbatim_only
+from inferno_ghostwriter.voice.schemas import MixCategory, SentenceLabel, VoiceInsights
 
 
 def _insights(labels: list[tuple[int, str]]) -> VoiceInsights:

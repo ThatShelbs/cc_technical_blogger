@@ -5,17 +5,17 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from proseferno.authenticity import AuthorProfile, analyze, blend
-from proseferno.authenticity.detector_worker import ai_label_index, assign_tokens, join_spans
-from proseferno.authenticity.local_detector import FakeDetector, author_range, detector_report, model_score, status
-from proseferno.authenticity.passages import anchor_passages, author_passages, section_anchors, split_paragraphs, tagged
-from proseferno.authenticity.texture import author_texture, measure_texture, monotone_runs, texture_report
-from proseferno.authenticity.twin import Pair, TwinVerdict, TwinVerdicts, build_pairs, pair_score, score_pairs
-from proseferno.config import Settings
-from proseferno.demo import DEMO_HUMANIZE, FakeLLM
-from proseferno.prompts import raw
-from proseferno.writer.humanize import humanize_post, targets
-from proseferno.writer.pipeline import author_material_check, format_author_material
+from inferno_ghostwriter.authenticity import AuthorProfile, analyze, blend
+from inferno_ghostwriter.authenticity.detector_worker import ai_label_index, assign_tokens, join_spans
+from inferno_ghostwriter.authenticity.local_detector import FakeDetector, author_range, detector_report, model_score, status
+from inferno_ghostwriter.authenticity.passages import anchor_passages, author_passages, section_anchors, split_paragraphs, tagged
+from inferno_ghostwriter.authenticity.texture import author_texture, measure_texture, monotone_runs, texture_report
+from inferno_ghostwriter.authenticity.twin import Pair, TwinVerdict, TwinVerdicts, build_pairs, pair_score, score_pairs
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.demo import DEMO_HUMANIZE, FakeLLM
+from inferno_ghostwriter.prompts import raw
+from inferno_ghostwriter.writer.humanize import humanize_post, targets
+from inferno_ghostwriter.writer.pipeline import author_material_check, format_author_material
 
 AUTHOR_POST = """# Pie Charts Are Lame
 

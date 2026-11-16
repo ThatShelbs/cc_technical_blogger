@@ -1,9 +1,9 @@
-"""Voice-fidelity eval: can a careful reader tell Proseferno's post from the real author's?
+"""Voice-fidelity eval: can a careful reader tell Inferno Ghostwriter's post from the real author's?
 
 For each held-out post the author really wrote:
 
 1. Claude extracts the brief the author might have started from (topic + bullets).
-2. Proseferno writes a post from that brief, *without* seeing the held-out post
+2. Inferno Ghostwriter writes a post from that brief, *without* seeing the held-out post
    (it is excluded from the example posts given to the writer).
 3. A blind judge sees an excerpt of the real post and of the generated post (in both
    orders, to cancel position bias) and picks which one the author wrote.
@@ -35,15 +35,15 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from proseferno.authenticity import author_profile, scan
-from proseferno.config import Settings, get_settings
-from proseferno.db import Persona, Sample
-from proseferno.ingest import parse_markdown
-from proseferno.ingest.stylometrics import compute, fidelity
-from proseferno.llm import LLM, SystemBlock
-from proseferno.services import build_services
-from proseferno.voice import latest_voice_profile
-from proseferno.writer import Dials, resolve, write_post
+from inferno_ghostwriter.authenticity import author_profile, scan
+from inferno_ghostwriter.config import Settings, get_settings
+from inferno_ghostwriter.db import Persona, Sample
+from inferno_ghostwriter.ingest import parse_markdown
+from inferno_ghostwriter.ingest.stylometrics import compute, fidelity
+from inferno_ghostwriter.llm import LLM, SystemBlock
+from inferno_ghostwriter.services import build_services
+from inferno_ghostwriter.voice import latest_voice_profile
+from inferno_ghostwriter.writer import Dials, resolve, write_post
 
 EXCERPT_WORDS = 700
 

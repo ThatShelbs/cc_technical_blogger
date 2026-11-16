@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from proseferno.config import Settings
-from proseferno.main import create_app
-from proseferno.services import Services
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.main import create_app
+from inferno_ghostwriter.services import Services
 
 
 def test_every_list_is_empty(client: TestClient) -> None:

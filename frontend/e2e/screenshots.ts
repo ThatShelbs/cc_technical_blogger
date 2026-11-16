@@ -10,6 +10,7 @@ const capture = process.env.UPDATE_SCREENSHOTS === '1'
 /** Save a docs screenshot (only when UPDATE_SCREENSHOTS=1). */
 export async function shot(page: Page, name: string, options: { fullPage?: boolean } = {}) {
   if (!capture) return
-  mkdirSync(SCREENSHOTS, { recursive: true })
-  await page.screenshot({ path: path.join(SCREENSHOTS, `${name}.png`), ...options })
+  const file = path.join(SCREENSHOTS, `${name}.png`)
+  mkdirSync(path.dirname(file), { recursive: true })
+  await page.screenshot({ path: file, ...options })
 }

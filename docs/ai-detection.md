@@ -13,7 +13,7 @@ The same checks also steer the writing: after the editor's pass, a **humanize** 
 
 ## How it is scored
 
-Four parts, each compared with **your own posts** (`backend/src/proseferno/authenticity/`). The weights are 40 / 30 / 15 / 15. When a part does not run, its weight is shared out among the others.
+Four parts, each compared with **your own posts** (`backend/src/inferno_ghostwriter/authenticity/`). The weights are 40 / 30 / 15 / 15. When a part does not run, its weight is shared out among the others.
 
 1. **Real detector models** (`local_detector.py`, `detector_worker.py`). Two open-source AI-text detectors run on your computer, once you set them up:
    - **Fast-DetectGPT** (zero-shot, on a small open language model, default `openai-community/gpt2`) scores each sentence by how close it is to what a language model would write;
@@ -61,7 +61,7 @@ Humanizing happens in four places:
 - **What it downloads, once:** PyTorch and the two models, about 1.3 GB.
 - **How it runs:** in its own process through `uv run --no-project --with torch --with transformers`. The heavy packages live in uv's cache, never in the app's environment, so `uv sync` does not remove them. The models are stored under `data/detector/hf` and run on the CPU. Nothing is sent anywhere.
 - **Where it is not available:** the Windows installer build (no uv). The report then says the models are off.
-- **Checking it:** `proseferno doctor` reports their status.
+- **Checking it:** `inferno-ghostwriter doctor` reports their status.
 
 To check them on real text (your posts should land inside your own range, model-written text outside it):
 
@@ -70,7 +70,7 @@ cd backend
 uv run python scripts/check_detector.py --setup --human my_posts/*.md --ai drafts/*.md
 ```
 
-Change the models with `PROSEFERNO_DETECTOR_ZERO_SHOT_MODEL` and `PROSEFERNO_DETECTOR_CLASSIFIER_MODEL`, using any Hugging Face causal language model and any `AutoModelForSequenceClassification` AI-text classifier. The AI label is found by name.
+Change the models with `INFERNO_GHOSTWRITER_DETECTOR_ZERO_SHOT_MODEL` and `INFERNO_GHOSTWRITER_DETECTOR_CLASSIFIER_MODEL`, using any Hugging Face causal language model and any `AutoModelForSequenceClassification` AI-text classifier. The AI label is found by name.
 
 ## The interview (optional)
 
@@ -80,14 +80,14 @@ Turn on **Interview me first** on *New post* (or as a persona default). Claude a
 
 | Setting | Where | Default |
 | --- | --- | --- |
-| Humanize rounds | Settings → Humanizing (`PROSEFERNO_HUMANIZE_ROUNDS`) | 1 |
-| Real AI-detector models | Settings → Humanizing (`PROSEFERNO_DEEP_CHECK`) | off until set up |
-| Twin test / Claude judge | Settings → Advanced → AI-detection judge (`PROSEFERNO_AI_DETECTION`) | on |
-| Twin test pairs and effort | `PROSEFERNO_TWIN_PAIRS`, `PROSEFERNO_EFFORT_TWIN` | 4, `low` |
+| Humanize rounds | Settings → Humanizing (`INFERNO_GHOSTWRITER_HUMANIZE_ROUNDS`) | 1 |
+| Real AI-detector models | Settings → Humanizing (`INFERNO_GHOSTWRITER_DEEP_CHECK`) | off until set up |
+| Twin test / Claude judge | Settings → Advanced → AI-detection judge (`INFERNO_GHOSTWRITER_AI_DETECTION`) | on |
+| Twin test pairs and effort | `INFERNO_GHOSTWRITER_TWIN_PAIRS`, `INFERNO_GHOSTWRITER_EFFORT_TWIN` | 4, `low` |
 
 ## Eval
 
-`backend/evals/ai_detection.py` scores the persona's own posts and every post Proseferno generated for it. Each own post is held out of its own calibration, so it is compared with the others. The eval writes a Markdown and JSON report to `data/evals/`. It uses the detector models when they are set up.
+`backend/evals/ai_detection.py` scores the persona's own posts and every post Inferno Ghostwriter generated for it. Each own post is held out of its own calibration, so it is compared with the others. The eval writes a Markdown and JSON report to `data/evals/`. It uses the detector models when they are set up.
 
 ```bash
 cd backend

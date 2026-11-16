@@ -57,8 +57,8 @@ export function EvolutionPanel({ personaId }: { personaId: number }) {
         <div>
           <h2 className="text-lg font-bold">Waiting for review</h2>
           <p className="text-sm text-muted">
-            When you publish a post, Proseferno compares your version with what it generated and suggests small changes. When a post does well, it works out the
-            secret sauce. Nothing changes until you apply it.
+            When you publish a post, Inferno Ghostwriter compares your version with what it generated and suggests small changes. When a post does well, it
+            works out the secret sauce. Nothing changes until you apply it.
           </p>
         </div>
         {pending.length === 0 ? (

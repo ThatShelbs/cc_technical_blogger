@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from proseferno.db import Persona
-from proseferno.prompts import render
-from proseferno.writer import Dials, resolve
-from proseferno.writer.formulas import (
+from inferno_ghostwriter.db import Persona
+from inferno_ghostwriter.prompts import render
+from inferno_ghostwriter.writer import Dials, resolve
+from inferno_ghostwriter.writer.formulas import (
     ARTICLE_TYPES,
     AUTO,
     BODIES,
@@ -17,7 +17,7 @@ from proseferno.writer.formulas import (
     meme_note,
     resolve_formula,
 )
-from proseferno.writer.pipeline import prompt_settings
+from inferno_ghostwriter.writer.pipeline import prompt_settings
 
 
 def test_catalog_is_consistent() -> None:

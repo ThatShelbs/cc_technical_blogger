@@ -10,23 +10,23 @@ import pytest
 from PIL import Image
 from pydantic import BaseModel
 
-from proseferno.config import Settings
-from proseferno.db import Persona
-from proseferno.demo import DEMO_OPENING_RESEARCH, DEMO_SOURCE_URL, DRAFT, FakeLLM, opening_build_payload
-from proseferno.export.bundle import _thumbnail
-from proseferno.images import ImageProviderError
-from proseferno.images.memes import ArtDirection, MemeContext, MemeMaker
-from proseferno.images.memes.generate import position_guide
-from proseferno.images.opening import facts
-from proseferno.images.opening.canvas import SAFE_BOTTOM, SAFE_TOP, Canvas, frame, theme_for
-from proseferno.images.opening.charts import fmt_value, nice_ticks
-from proseferno.images.opening.room import OpeningContext, OpeningRoom, load_state, ranking
-from proseferno.images.opening.specs import OpeningBuild, OpeningIdeas, RenderReview
-from proseferno.images.opening.styles import BY_ID, STYLES, clean_style, eligible, suggested
-from proseferno.images.opening.templates import TEMPLATES, apply_words, draw, slot_texts, validate
-from proseferno.llm.base import Citation, LLMImagesUnsupportedError
-from proseferno.writer.dials import Dials, resolve
-from proseferno.writer.formulas import ARTICLE_TYPES, OPENERS
+from inferno_ghostwriter.config import Settings
+from inferno_ghostwriter.db import Persona
+from inferno_ghostwriter.demo import DEMO_OPENING_RESEARCH, DEMO_SOURCE_URL, DRAFT, FakeLLM, opening_build_payload
+from inferno_ghostwriter.export.bundle import _thumbnail
+from inferno_ghostwriter.images import ImageProviderError
+from inferno_ghostwriter.images.memes import ArtDirection, MemeContext, MemeMaker
+from inferno_ghostwriter.images.memes.generate import position_guide
+from inferno_ghostwriter.images.opening import facts
+from inferno_ghostwriter.images.opening.canvas import SAFE_BOTTOM, SAFE_TOP, Canvas, frame, theme_for
+from inferno_ghostwriter.images.opening.charts import fmt_value, nice_ticks
+from inferno_ghostwriter.images.opening.room import OpeningContext, OpeningRoom, load_state, ranking
+from inferno_ghostwriter.images.opening.specs import OpeningBuild, OpeningIdeas, RenderReview
+from inferno_ghostwriter.images.opening.styles import BY_ID, STYLES, clean_style, eligible, suggested
+from inferno_ghostwriter.images.opening.templates import TEMPLATES, apply_words, draw, slot_texts, validate
+from inferno_ghostwriter.llm.base import Citation, LLMImagesUnsupportedError
+from inferno_ghostwriter.writer.dials import Dials, resolve
+from inferno_ghostwriter.writer.formulas import ARTICLE_TYPES, OPENERS
 
 ART = ArtDirection(visual_style="flat vector")
 
@@ -230,7 +230,7 @@ async def test_data_openers_are_researched_and_unverifiable_ones_give_way(monkey
 
     # When research finds nothing and the build invents numbers, the data concept is dropped for the next best.
     async def nothing(**_: Any) -> Any:
-        from proseferno.llm.base import ResearchResult
+        from inferno_ghostwriter.llm.base import ResearchResult
 
         return ResearchResult(text="", citations=[])
 

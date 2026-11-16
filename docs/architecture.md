@@ -1,6 +1,6 @@
 # Architecture
 
-Proseferno is a single local process: a FastAPI backend that serves both the REST API and the built React app on `http://127.0.0.1:8732`.
+Inferno Ghostwriter is a single local process: a FastAPI backend that serves both the REST API and the built React app on `http://127.0.0.1:8732`.
 
 ```mermaid
 flowchart TB
@@ -17,7 +17,7 @@ flowchart TB
     Export[export/ bundles]
     LLM[llm/ RoutingLLM<br/>ClaudeLLM or ClaudeCodeLLM]
   end
-  DB[(SQLite<br/>data/proseferno.db)]
+  DB[(SQLite<br/>data/inferno_ghostwriter.db)]
   Files[(data/ files<br/>samples, voice profiles, images)]
   Keychain[(OS keychain)]
   Claude[[Claude API]]
@@ -38,7 +38,7 @@ flowchart TB
 
 | Module | Responsibility |
 | --- | --- |
-| `config.py` | Settings with smart defaults; `PROSEFERNO_*` env vars or `.env` override them. |
+| `config.py` | Settings with smart defaults; `INFERNO_GHOSTWRITER_*` env vars or `.env` override them. |
 | `services.py` | Builds the long-lived services (engine, storage, secrets, auth, LLM, image service, jobs, the link checker and the Idea Lab feed collector). Tests and demo mode inject fakes here. |
 | `db/` | SQLModel tables: `Persona`, `Sample`, `VoiceProfile`, `Project`, `ProjectImage`, `ProjectReference`, `PersonaEvolution`, `Formula`, `IdeaSignal`, `IdeaTrend`, `IdeaSession`, `Idea`, `Job`, `AppSetting`. `make_engine` adds columns that newer versions define to older databases (additive only). |
 | `jobs.py` | Runs long work as asyncio tasks, persists status, and keeps an in-memory event log per job that `/api/jobs/{id}/events` streams as Server-Sent Events (with sequence ids, so reconnects resume cleanly). |
@@ -56,7 +56,7 @@ flowchart TB
 | `demo.py` | Fake Claude used by tests and `--demo`. |
 | `example.py`, `sample_content/` | The offline "Sample Author" example persona and the bundled sample posts that let a first run work with no files (see below). |
 | `personas.py` | Persona helpers shared by the routes and the example seeding (add a sample, delete a persona). |
-| `doctor.py` | `proseferno doctor`: machine checks with a fix for each problem, and the first-launch demo offer. |
+| `doctor.py` | `inferno-ghostwriter doctor`: machine checks with a fix for each problem, and the first-launch demo offer. |
 
 ## Repository layout
 
@@ -64,7 +64,7 @@ flowchart TB
 launch.bat / launch.sh             One-click start for people using the app
 scripts/                           Developer scripts: setup, dev, check
 backend/                           FastAPI + uv (Python 3.13)
-  src/proseferno/
+  src/inferno_ghostwriter/
     api/        HTTP routes (auth, settings, personas, samples, voice, projects, images, export, jobs/SSE)
     ingest/     Parsers, Medium clean-up, stylometrics
     voice/      Sample analysis, research, voice profile synthesis, exemplar selection, learning from edits
@@ -93,7 +93,7 @@ docs/                              Guides (start with onboarding.md)
 What happens when someone clicks **Write my post**, in the order the code runs:
 
 1. `frontend/src/pages/NewProjectPage.tsx` calls `useProjectMutations().create` (`frontend/src/api/hooks.ts`), which POSTs `/api/projects`.
-2. `create_project` in `backend/src/proseferno/api/projects.py` checks there is an active persona with a voice profile, saves a `Project` row, and calls `start_generation`.
+2. `create_project` in `backend/src/inferno_ghostwriter/api/projects.py` checks there is an active persona with a voice profile, saves a `Project` row, and calls `start_generation`.
 3. `start_generation` hands `writer.generate_article` to `JobManager.start` (`jobs.py`). The route returns the job id immediately (HTTP 201).
 4. The browser navigates to `/projects/{id}?job={job_id}`. `useJob` (`frontend/src/api/useJob.ts`) opens `/api/jobs/{id}/events` (`api/jobs.py`) and folds the server-sent events into progress and the streaming draft.
 5. In the job, `writer/pipeline.py` runs `write_post`: plan (`prompts/plan.md`), streamed draft (`draft.md`), critique (`critique.md`) and revision (`revise.md`), all through the `LLM` protocol. The post's dials are resolved first (`writer/dials.py`), including its formula: the article type, opener, body and closer from `writer/formulas.py`, which the plan, draft and critique prompts all receive (see [formulas](formulas.md)).
@@ -110,7 +110,7 @@ A new user may have no writing and no Claude connection, so three pieces make th
 
 - **Sample posts** (`sample_content/*.md`): `POST /api/personas/{id}/samples/import-sample-writing` adds them as a persona's own writing, so the voice profile can be generated with nothing uploaded.
 - **The example** (`example.py`): `seed_example` creates "Sample Author" with those samples, a voice profile and one finished post, by running the *real* voice and writing pipelines against `demo.FakeLLM` through the normal job manager. It cannot drift from how the app stores things, costs nothing, and `POST /api/example` / `DELETE /api/example` add and remove it. The persona has `is_example = true`, and the UI labels it.
-- **Demo mode** seeds the example on its first start (`main._seed_demo`, turn off with `PROSEFERNO_DEMO_SEED=false`), and `main()` offers demo mode on a bare first launch from a terminal.
+- **Demo mode** seeds the example on its first start (`main._seed_demo`, turn off with `INFERNO_GHOSTWRITER_DEMO_SEED=false`), and `main()` offers demo mode on a bare first launch from a terminal.
 
 The first real persona becomes the active one even when the example is on (`api/personas.create_persona`).
 
