@@ -64,7 +64,7 @@ jobs:
       - run: npm run build
 
   e2e:
-    name: End-to-end (demo mode: first run and seeded tour)
+    name: "End-to-end (demo mode: first run and seeded tour)"
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     steps:
