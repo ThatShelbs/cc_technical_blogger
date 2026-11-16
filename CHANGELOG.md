@@ -14,6 +14,7 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ### Changed
 
+- **Faster, cheaper follow-up edits.** The writer's big cached prefix (voice profile, lessons, exemplars) and the Idea Lab author block now stay cached for an hour instead of five minutes, so a tweak, section rewrite or redraw minutes after the first draft no longer re-reads it cold. Parallel calls over the same prefix (images, redraw all, Idea Lab approaches, voice sample analysis, A/B lanes) now let the first one start streaming before the rest send theirs, so they read the cache instead of each paying to write it. Output and prompts are unchanged.
 - The setup guide no longer offers the Sample Author posts as the new author's own writing; Sample Author stays as the example persona. The Posts checklist and setup guide now share one step list, and the example persona counts as a voice when it is the active one.
 - **A tidier post editor.** The side rail groups its cards into Revise, Sources & look, Quality checks and Brief & settings; each group is collapsible and remembers its state. On phones and tablets Save, Export and Settings sit in a bar at the bottom.
 - **Accessibility.** Shared tabs with arrow-key navigation and linked panels (editor mode, persona and Idea Lab pages), a focus-trapped mobile menu and persona switcher that close on Escape and return focus, and a skip-to-content link.
