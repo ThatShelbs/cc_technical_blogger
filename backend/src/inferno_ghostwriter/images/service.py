@@ -233,7 +233,7 @@ class ImageService:
         except Exception as exc:
             # One broken image must never take down the post (or leave a spinner running forever).
             log.exception("Image %s failed", image_id)
-            updates = {"status": "error", "error": f"Could not create this image ({type(exc).__name__}). Click Redraw to try again."}
+            updates = {"status": "error", "error": f"Could not create this image ({exc!r}). Click Redraw to try again."}
         return self._save(image_id, updates)
 
     def fail_pending(self, project_id: int | None = None, reason: str = STALE_PENDING) -> int:
