@@ -186,3 +186,40 @@ def test_reference_settings_and_persona_default(client: TestClient) -> None:
     url = f"/api/personas/{persona['id']}"
     assert client.patch(url, json={"default_reference_count": 0}).json()["default_reference_count"] == 0
     assert client.patch(url, json={"default_reference_count": None}).json()["default_reference_count"] is None
+
+
+def test_add_reference_by_pasting_a_url(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    pid = create_persona(client)["id"]
+    upload(client, pid, sample_docx)
+    client.post(f"/api/personas/{pid}/voice-profile")
+    created = client.post("/api/projects", json={"prompt": "Pie charts", "dials": {"revision_passes": 0, "reference_count": 0}}).json()
+    url = f"/api/projects/{created['project']['id']}"
+    link = "https://mixtape.example/index.html"
+
+    job = client.post(f"{url}/references/url", json={"url": link})
+    assert job.status_code == 202 and job.json()["status"] == "succeeded", job.text
+    out = client.get(url).json()
+    (ref,) = out["references"]
+    assert ref["url"] == link and ref["user_supplied"] and ref["in_post"] and ref["placement"] == "go_deeper"
+    assert f"]({link})" in out["markdown"] and "## Go deeper" in out["markdown"]
+    assert out["revisions"][0]["kind"] == "reference"
+
+    # The same link twice is refused, and a note-free "source" goes inline in a sentence.
+    again = client.post(f"{url}/references/url", json={"url": link})
+    assert again.json()["status"] == "failed" and "already" in again.json()["error"]
+    inline = client.post(f"{url}/references/url", json={"url": "https://papers.example/a", "kind": "source"})
+    assert inline.json()["status"] == "succeeded", inline.text
+    out = client.get(url).json()
+    assert [r["placement"] for r in out["references"]] == ["go_deeper", "inline"]
+
+    # Redraw re-reads the pasted page instead of swapping in a searched link.
+    redraw = client.post(f"/api/references/{out['references'][0]['id']}/redraw")
+    assert redraw.json()["status"] == "succeeded", redraw.text
+    out = client.get(url).json()
+    assert out["references"][0]["url"] == link and len(out["references"][0]["history"]) == 2
+
+    # Bad input: not a web address, or a page that cannot be read.
+    assert client.post(f"{url}/references/url", json={"url": "mixtape dot com"}).status_code == 422
+    bad = client.post(f"{url}/references/url", json={"url": "https://unreadable.example/"})
+    assert bad.json()["status"] == "failed"
+    assert len(client.get(url).json()["references"]) == 2

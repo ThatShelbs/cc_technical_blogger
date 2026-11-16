@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     effort_draft: Effort = "high"
     effort_critique: Effort = "medium"
     effort_images: Effort = "medium"
+    # Every redraw first critiques the current image and plans how to improve it (see images/remix.py).
+    effort_image_improve: Effort = "medium"
     # The meme writers' room: pitching and judging five jokes is worth more thought than drawing one.
     effort_meme_ideas: Effort = "high"
     # An independent panel picks the funniest pitch, then a review looks at the drawn meme (one redraw if it reads badly).

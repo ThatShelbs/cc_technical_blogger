@@ -7,6 +7,7 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 ### Added
 
 - **Keyboard and quick actions.** A "New post" button and a command palette (Ctrl/Cmd+K) in the sidebar jump to any page, post or persona, switch persona or theme. Ctrl/Cmd+S saves Markdown edits, Ctrl/Cmd+Enter writes from the New post page, and `?` lists the shortcuts. Saving shows a short toast instead of a lasting banner.
+- **Add a reference by pasting a link.** In the References card, paste any URL (optionally a kind and a note about where it belongs): the app reads the page and works it into the post where it fits best, in a sentence or the *Go deeper* list. Redraw on such a link re-reads it instead of replacing it.
 
 ### Changed
 
@@ -20,10 +21,16 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ### Fixed
 
+- **Data art is abstract again.** It no longer draws literal objects such as coins being flipped: it is flowing lines, particles and networks that only hint at the subject. Pitches that name objects are sent back, and the review fails a data-art image that shows them.
+
 - **The old robot is gone from the memes.** Format briefs, the fallback caption meme, the demo cast and the prompts now use the Inferno Ghostwriter ghost.
 - **Posts no longer point at examples that are not there.** "Here is the top of the file:" followed by nothing is gone. The default image count now follows how often you use images (measured from your writing), screenshots are drawn by Claude as a mock of the screen the post describes (use **Replace** for the real one), code the author would show as a screenshot is written as a code block, the editor is shown every lead-in with nothing after it, and anything still missing after editing becomes a drawn image right where the text promised it. Older posts can be fixed in place with `POST /api/projects/{id}/examples`.
 
 ### Added
+
+- **Redraw now improves the image.** Every Redraw first has Claude look at the current image, name its weakest point and plan the fixes, then redraws with those fixes and an experiment: other colors (viridis, ocean, magma, blueprint and more), another cast (dogs, cats, people, robots or objects instead of the ghost), another staging or another medium. The card says what was tried, repeated redraws explore new experiments instead of circling, and a new **Remix** button lets you choose the experiment. This works for every image: the opening image, the closing meme and everything between.
+- **Open with any meme.** The opening image's Ideas board has **Open with a meme…** with the whole meme bank, so the opener can be a meme in any format, not only when the panel pitched one.
+- **Images that build on each other.** When one image extends another (a fitted line, then the same points split into groups), the second is drawn from the first one's source, so both show the same data in the same colors. The planner links them, **Builds on** on the card links any two yourself, and redrawing the first offers to redraw the rest to match.
 
 - **Memes that look different, and land harder.** Every meme is now drawn in one of 11 looks (kawaii, soft 3D, viridis lab, magma noir, corporate slate, retro comic, pixel arcade, whiteboard, blueprint, inferno flat and inferno robots), each with its own rendering style, palette and template theme, chosen to suit the joke and to differ from your recent memes. A **Look** menu on the Ideas board redraws the same joke in another look. An independent judging panel now picks the funniest pitch and can sharpen its words, and Claude looks at the finished image and redraws it once if it reads badly. New classic formats: **Right? Right?** (the "For the better, right?" format), always has been, change my mind, shocked ghost strip and is this a...?
 - **Real AI-detector models and humanizing.** Posts are now scored against your own writing by two open-source detectors running on your computer (Fast-DetectGPT and a trained AI-text classifier; a one-time download from *Settings → Humanizing*), a blind **twin test** (Claude tries to tell passages of the post from your real paragraphs and names the giveaway), the tell scan and a new texture check (sentence-length mix, even rhythm, generic sentences, openers). After the editor's pass a **humanize round** rewrites only the flagged passages next to your own paragraphs and keeps the result only if it reads more like you. Drafts are written next to real paragraphs of yours for each part of the plan. *Humanize* is also in the highlight toolbar. See `docs/ai-detection.md`.

@@ -24,7 +24,7 @@ References are a later pass, like the images, so they never get in the way of th
    - a quote (or the words of a social post) must appear in the research, ignoring case, curly quotes and spacing, and the post must quote the same words;
    - the edit must not rewrite much more than its anchor.
 
-   An edit that fails stays out of the post, and that one reference shows an error with **Redraw**. Nothing is invented, and a failed reference never fails the post.
+   An edit that fails stays out of the post, and that one reference shows an error with **Redraw**. Nothing is invented (every link comes from the search, or is one you pasted), and a failed reference never fails the post.
 
 Then the AI-detection report and the images run on the final text.
 
@@ -50,11 +50,16 @@ In the editor, every reference link has a small chip; click it for **Redraw**, *
 | Redraw (optionally as another kind) | `POST /api/references/{id}/redraw` `{kind?}` | Job `redraw_reference`. Searches again without the tried URLs, writes the new reference into the same spot, adds a version and an undo entry. |
 | Swap a version back | `POST /api/references/{id}/revert` `{index}` | |
 | Remove | `DELETE /api/references/{id}` | The sentence goes back to how it read; an empty *Go deeper* list loses its heading. |
+| Add a link you paste | `POST /api/projects/{id}/references/url` `{url, kind?, note?}` | Job `add_reference_url`. See below. |
 | Add references to an existing post | `POST /api/projects/{id}/references` `{count?, kinds?}` | Job `enrich_post`; for older posts or posts written with references off. |
 
 Both jobs are text jobs (`TEXT_JOBS`), so they never run alongside a tweak or another rewrite. *Undo last change* reverses any of them. A full regeneration replaces all references.
 
 *Add source* and *Add quote* from the section toolbar use the same checks, and what they add appears in the References card with **Redraw** too.
+
+## Adding your own link
+
+Paste a URL under **Add your own link** in the References card (optionally say what kind of link it is and where it should go). The app reads that page itself (`writer/pages.py`: public http(s) pages only, private and local addresses are refused, text capped), asks Claude for the best spot (`UrlPlacement`: a sentence the post already makes, or the *Go deeper* list), and runs the usual weave and `check_edit`, with the pasted address as the only allowed link. A page that cannot be read, a link already in the post, or a spot that cannot be found fails the job with a plain message and leaves the post alone. The row is marked `user_supplied`: **Redraw** re-reads the same page and rewrites the sentence instead of searching for another link. Tests and demo mode use `NoPageReader` (canned page, no network).
 
 ## Settings
 

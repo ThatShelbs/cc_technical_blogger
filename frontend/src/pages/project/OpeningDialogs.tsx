@@ -1,9 +1,10 @@
 import { Laugh, Lightbulb } from 'lucide-react'
 
-import type { OpeningInfoOut, OpeningStyleOut } from '../../api/types.gen'
+import type { MemeFormatOut, OpeningInfoOut, OpeningStyleOut } from '../../api/types.gen'
 import { Badge, Button, Dialog, Select } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { JUDGES, rankPitches } from '../../lib/opening'
+import { MemeFormatPicker } from './MemeDialogs'
 
 /**
  * Every concept the opening room pitched, ranked by the panel: four judges' scores and notes, a pick to build, the
@@ -18,6 +19,8 @@ export function OpeningIdeasDialog({
   onNext,
   onStyle,
   onMemeIdeas,
+  memeFormats = [],
+  onMemeFormat,
 }: {
   open: boolean
   onClose: () => void
@@ -28,6 +31,9 @@ export function OpeningIdeasDialog({
   onStyle: (id: string) => void
   /** The opening meme's own joke pitches, when the opening is a meme */
   onMemeIdeas?: () => void
+  /** The whole meme bank: opening with one of these formats turns the opening image into a meme */
+  memeFormats?: MemeFormatOut[]
+  onMemeFormat?: (id: string) => void
 }) {
   const ranked = rankPitches(opening.pitches)
   return (
@@ -90,6 +96,16 @@ export function OpeningIdeasDialog({
             </option>
           ))}
         </Select>
+        {onMemeFormat && memeFormats.length > 0 && (
+          <MemeFormatPicker
+            formats={memeFormats}
+            value=""
+            onPick={onMemeFormat}
+            label="Open with a meme"
+            placeholder="Open with a meme…"
+            title="Open the post with a meme in any format from the bank; Claude pitches five jokes in it and draws the best"
+          />
+        )}
         {onMemeIdeas && (
           <Button size="sm" variant="ghost" icon={<Laugh className="size-4" />} onClick={onMemeIdeas}>
             Other jokes for this meme

@@ -16,7 +16,7 @@ The best openers often act the idea out as a physical scene: marketing spend as 
 
 ## Never (this is what makes an image look like AI filler)
 
-- Glowing brains, a humanoid robot at a laptop, a hand touching a digital hand, circuit-board or binary-rain backdrops, floating holograms, lens flares, neon grids, generic "data waves" that encode nothing.
+- Glowing brains, a humanoid robot at a laptop, a hand touching a digital hand, circuit-board or binary-rain backdrops, floating holograms, lens flares, neon grids, generic "data waves" that encode nothing (abstract data art is fine when its structure encodes the post's idea; it never contains clip-art objects).
 - Fake text: squiggles standing in for words, gibberish labels, lorem ipsum, unreadable tiny type.
 - A pile of unrelated icons (cloud, gear, lightbulb, rocket) floating around a centre.
 - Real people's likenesses, celebrities, brand logos or other companies' characters.

@@ -37,7 +37,17 @@ from inferno_ghostwriter.writer.revisions import push_revision
 from inferno_ghostwriter.writer.schemas import ImageSlot, PostEdits, TextEdit
 
 # Jobs that change a post's text; only one runs per project at a time.
-TEXT_JOBS = ("generate_post", "tweak_post", "enrich_post", "redraw_reference", "ab_generate", "ab_decide", "add_image", "interview")
+TEXT_JOBS = (
+    "generate_post",
+    "tweak_post",
+    "enrich_post",
+    "add_reference_url",
+    "redraw_reference",
+    "ab_generate",
+    "ab_decide",
+    "add_image",
+    "interview",
+)
 
 
 def locate(markdown: str, text: str) -> tuple[int, int] | None:

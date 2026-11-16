@@ -383,6 +383,8 @@ def _structured_payload(name: str, prompt: str = "", is_showcase: bool = False) 
         return _image_placement(prompt)
     if name == "ReferencePlan":
         return _reference_plan(prompt)
+    if name == "UrlPlacement":
+        return _url_placement(prompt)
     if name == "ReferenceEdits":
         return _reference_edits(prompt)
     if name == "TitleOptions":
@@ -504,6 +506,13 @@ def _structured_payload(name: str, prompt: str = "", is_showcase: bool = False) 
         return {
             "summary": "Added a rule to the Lexicon.",
             "edits": [{"item": "c1", "find": "## Lexicon", "replace": "## Lexicon\n\n- Lead with the concrete example, then the rule."}],
+        }
+    if name == "ImprovementPlan":
+        return {
+            "weakness": "The focal point competes with the background.",
+            "improvements": ["Enlarge the focal element and calm the background", "Cut any text that repeats the caption"],
+            "keep": ["The central metaphor"],
+            "fresh_angle": "Show the same idea from a surprising viewpoint.",
         }
     if name in ("TrendDigest", "IdeaBatch", "IdeaRanking"):
         from inferno_ghostwriter.idealab import demo_data
@@ -650,6 +659,21 @@ def _reference_plan(prompt: str) -> dict[str, Any]:
             continue
         slots.append({"kind": kind, "placement": placement, "anchor": anchor, "purpose": f"A {kind} for the reader", "query": kind})
     return {"slots": slots}
+
+
+def _url_placement(prompt: str) -> dict[str, Any]:
+    """A pasted link goes in the "Go deeper" list, or after the first plain sentence when the author says it is a source."""
+    if "link is a source" in prompt:
+        post = prompt.split("<post>", 1)[-1].split("</post>", 1)[0]
+        paragraphs = [
+            b.strip()
+            for b in post.split("\n\n")
+            if b.strip() and not b.lstrip().startswith(("#", "*", "{{", "```", "-", ">", "|")) and "](http" not in b
+        ]
+        if paragraphs:
+            anchor = re.split(r"(?<=[.!?])\s", paragraphs[0], maxsplit=1)[0]
+            return {"kind": "source", "placement": "inline", "anchor": anchor, "purpose": "Backs up the opening claim"}
+    return {"kind": "resource", "placement": "go_deeper", "anchor": "", "purpose": "Something to read next"}
 
 
 _SLOT_RE = re.compile(

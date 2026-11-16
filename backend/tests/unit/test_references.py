@@ -144,3 +144,33 @@ async def test_demo_research_never_offers_a_tried_url() -> None:
     prompt = "Reference kind: source\nDo not use these URLs, they were already tried: https://example.com/source/1, https://example.com/source/2\n"
     result = await FakeLLM().research(system=[], prompt=prompt, effort="low")
     assert [c.url for c in result.citations] == ["https://example.com/source/3"]
+
+
+async def test_page_reader_extracts_text_and_refuses_private_addresses() -> None:
+    from inferno_ghostwriter.writer.pages import HttpPageReader, PageReadError
+
+    html = (
+        "<html><head><title>Causal Inference: The Mixtape</title><meta name='description' content='A friendly book.'>"
+        "<style>p{}</style></head><body><nav>Menu</nav><p>Potential outcomes explained.</p><script>x()</script></body></html>"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/redirect":
+            return httpx.Response(302, headers={"location": "http://127.0.0.1/secret"})
+        if request.url.path == "/gone":
+            return httpx.Response(404)
+        return httpx.Response(200, headers={"content-type": "text/html"}, text=html)
+
+    reader = HttpPageReader(transport=httpx.MockTransport(handler))
+    page = await reader.read("https://book.example/index.html")
+    assert page.title == "Causal Inference: The Mixtape" and page.description == "A friendly book."
+    assert page.text == "Potential outcomes explained."
+    for bad in (
+        "http://localhost/x",
+        "http://192.168.1.5/",
+        "ftp://book.example/",
+        "https://book.example/redirect",
+        "https://book.example/gone",
+    ):
+        with pytest.raises(PageReadError):
+            await reader.read(bad)

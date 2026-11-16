@@ -13,6 +13,7 @@ import type {
   BaselineDiffOut,
   CopyHtmlOut,
   DetectorStatusOut,
+  AddReferenceUrlIn,
   EnrichIn,
   EvolutionOut,
   FormulaCatalogOut,
@@ -36,6 +37,7 @@ import type {
   InterviewAnswer,
   MemeFormatOut,
   MemeLookOut,
+  RemixDimensionOut,
   OpeningCatalogOut,
   JobOut,
   LinkedInPostOut,
@@ -77,6 +79,7 @@ export const keys = {
   project: (id: number) => ['projects', id] as const,
   memeFormats: ['meme-formats'] as const,
   memeLooks: ['meme-looks'] as const,
+  remixOptions: ['remix-options'] as const,
   openingStyles: ['opening-styles'] as const,
   formulaCatalog: ['formula-catalog'] as const,
   formulas: ['formulas'] as const,
@@ -575,6 +578,10 @@ export const useMemeFormats = (enabled = true) =>
 export const useMemeLooks = (enabled = true) =>
   useQuery({ queryKey: keys.memeLooks, queryFn: () => api.get<MemeLookOut[]>('/api/meme-looks'), staleTime: Infinity, enabled })
 
+/** What Remix can change in a redraw (colors, cast, staging, medium); it never changes while the app runs. */
+export const useRemixOptions = (enabled = true) =>
+  useQuery({ queryKey: keys.remixOptions, queryFn: () => api.get<RemixDimensionOut[]>('/api/remix-options'), staleTime: Infinity, enabled })
+
 const EMPTY_OPENING_CATALOG: OpeningCatalogOut = { styles: [], suggested_by_type: {} }
 
 /** Every way a post can open, and which styles suit each article type; it never changes while the app runs. */
@@ -614,6 +621,10 @@ export interface RedrawPicks {
   memeLook?: string
   openingStyle?: string
   openingConcept?: number
+  /** Pinned parts of the redraw's twist, e.g. { palette: 'viridis', cast: 'dogs' }; the rest is chosen for you. */
+  tweaks?: Record<string, string>
+  /** False skips Claude's critique and only tries the twist. */
+  improve?: boolean
 }
 
 export function useImageMutations(projectId: number) {
@@ -629,8 +640,18 @@ export function useImageMutations(projectId: number) {
           meme_look: picks.memeLook ?? null,
           opening_style: picks.openingStyle ?? null,
           opening_concept: picks.openingConcept ?? null,
+          tweaks: picks.tweaks ?? null,
+          improve: picks.improve ?? true,
         }),
     }),
+    /** Make an image extend an earlier one; it is drawn again from that image's data and look. */
+    buildOn: useMutation({
+      mutationFn: ({ id, slotId }: { id: number; slotId: string }) => api.post<JobOut>(`/api/images/${id}/build-on`, { slot_id: slotId }),
+    }),
+    /** Make an image stand on its own again; its picture stays. */
+    clearBuildOn: useMutation({ mutationFn: (id: number) => api.del<ImageOut>(`/api/images/${id}/build-on`), onSuccess: refresh }),
+    /** Redraw the images that build on this one so they match it again. */
+    matchDependents: useMutation({ mutationFn: (id: number) => api.post<JobOut>(`/api/images/${id}/redraw-dependents`) }),
     /** Retype a code-drawn opening image's words; it is laid out again at once, without asking Claude. */
     openingWords: useMutation({
       mutationFn: ({ id, words }: { id: number; words: Record<string, string> }) => api.put<ImageOut>(`/api/images/${id}/opening-words`, { words }),
@@ -673,6 +694,9 @@ export function useReferenceMutations(projectId: number) {
   return {
     enrich: useMutation({
       mutationFn: (body: EnrichIn = {}) => api.post<JobOut>(`/api/projects/${projectId}/references`, body),
+    }),
+    addUrl: useMutation({
+      mutationFn: (body: AddReferenceUrlIn) => api.post<JobOut>(`/api/projects/${projectId}/references/url`, body),
     }),
     redraw: useMutation({
       mutationFn: ({ id, kind }: { id: number; kind?: ReferenceKind }) => api.post<JobOut>(`/api/references/${id}/redraw`, { kind: kind ?? null }),

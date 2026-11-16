@@ -1,8 +1,8 @@
-import { BookOpen, Dices, History, LocateFixed, MessageSquare, Newspaper, Plus, Quote, Trash2, Wrench, type LucideIcon } from 'lucide-react'
+import { BookOpen, Dices, Link2, History, LocateFixed, MessageSquare, Newspaper, Plus, Quote, Trash2, Wrench, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
 import type { ProjectOut, ReferenceOut } from '../../api/types.gen'
-import { Badge, Button, Card, Dialog, Notice, Select, Spinner } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Input, Notice, Select, Spinner } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { domain, kindLabel, kindsFor, type ReferenceKind } from '../../lib/references'
 import type { ReferenceActions } from './useReferenceActions'
@@ -58,6 +58,7 @@ function ReferenceItem({ reference, actions }: { reference: ReferenceOut; action
         <KindIcon kind={reference.kind} />
         {label}
         {reference.placement === 'go_deeper' && <span>· Go deeper list</span>}
+        {reference.user_supplied && <Badge>Your link</Badge>}
         {reference.status === 'ready' && !reference.in_post && <Badge>Edited out</Badge>}
       </div>
       {reference.status === 'ready' && (
@@ -143,6 +144,58 @@ function ReferenceItem({ reference, actions }: { reference: ReferenceOut; action
   )
 }
 
+/** Paste a link; the app reads the page and works it into the post where it fits best. */
+function AddUrlForm({ actions }: { actions: ReferenceActions }) {
+  const [url, setUrl] = useState('')
+  const [kind, setKind] = useState<'' | 'source' | 'resource' | 'related_article'>('')
+  const [note, setNote] = useState('')
+  const valid = /^https?:\/\/\S+$/i.test(url.trim())
+  return (
+    <form
+      className="space-y-2 border-t border-line pt-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!valid || actions.disabled) return
+        actions.addUrl({ url: url.trim(), kind: kind || null, note: note.trim() }, () => {
+          setUrl('')
+          setNote('')
+        })
+      }}
+    >
+      <label className="block text-xs font-semibold text-muted" htmlFor="reference-url">
+        Add your own link
+      </label>
+      <Input id="reference-url" type="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} disabled={actions.disabled} />
+      <Input
+        aria-label="Where should it go? (optional)"
+        placeholder="Where should it go? (optional)"
+        value={note}
+        maxLength={500}
+        onChange={(e) => setNote(e.target.value)}
+        disabled={actions.disabled}
+      />
+      <div className="flex flex-wrap gap-1.5">
+        <Select
+          aria-label="What kind of link is it?"
+          className="h-8 w-44 text-sm"
+          value={kind}
+          onChange={(e) => setKind(e.target.value as typeof kind)}
+          disabled={actions.disabled}
+        >
+          <option value="">Let Claude decide</option>
+          <option value="source">A source</option>
+          <option value="resource">A resource</option>
+          <option value="related_article">A related article</option>
+        </Select>
+        <Button type="submit" size="sm" variant="secondary" icon={<Link2 className="size-4" />} disabled={actions.disabled || !valid}>
+          Add link
+        </Button>
+      </div>
+      {actions.addingUrl && <Spinner label="Reading the page and finding the best spot…" />}
+    </form>
+  )
+}
+
 /** The post's references: what each one is, where it links, and Redraw / switch kind / versions / remove. */
 export function ReferencesCard({ project, actions }: { project: ProjectOut; actions: ReferenceActions }) {
   const refs = project.references
@@ -158,7 +211,8 @@ export function ReferencesCard({ project, actions }: { project: ProjectOut; acti
         )}
       </div>
       <p className="text-xs text-muted">
-        Sources, quotes, posts and resources found on the web and worked into your post. Every link and quote comes from the search. Redraw any you don’t like.
+        Sources, quotes, posts and resources found on the web and worked into your post. Every link and quote comes from the search, or from a link you paste.
+        Redraw any you don’t like.
       </p>
       {refs.length > 0 && (
         <ul className="space-y-2">
@@ -178,6 +232,7 @@ export function ReferencesCard({ project, actions }: { project: ProjectOut; acti
       >
         {refs.length ? 'Add another' : 'Find references'}
       </Button>
+      <AddUrlForm actions={actions} />
     </Card>
   )
 }
