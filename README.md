@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>The AI ghostwriter for technical minds.</strong><br>
-  Inferno Ghostwriter learns how <em>you</em> write from your past posts, finds what is worth writing next, then drafts, illustrates, tests and exports posts your readers would swear you wrote yourself.
+  Inferno Ghostwriter learns how <em>you</em> write from your past posts (or builds a voice with you if you have none yet), finds what is worth writing next, then drafts, illustrates, tests and exports posts your readers would swear you wrote yourself.
 </p>
 
 <p align="center">
@@ -106,7 +106,7 @@ Then follow the five-step setup guide in the app:
 1. **Connect Claude**: *Sign in with Claude* (browser sign-in through the [Anthropic CLI](https://github.com/anthropics/anthropic-cli/releases), works with your organization's SSO) or paste an Anthropic API key. Have a Claude Pro or Max plan? Choose **Claude subscription** to run on it through [Claude Code](https://code.claude.com/docs/en/setup) instead ([details](docs/configuration.md#using-your-claude-subscription-pro-or-max)).
 2. **Images**: nothing to do. Claude draws illustrations, icons, diagrams, charts and memes itself.
 3. **Persona**: give it a name and a byline for image credits.
-4. **Your writing**: drop in three or more of your posts. If you keep them in a `my_writing_examples/` folder in the repo, the app offers to import them in one click (that folder is git-ignored). No posts yet? Click **Use 3 sample posts** to try the whole flow first.
+4. **Your voice**: either drop in three or more of your posts (upload, paste text or a URL; a `my_writing_examples/` folder in the repo is offered for one-click import and is git-ignored), or choose **I'm starting fresh** and pick a ready-made voice, name writers you admire, answer a few questions, or let it surprise you. No writing needed ([details](docs/no-writing-samples.md)).
 5. **Voice profile**: generate it and read it. Edit anything that is off.
 
 Then click **New post**, describe the post, and watch it being written. Not sure what to write? Open **Idea Lab** and brainstorm.

@@ -1,6 +1,6 @@
 # Onboarding
 
-Start here, whichever of these you are. Every path works **without any API keys and without any writing of your own**.
+Start here, whichever of these you are. Every path works **without any API keys and without any writing of your own**: no posts is a normal way to start ([details](no-writing-samples.md)).
 
 | I want to... | Do this |
 | --- | --- |
@@ -36,9 +36,9 @@ Start here, whichever of these you are. Every path works **without any API keys 
 You do not need to have written anything, or have a Claude account, to see how Inferno Ghostwriter works.
 
 1. **See a finished result.** `launch.bat --demo` opens on an example persona ("Sample Author") with a voice profile and a finished post: a hero image, diagram, chart and closing meme, each credited. Click the post, then **Personas** to read the voice profile. Everything is canned, nothing costs money, and your real data is untouched.
-2. **Try the whole flow with no files.** In the setup guide, **Your writing** offers **Use 3 sample posts**: short posts by the fictional Sample Author. Generate a voice profile from them, then on **New post** click **Use an example prompt**. Replace the samples with your own writing whenever you like.
+2. **Build a voice with no files.** In the setup guide, **Your voice** asks where it comes from. Choose **I'm starting fresh**, then pick a ready-made voice, name writers you admire, answer a few questions, or **Surprise me**. Generate the voice profile, then on **New post** click **Use an example prompt**. Add your own writing whenever you like and the voice sharpens.
 3. **See the example without demo mode.** If you run the real app with nothing set up, the empty Posts page has **See an example post**. It adds the example persona without calling Claude, and **Remove example** (Personas page) deletes it again.
-4. **Ready for real output?** Open **Settings** to sign in with Claude or paste an API key, or choose your Claude subscription. Then upload three or more of your own posts (Word, PDF, Markdown, HTML or a URL).
+4. **Ready for real output?** Open **Settings** to sign in with Claude or paste an API key, or choose your Claude subscription. Then, if you have them, upload three or more of your own posts (Word, PDF, Markdown, HTML, pasted text or a URL).
 
 If you start `launch.bat` on a fresh machine with no Claude connection, it offers to start in demo mode for you.
 

@@ -31,7 +31,7 @@ test('first run: persona, writing sample, voice profile, post, editor, export, t
   await page.getByRole('button', { name: 'Create and continue' }).click()
 
   // Writing sample
-  await expect(page.getByRole('heading', { name: 'Add posts you wrote' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Where does your voice come from?' })).toBeVisible()
   await page.getByLabel('Choose sample files').setInputFiles(SAMPLE)
   await expect(page.getByText('Added 1 sample.')).toBeVisible()
   await shot(page, 'getting-started/07-add-writing')

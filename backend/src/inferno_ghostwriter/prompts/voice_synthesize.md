@@ -1,6 +1,11 @@
 Write the voice profile for **$persona_name** (byline: $display_name).
 
+$mode_note
+
 ## Evidence
+
+### Persona brief (the voice the author chose to start from; with no posts of their own it defines identity)
+$persona_brief
 
 ### Measured style baseline across the author's own posts (exact numbers)
 ```json
@@ -45,6 +50,6 @@ Return only the Markdown document, starting with `# Voice Profile: $persona_name
 9. `## Images & Captions`: how images are used (types, frequency, placement), the exact caption and credit format they use (with real examples), and a one-line **Visual style** for generated images that fits the author's brand.
 10. `## Lexicon`: words and phrases to use (verbatim from the author) and a "Never use" list (including generic AI-writing tells).
 11. `## Do / Don't`: 8-12 crisp rules.
-12. `## Voice Anchors`: 6-10 short verbatim passages from the author's own posts (each 1-4 sentences, quoted exactly, with the post title) chosen to show the voice at its most distinctive: an opening, a transition, a joke, an explanation, a closing.
+12. `## Voice Anchors`: 6-10 short verbatim passages from the author's own posts (or, when they have none, illustrative lines as described above) (each 1-4 sentences, quoted exactly, with the post title) chosen to show the voice at its most distinctive: an opening, a transition, a joke, an explanation, a closing.
 
 Be specific, evidence-based, and concise: aim for about $target_words words in total, scaling every section to fit. This document will be used as the system prompt for writing every future post for this persona.

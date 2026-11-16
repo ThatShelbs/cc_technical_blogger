@@ -6,6 +6,7 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ### Added
 
+- **Build a voice with no writing samples.** About half of new authors have no posts to learn from, so the setup guide's **Your voice** step now starts with a fork: *I have writing* (upload, URL or newly pasted text) or *I'm starting fresh*. Fresh authors pick a ready-made voice (12 archetypes), name 1-4 public writers to be inspired by (a web search extracts style traits only), answer a short interview, or get a random voice, then generate the voice profile as usual. The same chooser appears on a persona's Samples tab, and adding your own posts later sharpens the voice. See [docs/no-writing-samples.md](docs/no-writing-samples.md).
 - **Pick your AI detectors, any mix.** *Settings → Humanizing* now lists the detectors as checkboxes: a new **light check** (built in, instant, no download, on by default) next to Fast-DetectGPT and the AI-text classifier (one-time download, shared). Posts are scored by every ticked detector against your own writing. Authors who had turned the trained models on keep them selected. `INFERNO_GHOSTWRITER_DETECTOR_MODELS` replaces `DEEP_CHECK`.
 - **Quicker images.** The closing meme no longer waits for the opening image unless the opening could itself be a meme (fixed non-meme opening style, or low humor on Auto), so both are made at once.
 - **Keyboard and quick actions.** A "New post" button and a command palette (Ctrl/Cmd+K) in the sidebar jump to any page, post or persona, switch persona or theme. Ctrl/Cmd+S saves Markdown edits, Ctrl/Cmd+Enter writes from the New post page, and `?` lists the shortcuts. Saving shows a short toast instead of a lasting banner.
@@ -13,6 +14,7 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ### Changed
 
+- The setup guide no longer offers the Sample Author posts as the new author's own writing; Sample Author stays as the example persona. The Posts checklist and setup guide now share one step list, and the example persona counts as a voice when it is the active one.
 - **A tidier post editor.** The side rail groups its cards into Revise, Sources & look, Quality checks and Brief & settings; each group is collapsible and remembers its state. On phones and tablets Save, Export and Settings sit in a bar at the bottom.
 - **Accessibility.** Shared tabs with arrow-key navigation and linked panels (editor mode, persona and Idea Lab pages), a focus-trapped mobile menu and persona switcher that close on Escape and return focus, and a skip-to-content link.
 

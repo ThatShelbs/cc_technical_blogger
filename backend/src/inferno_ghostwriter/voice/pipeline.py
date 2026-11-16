@@ -25,6 +25,7 @@ from inferno_ghostwriter.voice.insights import try_build_insights
 from inferno_ghostwriter.voice.lessons import format_lessons
 from inferno_ghostwriter.voice.playbook import approved_changes, format_playbook
 from inferno_ghostwriter.voice.schemas import SampleAnalysis
+from inferno_ghostwriter.voice.sources import Brief, build_brief, label_for
 
 RESEARCH_MAX_AGE = timedelta(days=30)
 
@@ -67,6 +68,18 @@ INFLUENCE_GUIDE = {
     range(7, 10): "Lean on the influences: fold their structure, hooks and devices in wherever they fit the author.",
     range(10, 11): "Make the influences a major source of technique, while identity and soul still come only from the author.",
 }
+
+
+MODE_NOTE_OWN = "Verbatim examples and Voice Anchors come from the author's own posts."
+MODE_NOTE_NO_OWN = (
+    "The author has no posts of their own yet, so there is no verbatim evidence. Build the profile from the persona brief "
+    "(and any influence analyses), and make it a voice a real person can grow into. Where a section asks for a verbatim "
+    "example or quote, write a short *illustrative* line in this voice instead and never present it as the author's "
+    "words. In `## Voice Anchors`, write 6-10 short illustrative lines (an opening, a transition, a joke, an explanation, "
+    "a closing) and begin the section with one sentence saying they are written for this profile, not quoted. "
+    "Do not invent measured numbers: give structure targets as ranges. Never name or imitate a real person's identity; "
+    "traits may be inspired by writers named in the brief."
+)
 
 
 def truncate_words(markdown: str, max_words: int) -> str:
@@ -152,13 +165,14 @@ async def generate_voice_profile(
         all_samples = list(session.exec(select(Sample).where(Sample.persona_id == persona_id)))
         previous = latest_voice_profile(session, persona_id)
         approved = approved_changes(session, persona_id)
-    if not any(s.kind == "own" for s in all_samples):
-        raise VoiceError("Add at least one sample of your own writing before generating a voice profile.")
+    has_brief = persona.source != "samples" and bool(persona.source_spec)
+    if not has_brief and not any(s.kind == "own" for s in all_samples):
+        raise VoiceError("Add at least one sample of your own writing, or pick a voice to start from, before generating a voice profile.")
     samples = samples_in_budget(all_samples, persona)
     if persona.voice_influence_weight <= 0:
         samples = [s for s in samples if s.kind == "own"]
     own = [s for s in samples if s.kind == "own"]
-    if not own:
+    if not own and not has_brief:
         raise VoiceError(
             f"None of your own samples has at least {persona.voice_sample_min_words} words. "
             "Lower the minimum sample length in the voice profile settings."
@@ -202,6 +216,22 @@ async def generate_voice_profile(
             await ctx.progress(0.58, "Researching best practices on the web")
             best_practices = await research_best_practices(llm, settings, ctx)
 
+    # 2b. A persona with no writing of its own (or one that also starts from a chosen voice) gets a brief.
+    brief = Brief()
+    if has_brief:
+        if persona.source == "blend":
+            await ctx.progress(0.6, "Studying the writers you named")
+        brief = await build_brief(llm, settings, persona, ctx)
+        if brief.researched is not None:
+            with Session(engine) as session:
+                row = session.get(Persona, persona_id)
+                if row is not None:
+                    row.source_spec = {**row.source_spec, "researched": brief.researched}
+                    session.add(row)
+                    session.commit()
+        if not label.strip() and not own:
+            label = label_for(persona.source, persona.source_spec)
+
     # 3. Synthesize.
     baseline = aggregate([s.stylometrics for s in own])
     influences = [s for s in samples if s.kind == "influence"]
@@ -222,7 +252,9 @@ async def generate_voice_profile(
             own_analyses=json.dumps([_analysis_payload(s) for s in own], indent=1),
             influence_count=len(influences),
             influence_analyses=json.dumps([_analysis_payload(s) for s in influences], indent=1) if influences else "[]",
-            influence_guide=_influence_guide(persona.voice_influence_weight, len(influences)),
+            influence_guide=_influence_guide(persona.voice_influence_weight, len(influences), has_own=bool(own)),
+            persona_brief=brief.text or "_None: the voice comes from the author's own posts._",
+            mode_note=MODE_NOTE_NO_OWN if not own else MODE_NOTE_OWN,
             best_practices=best_practices or "_No research requested._",
             target_words=persona.voice_profile_words,
             edit_lessons=format_lessons(persona.edit_lessons) or "_None recorded yet._",
@@ -237,15 +269,17 @@ async def generate_voice_profile(
 
     # 4. The Insights page digest (optional: a failure leaves it empty, never the profile).
     await ctx.progress(0.95, "Summarizing your voice for Insights")
-    insights = await try_build_insights(
-        llm,
-        settings,
-        persona_name=persona.display_name or persona.name,
-        profile_markdown=markdown,
-        baseline=baseline,
-        own_samples=own,
-        usage=ctx.add_usage,
-    )
+    insights = None  # Insights are measured on the author's own sentences, so a persona without posts has none yet.
+    if own:
+        insights = await try_build_insights(
+            llm,
+            settings,
+            persona_name=persona.display_name or persona.name,
+            profile_markdown=markdown,
+            baseline=baseline,
+            own_samples=own,
+            usage=ctx.add_usage,
+        )
 
     with Session(engine) as session:
         version = (previous.version + 1) if previous else 1
@@ -254,7 +288,7 @@ async def generate_voice_profile(
             version=version,
             label=label.strip()[:80],
             markdown=markdown,
-            best_practices=best_practices or None,
+            best_practices=_best_practices_field(best_practices, brief.sources),
             sample_ids=[s.id for s in samples if s.id is not None],
             baseline_stylometrics=baseline,
             insights=insights,
@@ -279,10 +313,23 @@ def _analysis_payload(sample: Sample) -> dict[str, Any]:
     return {"title": sample.title, "subtitle": sample.subtitle, "word_count": sample.word_count, **analysis}
 
 
-def _influence_guide(weight: int, count: int) -> str:
+def _best_practices_field(best_practices: str, sources: str | None) -> str | None:
+    """Best-practice research plus the sources behind a named-writers blend, kept with the profile version."""
+    text = best_practices
+    if sources:
+        text = (text + "\n\n" if text else "") + f"## Writers studied for this voice\n{sources}\n"
+    return text or None
+
+
+def _influence_guide(weight: int, count: int, *, has_own: bool = True) -> str:
     if count == 0:
         return "No influence posts are used for this profile."
     weight = max(1, min(10, weight))
+    if not has_own:
+        return (
+            "The author has no posts of their own yet. The persona brief defines their identity; "
+            f"influence weight {weight}/10 says how much of these influences' technique to fold in."
+        )
     return f"Influence weight {weight}/10. " + next(text for span, text in INFLUENCE_GUIDE.items() if weight in span)
 
 
