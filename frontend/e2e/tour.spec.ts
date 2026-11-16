@@ -112,7 +112,7 @@ test('idea lab: brainstorm ten ideas, order them three ways, add a search, and w
   await shot(page, 'idea-bank', { fullPage: true })
 })
 
-test('with no files of your own: remove the example, use the sample posts, write a post', async ({ page }) => {
+test('with no files of your own: remove the example, start from a ready-made voice, write a post', async ({ page }) => {
   await page.goto('/personas')
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: 'Remove example' }).click()
@@ -125,11 +125,12 @@ test('with no files of your own: remove the example, use the sample posts, write
   await page.getByLabel('Persona name').fill('No Files Writer')
   await page.getByRole('button', { name: 'Create and continue' }).click()
 
-  // No upload: the bundled sample posts unblock setup.
-  await expect(page.getByText('No posts handy?')).toBeVisible()
-  await page.getByRole('button', { name: 'Use 3 sample posts' }).click()
-  await expect(page.getByText('Added 3 sample posts.')).toBeVisible()
-  await page.getByRole('button', { name: 'Continue' }).click()
+  // No writing: start fresh from a ready-made voice. Setup never dead-ends.
+  await expect(page.getByRole('heading', { name: 'Where does your voice come from?' })).toBeVisible()
+  await page.getByRole('radio', { name: /starting fresh/ }).click()
+  await page.getByRole('button', { name: /Pick a voice/ }).click()
+  await page.getByRole('button', { name: /The Dry-Wit Staff Engineer/ }).click()
+  await page.getByRole('button', { name: 'Use this voice' }).click()
 
   await page.getByRole('button', { name: 'Generate my voice profile' }).click()
   await expect(page.getByText('Version 1')).toBeVisible({ timeout: 60_000 })

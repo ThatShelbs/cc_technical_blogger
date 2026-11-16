@@ -1,9 +1,9 @@
-import { FolderInput, Link2, Sparkles, Upload } from 'lucide-react'
+import { ClipboardPaste, FolderInput, Link2, Upload } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 
 import { errorText } from '../api/client'
-import { usePersona, useSampleMutations, useSampleWriting, useSeedSamples } from '../api/hooks'
-import { Button, Field, Input, Notice, Select } from './ui'
+import { useSampleMutations, useSeedSamples } from '../api/hooks'
+import { Button, Field, Input, Notice, Select, Textarea } from './ui'
 import { cx } from '../lib/cx'
 
 const ACCEPT = '.docx,.pdf,.md,.markdown,.txt,.html,.htm'
@@ -11,10 +11,10 @@ const ACCEPT = '.docx,.pdf,.md,.markdown,.txt,.html,.htm'
 export function SampleUploader({ personaId, defaultKind = 'own' }: { personaId: number; defaultKind?: 'own' | 'influence' }) {
   const mutations = useSampleMutations(personaId)
   const seed = useSeedSamples()
-  const sampleWriting = useSampleWriting()
-  const { data: persona } = usePersona(personaId)
   const [kind, setKind] = useState<'own' | 'influence'>(defaultKind)
   const [url, setUrl] = useState('')
+  const [pasted, setPasted] = useState('')
+  const [pastedTitle, setPastedTitle] = useState('')
   const [dragging, setDragging] = useState(false)
   const [messages, setMessages] = useState<{ tone: 'success' | 'error'; text: string }[]>([])
   const input = useRef<HTMLInputElement>(null)
@@ -136,30 +136,47 @@ export function SampleUploader({ personaId, defaultKind = 'own' }: { personaId: 
         </div>
       )}
 
-      {kind === 'own' && persona?.own_samples === 0 && sampleWriting.data && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/50 bg-accent-soft px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">No posts handy?</p>
-            <p className="text-sm text-muted">
-              Try {sampleWriting.data.files.length} short sample posts by a fictional “{sampleWriting.data.author}” to see how it works. Replace them with your
-              own writing any time.
-            </p>
+      <form
+        className="space-y-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          mutations.addText.mutate(
+            { text: pasted, title: pastedTitle, kind },
+            {
+              onSuccess: (sample) => {
+                setPasted('')
+                setPastedTitle('')
+                setMessages([{ tone: 'success', text: `Added “${sample.title}”.` }])
+              },
+              onError: (error) => setMessages([{ tone: 'error', text: errorText(error) }]),
+            },
+          )
+        }}
+      >
+        <Field label="Or paste text" hint="A post, an email, a LinkedIn update, a README: anything you wrote (at least 50 words)." htmlFor="sample-text">
+          <Textarea id="sample-text" rows={4} value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="Paste something you wrote…" />
+        </Field>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-48 flex-1">
+            <Input
+              aria-label="Title (optional)"
+              value={pastedTitle}
+              onChange={(e) => setPastedTitle(e.target.value)}
+              placeholder="Title (optional)"
+              maxLength={200}
+            />
           </div>
           <Button
-            icon={<Sparkles className="size-4" />}
-            loading={mutations.importSampleWriting.isPending}
-            onClick={() =>
-              mutations.importSampleWriting.mutate(undefined, {
-                onSuccess: (result) =>
-                  setMessages([{ tone: 'success', text: `Added ${result.added.length} sample posts. Delete them later from the persona page.` }]),
-                onError: (error) => setMessages([{ tone: 'error', text: errorText(error) }]),
-              })
-            }
+            type="submit"
+            variant="secondary"
+            icon={<ClipboardPaste className="size-4" />}
+            disabled={!pasted.trim()}
+            loading={mutations.addText.isPending}
           >
-            Use {sampleWriting.data.files.length} sample posts
+            Add text
           </Button>
         </div>
-      )}
+      </form>
 
       {messages.map((m, i) => (
         <Notice key={i} tone={m.tone}>

@@ -171,6 +171,16 @@ class FakeLLM:
                 usage({"input_tokens": 500, "output_tokens": 300, "requests": 1})
             text, pages = demo_scout()
             return ResearchResult(text=text, citations=[Citation(url=url, title=title) for url, title in pages])
+        if prompt.startswith("Style research:"):
+            names = re.findall(r"^- (.+?) \[\d+\]$", prompt, re.MULTILINE)
+            text = (
+                "## Per-writer style notes\n"
+                + "\n".join(
+                    f"### {n}\n- Short, direct sentences with one vivid example per section.\n- Opens on a concrete moment." for n in names
+                )
+                + "\n\n## The blend\nTake the clarity of the first writer and the candor of the rest.\n\n## Pitfalls\nDo not imitate; stay fresh."
+            )
+            return ResearchResult(text=text, citations=[Citation(url="https://example.com/style-notes", title="Style notes")])
         if prompt.startswith("Find the real numbers for the opening chart"):
             text, url = (showcase.OPENING_RESEARCH, showcase.SOURCE_URL) if self.showcase else (DEMO_OPENING_RESEARCH, DEMO_SOURCE_URL)
             return ResearchResult(text=text, citations=[Citation(url=url, title="Example study", cited_text=text)])

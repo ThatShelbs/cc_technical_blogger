@@ -6,22 +6,26 @@ import { errorText } from '../api/client'
 import { useActivePersona, useAuthStatus, useHealth, usePersonaMutations } from '../api/hooks'
 import { ClaudeConnect, ImagesCard } from '../components/Connections'
 import { SampleUploader } from '../components/SampleUploader'
+import { VoiceFork, VoiceStart } from '../components/VoiceStart'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
 import { Button, Card, Notice } from '../components/ui'
 import { cx } from '../lib/cx'
+import { SETUP_STEPS, setupDone } from '../lib/onboarding'
 import { CreatePersonaForm } from './PersonasPage'
 
-const STEPS = ['Connect Claude', 'Images', 'Persona', 'Your writing', 'Voice profile'] as const
+const STEPS = SETUP_STEPS.map((s) => s.label)
 
 export function WelcomePage() {
   const auth = useAuthStatus()
   const health = useHealth()
   const { data: persona } = useActivePersona()
   const [step, setStep] = useState(0)
+  const [fork, setFork] = useState<'writing' | 'fresh'>('writing')
   const navigate = useNavigate()
   const { createExample } = usePersonaMutations()
 
-  const done = [!!auth.data?.signed_in || !!health.data?.demo, true, !!persona, (persona?.own_samples ?? 0) > 0, !!persona?.voice_profile_version]
+  const doneMap = setupDone({ signedIn: !!auth.data?.signed_in, demo: !!health.data?.demo, persona })
+  const done = SETUP_STEPS.map((s) => doneMap[s.id])
   const canNext = step === 1 || done[step]
 
   return (
@@ -32,7 +36,8 @@ export function WelcomePage() {
           Welcome to Inferno <span className="flame-text">Ghostwriter</span>
         </h1>
         <p className="mt-2 max-w-xl text-muted">
-          Five quick steps and every technical post you generate will sound like you wrote it, because it learned from what you wrote.
+          Five quick steps and every technical post you generate will have a voice that is yours: learned from your own writing, or built from scratch if you
+          have none yet.
         </p>
       </div>
 
@@ -99,13 +104,25 @@ export function WelcomePage() {
             </Card>
           ))}
         {step === 3 && persona && (
-          <Card>
-            <h2 className="mb-1 text-lg font-bold">Add posts you wrote</h2>
-            <p className="mb-4 text-sm text-muted">
-              Three or more is ideal. You can also add posts by writers you admire as “influences”; Inferno Ghostwriter borrows their techniques, never their
-              identity.
-            </p>
-            <SampleUploader personaId={persona.id} />
+          <Card className="space-y-4">
+            <div>
+              <h2 className="mb-1 text-lg font-bold">Where does your voice come from?</h2>
+              <p className="text-sm text-muted">
+                Either works. Posts you wrote give the most accurate voice (three or more is ideal), and you can always add them later to sharpen a voice you
+                started from scratch.
+              </p>
+            </div>
+            <VoiceFork value={fork} onChange={setFork} />
+            {fork === 'writing' ? (
+              <>
+                <SampleUploader personaId={persona.id} />
+                <p className="text-sm text-muted">
+                  You can also add posts by writers you admire as “influences”; Inferno Ghostwriter borrows their techniques, never their identity.
+                </p>
+              </>
+            ) : (
+              <VoiceStart persona={persona} onChosen={() => setStep(4)} />
+            )}
           </Card>
         )}
         {step === 4 && persona && <VoiceProfilePanel personaId={persona.id} />}

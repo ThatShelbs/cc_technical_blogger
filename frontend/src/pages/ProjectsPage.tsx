@@ -6,17 +6,20 @@ import { errorText } from '../api/client'
 import { useActivePersona, useAuthStatus, usePersonaMutations, usePersonas, useProjectMutations, useProjects } from '../api/hooks'
 import { Badge, Button, Card, EmptyState, Notice, PageHeader, Spinner } from '../components/ui'
 import { cx } from '../lib/cx'
+import { setupDone } from '../lib/onboarding'
 import { outcomeInfo, STAGES, stageInfo, type Stage } from '../lib/stages'
 
 function SetupChecklist() {
   const auth = useAuthStatus()
   const { data: persona, isLoading } = useActivePersona()
   if (auth.isLoading || isLoading) return null
+  const done = setupDone({ signedIn: !!auth.data?.signed_in, demo: false, persona })
+  const target = persona ? `/personas/${persona.id}` : '/personas'
   const steps = [
-    { done: !!auth.data?.signed_in, label: 'Connect Claude', to: '/settings' },
-    { done: !!persona, label: 'Create a persona', to: '/personas' },
-    { done: (persona?.own_samples ?? 0) > 0, label: 'Add posts you wrote', to: persona ? `/personas/${persona.id}` : '/personas' },
-    { done: !!persona?.voice_profile_version, label: 'Generate your voice profile', to: persona ? `/personas/${persona.id}` : '/personas' },
+    { done: done.connect, label: 'Connect Claude', to: '/settings' },
+    { done: done.persona, label: 'Create a persona', to: '/personas' },
+    { done: done.voice, label: 'Choose your voice: your posts, or one to start from', to: '/welcome' },
+    { done: done.profile, label: 'Generate your voice profile', to: target },
   ]
   if (steps.every((s) => s.done)) return null
   return (
@@ -24,7 +27,7 @@ function SetupChecklist() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold">Finish setting up</h2>
-          <p className="text-sm text-muted">A few minutes of setup, then every post sounds like you.</p>
+          <p className="text-sm text-muted">A few minutes of setup, with or without writing samples, then every post has a voice.</p>
         </div>
         <Link to="/welcome">
           <Button variant="flame">Open the setup guide</Button>
@@ -58,7 +61,7 @@ export function ProjectsPage() {
   const [filter, setFilter] = useState<Stage | 'all'>('all')
   const shown = projects?.filter((p) => filter === 'all' || p.stage === filter)
   const examplePersonas = new Set(personas?.filter((p) => p.is_example).map((p) => p.id))
-  const hasVoice = !!personas?.some((p) => p.is_active && !p.is_example && p.voice_profile_version)
+  const hasVoice = !!personas?.some((p) => p.is_active && p.voice_profile_version)
   const newPost = (
     <Link to="/projects/new">
       <Button variant="flame" icon={<PenLine className="size-4" />}>
@@ -110,7 +113,7 @@ export function ProjectsPage() {
         >
           {hasVoice
             ? 'Start with a sentence or a bullet-point outline. Everything else has smart defaults.'
-            : 'Set up your voice from your own writing, or look at a finished example first. The example needs no Claude connection.'}
+            : 'Set up your voice from your own writing, or from a ready-made voice if you have none yet. Or look at a finished example first; it needs no Claude connection.'}
         </EmptyState>
       )}
       {!!projects?.length && (

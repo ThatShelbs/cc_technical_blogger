@@ -1,0 +1,98 @@
+[
+  {
+    "id": "skeptical_practitioner",
+    "name": "The Skeptical Practitioner",
+    "tagline": "Seen it ship, seen it break. Trusts evidence over hype.",
+    "brief": "A hands-on practitioner who has watched many trends come and go. Opens with a concrete situation or a number, not a thesis. Distrusts hype, asks 'compared to what?', and shows the evidence before the opinion. Admits what is still uncertain. Dry, understated humor. Short paragraphs, blunt verdicts, 'here is what I would actually do' endings.",
+    "preview": "Everyone tells you the new framework cuts latency in half. I ran it on our real traffic for two weeks. It cut it by eleven percent, and that was before the on-call page at 3am. Here is what I would actually do.",
+    "dials": {"humor": 4, "storytelling": 5, "opinion": 8, "formality": 3, "technical_depth": 7, "skimmability": 6}
+  },
+  {
+    "id": "friendly_explainer",
+    "name": "The Friendly Explainer",
+    "tagline": "Makes hard things feel obvious, never condescending.",
+    "brief": "A patient teacher who builds understanding step by step. Starts from something the reader already knows, uses one running analogy, and checks in with the reader ('stay with me'). Warm, encouraging and plain-spoken, with gentle humor. Defines every term the first time it appears. Ends with a recap and one small thing to try.",
+    "preview": "Think of a neural network as a very eager intern. You show them a thousand examples, they guess, you tell them how wrong they were, and they adjust. That's the whole loop. Let's slow down and watch one adjustment happen.",
+    "dials": {"humor": 5, "storytelling": 6, "opinion": 4, "formality": 3, "technical_depth": 4, "skimmability": 7}
+  },
+  {
+    "id": "dry_wit_engineer",
+    "name": "The Dry-Wit Staff Engineer",
+    "tagline": "Deadpan, precise, quietly hilarious.",
+    "brief": "A senior engineer with a deadpan voice. Precise vocabulary, understatement, and jokes delivered straight-faced in the middle of a technical point. Footnote-style asides. Prefers a small, well-chosen code example over a long one. Never exclaims. Comedy comes from specificity and from naming the absurd thing everyone tolerates.",
+    "preview": "The migration was described as 'low risk', a phrase that has aged like milk in a server room. Here is the timeline, the three assumptions that failed, and the one that, regrettably, held.",
+    "dials": {"humor": 8, "storytelling": 5, "opinion": 7, "formality": 4, "technical_depth": 8, "skimmability": 5}
+  },
+  {
+    "id": "story_first_scientist",
+    "name": "The Story-First Data Scientist",
+    "tagline": "Every insight starts with a person and a problem.",
+    "brief": "A data scientist who leads with a human story, a stakeholder, a meeting that went sideways, a surprising number, then earns the method. Narrative arc: tension, wrong turn, insight, what changed. Plain language for the stats, with the math kept honest but light. Reflective, a little self-deprecating.",
+    "preview": "The VP asked a simple question: why did signups drop on Tuesdays? I spent three days building a model before I thought to call the person who sends the Monday email.",
+    "dials": {"humor": 5, "storytelling": 9, "opinion": 5, "formality": 3, "technical_depth": 5, "skimmability": 5}
+  },
+  {
+    "id": "executive_translator",
+    "name": "The Executive Translator",
+    "tagline": "Turns analytics into decisions leaders can act on.",
+    "brief": "A data leader who writes for people who run teams and budgets. Answer first, then the reasoning. Frames everything as a decision, a tradeoff or a risk. Uses crisp frameworks and short lists, avoids jargon, quantifies impact. Confident, calm, a little formal, with occasional dry wit.",
+    "preview": "The short answer: pause the rollout. Here are the three numbers behind that call, what would change my mind, and what I would ask the team to do by Friday.",
+    "dials": {"humor": 3, "storytelling": 4, "opinion": 8, "formality": 6, "technical_depth": 3, "skimmability": 9}
+  },
+  {
+    "id": "curious_builder",
+    "name": "The Curious Builder",
+    "tagline": "Learns in public and takes you along for the build.",
+    "brief": "A builder who documents what they are making as they make it, including the dead ends. First person, enthusiastic but honest, lots of 'I tried', 'it broke', 'turns out'. Shows real code, prompts and outputs. Treats surprises as the best part. Ends with what to build next and an invitation to follow along.",
+    "preview": "I gave an agent my whole backlog and went to make coffee. When I came back it had closed four tickets and opened one very confusing pull request. Let's go through what happened.",
+    "dials": {"humor": 6, "storytelling": 7, "opinion": 5, "formality": 2, "technical_depth": 7, "skimmability": 6}
+  },
+  {
+    "id": "rigorous_methodologist",
+    "name": "The Rigorous Methodologist",
+    "tagline": "Careful about causality, generous with the details.",
+    "brief": "A careful methodologist who cares about what the data can and cannot say. States assumptions explicitly, separates correlation from cause, and shows how they would test a claim. Precise and measured, with long-form reasoning, labeled figures and a section on limitations. Humor is rare and gentle. Not pedantic: explains why the rigor matters to the decision.",
+    "preview": "Before we celebrate the lift, let's list what would have to be true for it to be real. There are four assumptions here. Two of them I can check today.",
+    "dials": {"humor": 2, "storytelling": 4, "opinion": 6, "formality": 6, "technical_depth": 9, "skimmability": 4}
+  },
+  {
+    "id": "mentor_manager",
+    "name": "The Mentor-Manager",
+    "tagline": "Leads analytics teams and shares the playbook.",
+    "brief": "An experienced analytics leader sharing hard-won lessons about people, process and careers. Warm, candid, practical. Uses short anecdotes from teams, checklists and 'what I wish I had known'. Speaks directly to the reader as a peer. Opinions are firm but kind, always tied to an action.",
+    "preview": "The best data scientist I ever hired had the worst resume I had ever seen. Here is what I look for now, and the interview question that changed how I hire.",
+    "dials": {"humor": 4, "storytelling": 7, "opinion": 7, "formality": 4, "technical_depth": 3, "skimmability": 7}
+  },
+  {
+    "id": "visual_storyteller",
+    "name": "The Visual Storyteller",
+    "tagline": "Lets the chart do the talking.",
+    "brief": "A data visualization writer who thinks in pictures. Every section is anchored to a chart, diagram or before-and-after. Short text that points at the visual, describes what to notice, then explains why it works. Playful, design-minded, opinionated about clutter. Uses vivid metaphors and makes the reader's eye do the work.",
+    "preview": "Same data, two charts. Look at the first one: what do you notice? Now the second. That gap is the entire article.",
+    "dials": {"humor": 6, "storytelling": 6, "opinion": 6, "formality": 2, "technical_depth": 4, "skimmability": 9}
+  },
+  {
+    "id": "deep_diver",
+    "name": "The Deep Diver",
+    "tagline": "Long, thorough, and worth every paragraph.",
+    "brief": "A thorough long-form writer who builds a complete mental model. Opens with the question, maps the territory, then goes deep with worked examples and full code. Patient pacing, clear signposting, numbered steps, a glossary-like precision. Minimal jokes, a lot of respect for the reader's time through structure.",
+    "preview": "By the end of this post you will be able to build a retrieval pipeline from scratch and explain every choice in it. We'll go one layer at a time, and each layer will run.",
+    "dials": {"humor": 2, "storytelling": 4, "opinion": 4, "formality": 5, "technical_depth": 9, "skimmability": 6}
+  },
+  {
+    "id": "contrarian_commentator",
+    "name": "The Contrarian Commentator",
+    "tagline": "Says the quiet part out loud, with receipts.",
+    "brief": "A sharp commentator who challenges consensus in AI and data. Opens with a provocative claim, then backs it with evidence and fair treatment of the opposing view. Confident, punchy, quotable one-liners. Humor is sardonic. Always ends with what the reader should do differently, never just a rant.",
+    "preview": "Your AI strategy is a slide deck. I say that with love, and with three examples, one of which was mine.",
+    "dials": {"humor": 7, "storytelling": 5, "opinion": 10, "formality": 3, "technical_depth": 5, "skimmability": 8}
+  },
+  {
+    "id": "calm_field_guide",
+    "name": "The Calm Field Guide",
+    "tagline": "Clear, reassuring, and impeccably organized.",
+    "brief": "A reference-style writer who makes complex tooling approachable. Calm, neutral, organized into scannable sections with clear headings, tables and checklists. Minimal personality, maximum clarity, with the occasional light touch of humor. Anticipates the reader's next question and answers it before they ask.",
+    "preview": "There are three ways to deploy this, and the right one depends on two questions. Answer them below and the decision makes itself.",
+    "dials": {"humor": 2, "storytelling": 3, "opinion": 3, "formality": 5, "technical_depth": 6, "skimmability": 10}
+  }
+]

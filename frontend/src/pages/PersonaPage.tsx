@@ -9,6 +9,7 @@ import { EvolutionPanel } from '../components/EvolutionPanel'
 import { FormulaFields } from '../components/FormulaFields'
 import { SampleUploader } from '../components/SampleUploader'
 import { VoiceProfilePanel } from '../components/VoiceProfilePanel'
+import { VoiceStart } from '../components/VoiceStart'
 import { Badge, Button, Card, Dialog, Field, Input, Notice, PageHeader, Select, Slider, Spinner, Switch } from '../components/ui'
 import { cx } from '../lib/cx'
 import { buildFormula, formulaFrom } from '../lib/formula'
@@ -22,64 +23,80 @@ const TABS: Tab[] = ['samples', 'voice', 'insights', 'evolution', 'settings']
 function SamplesTab({ personaId }: { personaId: number }) {
   const { data: samples, isLoading } = useSamples(personaId)
   const mutations = useSampleMutations(personaId)
+  const { data: persona } = usePersona(personaId)
+  const navigate = useNavigate()
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <Card>
-        <h2 className="mb-4 text-lg font-bold">Add writing samples</h2>
-        <SampleUploader personaId={personaId} />
-      </Card>
-      <div className="min-w-0 space-y-3">
-        <h2 className="text-lg font-bold">Samples ({samples?.length ?? 0})</h2>
-        {isLoading && <Spinner />}
-        {samples?.length === 0 && <p className="text-muted">No samples yet.</p>}
-        <ul className="space-y-2">
-          {samples?.map((sample) => (
-            <li key={sample.id} className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3">
-              <FileText className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold" title={sample.title}>
-                  {sample.title}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                  <p className="flex flex-wrap gap-x-1.5 text-xs text-muted">
-                    <span>{sample.word_count.toLocaleString()} words</span>
-                    <span aria-hidden>·</span>
-                    <span>
-                      {sample.image_count} image{sample.image_count === 1 ? '' : 's'}
-                    </span>
-                    <span aria-hidden>·</span>
-                    <span className="uppercase">{sample.source_type}</span>
-                    {sample.analyzed && (
-                      <>
-                        <span aria-hidden>·</span>
-                        <span className="text-success">analyzed</span>
-                      </>
-                    )}
+    <div className="space-y-6">
+      {persona && persona.own_samples === 0 && (
+        <Card className="space-y-3">
+          <div>
+            <h2 className="text-lg font-bold">No posts of your own yet? Start from a voice</h2>
+            <p className="text-sm text-muted">
+              Pick a ready-made voice, name writers you admire, or answer a few questions. Add your own posts below at any time and the voice gets more like
+              you.
+            </p>
+          </div>
+          <VoiceStart persona={persona} onChosen={() => navigate('?tab=voice')} />
+        </Card>
+      )}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <Card>
+          <h2 className="mb-4 text-lg font-bold">Add writing samples</h2>
+          <SampleUploader personaId={personaId} />
+        </Card>
+        <div className="min-w-0 space-y-3">
+          <h2 className="text-lg font-bold">Samples ({samples?.length ?? 0})</h2>
+          {isLoading && <Spinner />}
+          {samples?.length === 0 && <p className="text-muted">No samples yet.</p>}
+          <ul className="space-y-2">
+            {samples?.map((sample) => (
+              <li key={sample.id} className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3">
+                <FileText className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold" title={sample.title}>
+                    {sample.title}
                   </p>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Select
-                      aria-label={`Sample type for ${sample.title}`}
-                      className="h-8 w-32 text-xs"
-                      value={sample.kind}
-                      onChange={(e) => mutations.setKind.mutate({ id: sample.id, kind: e.target.value as 'own' | 'influence' })}
-                    >
-                      <option value="own">My writing</option>
-                      <option value="influence">Influence</option>
-                    </Select>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
-                      aria-label={`Delete ${sample.title}`}
-                      onClick={() => mutations.remove.mutate(sample.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex flex-wrap gap-x-1.5 text-xs text-muted">
+                      <span>{sample.word_count.toLocaleString()} words</span>
+                      <span aria-hidden>·</span>
+                      <span>
+                        {sample.image_count} image{sample.image_count === 1 ? '' : 's'}
+                      </span>
+                      <span aria-hidden>·</span>
+                      <span className="uppercase">{sample.source_type}</span>
+                      {sample.analyzed && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span className="text-success">analyzed</span>
+                        </>
+                      )}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Select
+                        aria-label={`Sample type for ${sample.title}`}
+                        className="h-8 w-32 text-xs"
+                        value={sample.kind}
+                        onChange={(e) => mutations.setKind.mutate({ id: sample.id, kind: e.target.value as 'own' | 'influence' })}
+                      >
+                        <option value="own">My writing</option>
+                        <option value="influence">Influence</option>
+                      </Select>
+                      <button
+                        type="button"
+                        className="rounded-md p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
+                        aria-label={`Delete ${sample.title}`}
+                        onClick={() => mutations.remove.mutate(sample.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   )

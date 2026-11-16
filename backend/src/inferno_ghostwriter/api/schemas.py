@@ -254,6 +254,9 @@ class PersonaOut(BaseModel):
     voice_sample_max_words: int
     voice_sample_min_words: int
     voice_influence_weight: int
+    # Where the voice comes from: "samples" or a chosen start for authors without posts (see voice.sources).
+    source: str
+    source_spec: dict[str, Any]
     edit_lessons: list[EditLesson]
     playbook: list[PlaybookEntry]
     # Proposals from published posts waiting for review.
@@ -349,6 +352,41 @@ class VoiceProfileEdit(BaseModel):
 
 class VoiceProfileGenerateIn(BaseModel):
     label: str = Field("", max_length=80)
+
+
+class VoiceSourceIn(BaseModel):
+    """Choose where a persona's voice starts: an archetype, a surprise, named writers or an interview."""
+
+    source: Literal["archetype", "random", "blend", "interview"]
+    spec: dict[str, Any] = Field(default_factory=dict)
+
+
+class ArchetypeOut(BaseModel):
+    id: str
+    name: str
+    tagline: str
+    preview: str
+    dials: dict[str, int]
+
+
+class InterviewQuestionOut(BaseModel):
+    id: str
+    question: str
+    hint: str
+
+
+class SurpriseOut(BaseModel):
+    spec: dict[str, Any]
+    archetype: ArchetypeOut
+    secondary: ArchetypeOut | None
+
+
+class SampleTextIn(BaseModel):
+    """Pasted text added as a sample (an email, a post, a bio...)."""
+
+    text: str = Field(min_length=1)
+    title: str = Field("", max_length=200)
+    kind: SampleKind = "own"
 
 
 class VoiceProfileLabelIn(BaseModel):

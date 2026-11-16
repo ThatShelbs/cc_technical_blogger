@@ -14,6 +14,7 @@ import type {
   CopyHtmlOut,
   DetectorStatusOut,
   AddReferenceUrlIn,
+  ArchetypeOut,
   EnrichIn,
   EvolutionOut,
   FormulaCatalogOut,
@@ -35,6 +36,7 @@ import type {
   IdeaWriteIn,
   ImageOut,
   InterviewAnswer,
+  InterviewQuestionOut,
   MemeFormatOut,
   MemeLookOut,
   RemixDimensionOut,
@@ -54,13 +56,16 @@ import type {
   ProjectUpdate,
   RewriteIn,
   SampleOut,
+  SampleTextIn,
   SampleWritingOut,
   SeedSamplesOut,
   SettingsIn,
   SettingsOut,
+  SurpriseOut,
   UploadResult,
   VoiceProfileOut,
   VoiceProfileVersion,
+  VoiceSourceIn,
 } from './types.gen'
 
 export const keys = {
@@ -217,6 +222,21 @@ export function usePersonaMutations() {
       mutationFn: ({ id, label = '' }: { id: number; label?: string }) => api.post<JobOut>(`/api/personas/${id}/voice-profile`, { label }),
       onSuccess: refresh,
     }),
+    /** Choose where the voice starts when the author has no writing: archetype, surprise, named writers or interview. */
+    setVoiceSource: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: VoiceSourceIn }) => api.put<PersonaOut>(`/api/personas/${id}/voice-source`, body),
+      onSuccess: (_data, { id }) => {
+        void refresh()
+        void qc.invalidateQueries({ queryKey: ['personas', id] })
+      },
+    }),
+    clearVoiceSource: useMutation({
+      mutationFn: (id: number) => api.del<PersonaOut>(`/api/personas/${id}/voice-source`),
+      onSuccess: (_data, id) => {
+        void refresh()
+        void qc.invalidateQueries({ queryKey: ['personas', id] })
+      },
+    }),
     /** Which voice profile version new posts use; null = always the latest. */
     pinVersion: useMutation({
       mutationFn: ({ id, version }: { id: number; version: number | null }) =>
@@ -253,6 +273,14 @@ export const useSamples = (personaId: number) =>
 
 export const useSeedSamples = () => useQuery({ queryKey: keys.seed, queryFn: () => api.get<SeedSamplesOut>('/api/seed-samples') })
 
+export const useArchetypes = () => useQuery({ queryKey: ['archetypes'], queryFn: () => api.get<ArchetypeOut[]>('/api/archetypes'), staleTime: Infinity })
+
+export const useVoiceInterview = () =>
+  useQuery({ queryKey: ['voice-interview'], queryFn: () => api.get<InterviewQuestionOut[]>('/api/voice-interview'), staleTime: Infinity })
+
+/** A random voice; fetch again with a new seed to shuffle. */
+export const fetchSurprise = (seed: number) => api.get<SurpriseOut>(`/api/voice-surprise?seed=${seed}`)
+
 export const useSampleWriting = () => useQuery({ queryKey: keys.sampleWriting, queryFn: () => api.get<SampleWritingOut>('/api/sample-writing') })
 
 export function useSampleMutations(personaId: number) {
@@ -273,6 +301,10 @@ export function useSampleMutations(personaId: number) {
     }),
     importUrl: useMutation({
       mutationFn: ({ url, kind }: { url: string; kind: 'own' | 'influence' }) => api.post<SampleOut>(`/api/personas/${personaId}/samples/url`, { url, kind }),
+      onSuccess: refresh,
+    }),
+    addText: useMutation({
+      mutationFn: (body: SampleTextIn) => api.post<SampleOut>(`/api/personas/${personaId}/samples/text`, body),
       onSuccess: refresh,
     }),
     importSampleWriting: useMutation({

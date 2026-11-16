@@ -78,6 +78,14 @@ export interface ApplyEvolutionIn {
   item_ids: string[];
 }
 
+export interface ArchetypeOut {
+  id: string;
+  name: string;
+  tagline: string;
+  preview: string;
+  dials: Record<string, number>;
+}
+
 export interface ArticleType {
   id: string;
   label: string;
@@ -591,6 +599,12 @@ export interface InterviewIn {
   answers: InterviewAnswer[];
 }
 
+export interface InterviewQuestionOut {
+  id: string;
+  question: string;
+  hint: string;
+}
+
 export interface JobOut {
   id: string;
   kind: string;
@@ -790,6 +804,8 @@ export interface PersonaOut {
   voice_sample_max_words: number;
   voice_sample_min_words: number;
   voice_influence_weight: number;
+  source: string;
+  source_spec: Record<string, unknown>;
   edit_lessons: EditLesson[];
   playbook: PlaybookEntry[];
   pending_evolutions: number;
@@ -1053,6 +1069,12 @@ export interface SampleOut {
   created_at: string;
 }
 
+export interface SampleTextIn {
+  text: string;
+  title?: string;
+  kind?: "own" | "influence";
+}
+
 export interface SampleUpdate {
   kind: "own" | "influence";
 }
@@ -1095,6 +1117,12 @@ export interface SettingsOut {
   seed_samples_dir: string;
   version: string;
   demo: boolean;
+}
+
+export interface SurpriseOut {
+  spec: Record<string, unknown>;
+  archetype: ArchetypeOut;
+  secondary: ArchetypeOut | null;
 }
 
 export interface TrackRecordOut {
@@ -1167,4 +1195,9 @@ export interface VoiceProfileVersion {
   label: string;
   edited_by_user: boolean;
   created_at: string;
+}
+
+export interface VoiceSourceIn {
+  source: "archetype" | "random" | "blend" | "interview";
+  spec?: Record<string, unknown>;
 }
