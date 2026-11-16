@@ -13,7 +13,7 @@ Inferno Ghostwriter works with zero configuration. Most settings live in the app
 | Refusal fallback | Settings → Advanced | on |
 | AI-detection judge (twin test) | Settings → Advanced | on (the free scan always runs) |
 | Humanize rounds | Settings → Humanizing | 1 |
-| Real AI-detector models | Settings → Humanizing | off until set up (one-time ~1.3 GB download) |
+| AI detectors | Settings → Humanizing | the built-in light check; trained models are optional (one-time ~1.3 GB download) |
 | Theme | Settings → Appearance, or the sidebar toggle | match system |
 | Persona name, byline, credit format, visual style, web research | Personas → (persona) → Settings & defaults | from the voice profile |
 | Voice profile settings: profile length, words read per sample, minimum sample length, influence weight | Personas → (persona) → Settings & defaults | about 2,000 words, whole samples, every sample, influence 5/10 |
@@ -47,7 +47,7 @@ Inferno Ghostwriter works with zero configuration. Most settings live in the app
 | `ANTHROPIC_API_KEY` | Claude API key (overrides *Sign in with Claude*) | unset |
 | `INFERNO_GHOSTWRITER_AI_DETECTION` | Twin test (or Claude judge) in the AI-detection report | `true` |
 | `INFERNO_GHOSTWRITER_HUMANIZE_ROUNDS` | Humanize rounds after the editor's pass (0-2) | `1` |
-| `INFERNO_GHOSTWRITER_DEEP_CHECK` | Use the local AI-detector models once set up | `false` |
+| `INFERNO_GHOSTWRITER_DETECTOR_MODELS` | Detectors to use, any mix of `light`, `curvature`, `classifier` (JSON list; `[]` turns them off) | `["light"]` |
 | `INFERNO_GHOSTWRITER_DETECTOR_ZERO_SHOT_MODEL` | Fast-DetectGPT language model (Hugging Face id) | `openai-community/gpt2` |
 | `INFERNO_GHOSTWRITER_DETECTOR_CLASSIFIER_MODEL` | AI-text classifier (Hugging Face id) | `fakespot-ai/roberta-base-ai-text-detection-v1` |
 | `INFERNO_GHOSTWRITER_TWIN_PAIRS` | Passages in the twin test | `4` |

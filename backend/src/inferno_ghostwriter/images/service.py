@@ -638,6 +638,20 @@ class ImageService:
             opening=self._opening_meme_note(image.project_id) if position == "closing" else "",
         )
 
+    def opening_may_be_meme(self, project_id: int, persona: Persona) -> bool:
+        """Whether the opening image could be a meme (then the closing meme must wait for it: meme sandwich).
+
+        A fixed non-meme opening style, or an Auto post where no meme style is eligible (low humor), lets the
+        closing meme start at once instead of queueing behind the opening image.
+        """
+        from inferno_ghostwriter.images.opening.styles import may_be_meme
+
+        _, dials, brief, _ = self._post_info(project_id)
+        resolved = _resolved(dials, persona, brief)
+        if resolved is None:  # dials saved by an older version: keep the safe order
+            return True
+        return may_be_meme(resolved.opening_style, resolved.opening_eligible)
+
     def _opening_context(self, image: ProjectImage, persona: Persona, title: str, markdown: str, voice_profile: str) -> OpeningContext:
         plan, dials, brief, pinned = self._post_info(image.project_id)
         resolved = _resolved(dials, persona, brief)

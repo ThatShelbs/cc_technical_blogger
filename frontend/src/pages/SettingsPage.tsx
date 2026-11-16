@@ -116,7 +116,7 @@ function AdvancedCard() {
   )
 }
 
-/** Real AI-text detector models, run on this computer, and the humanize pass they drive. */
+/** The AI-text detectors (the built-in light check and the trained models, any mix), run on this computer, and the humanize pass they drive. */
 function HumanizeCard() {
   const { data: settings } = useSettings()
   const { data: detector } = useDetector()
@@ -144,36 +144,54 @@ function HumanizeCard() {
           <option value={2}>2 rounds</option>
         </Select>
       </Field>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold">Real AI-detector models</p>
-            <p className="text-sm text-muted">
-              Two open-source detectors (Fast-DetectGPT and a trained AI-text classifier) score every post against your own posts. They run on this computer;
-              nothing is sent anywhere.
-            </p>
-          </div>
-          {detector.ready && (
-            <Switch checked={settings.deep_check} label="Real AI-detector models" onChange={(value) => update.mutate({ deep_check: value })} />
-          )}
-        </div>
+      <fieldset className="space-y-2">
+        <legend className="font-semibold">AI detectors</legend>
+        <p className="text-sm text-muted">
+          Pick one or several. Each scores every post against your own posts, on this computer; nothing is sent anywhere. The light check is built in and
+          instant; the trained models are more thorough and need a one-time download.
+        </p>
+        <ul className="space-y-2">
+          {detector.models.map((m) => (
+            <li key={m.id}>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-surface-2 p-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4 accent-[var(--app-accent)]"
+                  checked={m.selected}
+                  disabled={update.isPending}
+                  onChange={(e) =>
+                    update.mutate({
+                      detector_models: e.target.checked ? [...settings.detector_models, m.id] : settings.detector_models.filter((id) => id !== m.id),
+                    })
+                  }
+                />
+                <span className="text-sm">
+                  <span className="font-semibold">{m.label}</span>
+                  {m.id === detector.models[0]?.id && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold">Default</span>}
+                  <span className="ml-2 text-muted">{m.heavy ? (m.installed ? 'Downloaded' : `Download: ${m.size}`) : 'No download'}</span>
+                  <span className="mt-0.5 block text-muted">{m.summary}</span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
         <p className="text-sm">{detector.detail}</p>
         {installing && (
           <Notice tone="info">{detector.job?.message || 'Setting up'}… This can take a while on the first run; you can keep using the app.</Notice>
         )}
         {detector.available && !detector.ready && !installing && (
           <Button size="sm" variant="secondary" onClick={() => setConfirming(true)}>
-            Set up the detector models
+            Set up the trained models
           </Button>
         )}
         {detector.job?.status === 'failed' && <Notice tone="error">{detector.job.error}</Notice>}
         {setup.error && <Notice tone="error">{errorText(setup.error)}</Notice>}
-      </div>
-      <Dialog open={confirming} onClose={() => setConfirming(false)} title="Download the detector models?">
+      </fieldset>
+      <Dialog open={confirming} onClose={() => setConfirming(false)} title="Download the trained detector models?">
         <div className="space-y-3 text-sm">
           <p>
-            This installs PyTorch and downloads two small open models from Hugging Face: about 1.3 GB, once. They are stored in your data folder and run on your
-            CPU.
+            This installs PyTorch and downloads the trained models you selected from Hugging Face: about 1.3 GB for both, once. They are stored in your data
+            folder and run on your CPU.
           </p>
           <p className="text-muted">A detector on your computer is not the one a platform uses, but it reads the same machine texture.</p>
           <div className="flex justify-end gap-2">
@@ -181,7 +199,7 @@ function HumanizeCard() {
               Not now
             </Button>
             <Button loading={setup.isPending} onClick={() => setup.mutate(undefined, { onSettled: () => setConfirming(false) })}>
-              Download and turn on
+              Download
             </Button>
           </div>
         </div>

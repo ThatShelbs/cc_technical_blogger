@@ -15,7 +15,8 @@ The same checks also steer the writing: after the editor's pass, a **humanize** 
 
 Four parts, each compared with **your own posts** (`backend/src/inferno_ghostwriter/authenticity/`). The weights are 40 / 30 / 15 / 15. When a part does not run, its weight is shared out among the others.
 
-1. **Real detector models** (`local_detector.py`, `detector_worker.py`). Two open-source AI-text detectors run on your computer, once you set them up:
+1. **Detectors** (`local_detector.py`, `light_detector.py`, `detector_worker.py`). Pick any mix in Settings; each runs on your computer and scores every post against your own range (the average weights the light check half as much as a trained model):
+   - **the light check** (default, built in): instant, no download. It reads what language models smooth out: even sentence lengths, few personal markers (contractions, "I" and "you", questions, asides), little concrete detail and repeated openings. A rougher signal than the trained models, so select one of them as well for a firmer read;
    - **Fast-DetectGPT** (zero-shot, on a small open language model, default `openai-community/gpt2`) scores each sentence by how close it is to what a language model would write;
    - **an AI-text classifier** (default `fakespot-ai/roberta-base-ai-text-detection-v1`, Apache-2.0) gives each paragraph an AI probability.
 
@@ -54,20 +55,21 @@ Humanizing happens in four places:
   4. Rounds are set in **Settings → Humanizing** (default 1, 0 to turn off).
 - **The Humanize button:** on a flagged passage in the report, or *Humanize* in the highlight toolbar, it rewrites one passage next to your own paragraphs. If the rewrite reads less like you than the original (detector models, or the twin test), nothing changes and you are told so.
 
-## The detector models
+## The detectors
 
-**Settings → Humanizing → Real AI-detector models** sets them up after a confirmation:
+**Settings → Humanizing → AI detectors** is a list you can tick in any combination. The light check is selected by default and works on a fresh install. Selecting a trained model shows **Set up the trained models**, which downloads after a confirmation:
 
-- **What it downloads, once:** PyTorch and the two models, about 1.3 GB.
+- **What it downloads, once:** PyTorch and the trained models you selected, up to about 1.3 GB for both. Models already downloaded are reused when you tick another.
+- **Adding more models:** `local_detector.CATALOG` lists the detectors; a new one is a catalog entry (and, for a trained one, a worker kind in `detector_worker.py`).
 - **How it runs:** in its own process through `uv run --no-project --with torch --with transformers`. The heavy packages live in uv's cache, never in the app's environment, so `uv sync` does not remove them. The models are stored under `data/detector/hf` and run on the CPU. Nothing is sent anywhere.
-- **Where it is not available:** the Windows installer build (no uv). The report then says the models are off.
+- **Where the trained models are not available:** the Windows installer build (no uv). The light check still runs.
 - **Checking it:** `inferno-ghostwriter doctor` reports their status.
 
 To check them on real text (your posts should land inside your own range, model-written text outside it):
 
 ```bash
 cd backend
-uv run python scripts/check_detector.py --setup --human my_posts/*.md --ai drafts/*.md
+uv run python scripts/check_detector.py --setup --models light,curvature,classifier --human my_posts/*.md --ai drafts/*.md
 ```
 
 Change the models with `INFERNO_GHOSTWRITER_DETECTOR_ZERO_SHOT_MODEL` and `INFERNO_GHOSTWRITER_DETECTOR_CLASSIFIER_MODEL`, using any Hugging Face causal language model and any `AutoModelForSequenceClassification` AI-text classifier. The AI label is found by name.
@@ -81,7 +83,7 @@ Turn on **Interview me first** on *New post* (or as a persona default). Claude a
 | Setting | Where | Default |
 | --- | --- | --- |
 | Humanize rounds | Settings → Humanizing (`INFERNO_GHOSTWRITER_HUMANIZE_ROUNDS`) | 1 |
-| Real AI-detector models | Settings → Humanizing (`INFERNO_GHOSTWRITER_DEEP_CHECK`) | off until set up |
+| AI detectors (any mix of `light`, `curvature`, `classifier`) | Settings → Humanizing (`INFERNO_GHOSTWRITER_DETECTOR_MODELS`, a JSON list) | `["light"]` |
 | Twin test / Claude judge | Settings → Advanced → AI-detection judge (`INFERNO_GHOSTWRITER_AI_DETECTION`) | on |
 | Twin test pairs and effort | `INFERNO_GHOSTWRITER_TWIN_PAIRS`, `INFERNO_GHOSTWRITER_EFFORT_TWIN` | 4, `low` |
 

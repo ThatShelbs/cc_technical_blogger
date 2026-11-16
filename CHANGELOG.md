@@ -6,6 +6,8 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ### Added
 
+- **Pick your AI detectors, any mix.** *Settings → Humanizing* now lists the detectors as checkboxes: a new **light check** (built in, instant, no download, on by default) next to Fast-DetectGPT and the AI-text classifier (one-time download, shared). Posts are scored by every ticked detector against your own writing. Authors who had turned the trained models on keep them selected. `INFERNO_GHOSTWRITER_DETECTOR_MODELS` replaces `DEEP_CHECK`.
+- **Quicker images.** The closing meme no longer waits for the opening image unless the opening could itself be a meme (fixed non-meme opening style, or low humor on Auto), so both are made at once.
 - **Keyboard and quick actions.** A "New post" button and a command palette (Ctrl/Cmd+K) in the sidebar jump to any page, post or persona, switch persona or theme. Ctrl/Cmd+S saves Markdown edits, Ctrl/Cmd+Enter writes from the New post page, and `?` lists the shortcuts. Saving shows a short toast instead of a lasting banner.
 - **Add a reference by pasting a link.** In the References card, paste any URL (optionally a kind and a note about where it belongs): the app reads the page and works it into the post where it fits best, in a sentence or the *Go deeper* list. Redraw on such a link re-reads it instead of replacing it.
 

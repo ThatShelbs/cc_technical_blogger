@@ -176,6 +176,13 @@ def eligible(article_type: str, opener: str, humor: int) -> list[str]:
     return [*first, *(s.id for s in STYLES if s.id not in first and humor >= s.min_humor)]
 
 
+def may_be_meme(style_id: str, eligible_ids: list[str] | tuple[str, ...]) -> bool:
+    """Can the opening image turn out to be a meme? A fixed non-meme style never can; on Auto it depends on what is eligible."""
+    if style_id != AUTO and (style := get_style(style_id)) is not None:
+        return style.builder == "meme"
+    return any((s := get_style(i)) is not None and s.builder == "meme" for i in eligible_ids)
+
+
 def suggested_by_type(article_types: list[str], humor: int = 5) -> dict[str, list[str]]:
     """What the picker shows as "suits this post" for each article type (opener and humor aside)."""
     return {t: suggested(t, AUTO, humor) for t in [AUTO, *article_types]}

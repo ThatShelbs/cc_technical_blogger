@@ -1015,7 +1015,7 @@ async def redraw_all_images(project_id: int, session: SessionDep, services: Serv
         redrawn: dict[int, ProjectImage] = {}
         # The closing meme waits for the opening image, so a meme sandwich's closer knows the new opener.
         opened = asyncio.Event()
-        if not any(kind == "hero" for _, kind in drawn):
+        if not any(kind == "hero" for _, kind in drawn) or not services.images.opening_may_be_meme(project_id, persona):
             opened.set()
 
         async def one(image_id: int, kind: str) -> None:
