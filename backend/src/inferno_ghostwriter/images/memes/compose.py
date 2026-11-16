@@ -15,6 +15,8 @@ from PIL import Image, ImageDraw
 from inferno_ghostwriter.images.base import ImageProviderError
 from inferno_ghostwriter.images.memes import charts
 from inferno_ghostwriter.images.memes.formats import ArtRegion, Box, MemeFormat
+from inferno_ghostwriter.images.memes.looks import BY_ID as LOOKS_BY_ID
+from inferno_ghostwriter.images.memes.looks import DEFAULT_LOOK, Theme
 from inferno_ghostwriter.images.memes.specs import MemeDatum, MemeText
 from inferno_ghostwriter.images.memes.text import STYLES, Fitted, draw_fitted, fit_text
 from inferno_ghostwriter.images.render import SVG_NS, parse_xml, svg_to_png
@@ -23,6 +25,13 @@ XLINK_NS = "http://www.w3.org/1999/xlink"
 INK = "#14101f"
 BUBBLE_PAD = 24
 BUBBLE_TAIL = 46
+INFERNO = LOOKS_BY_ID[DEFAULT_LOOK].theme
+
+
+def mix(a: str, b: str, t: float) -> str:
+    """Blend hex color a toward b by t (0..1)."""
+    ca, cb = (tuple(int(c[i : i + 2], 16) for i in (1, 3, 5)) for c in (a, b))
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(ca, cb, strict=True))
 
 
 @dataclass
@@ -118,7 +127,7 @@ def cast_svg(cast_defs: str) -> str:
 # -- Bubbles -------------------------------------------------------------------------
 
 
-def bubble_svg(x: float, y: float, w: float, h: float, speaker: str) -> str:
+def bubble_svg(x: float, y: float, w: float, h: float, speaker: str, ink: str = INK, fill: str = "#ffffff") -> str:
     side = speaker.strip().lower()
     if side == "left":
         b1, b2, tip = x + w * 0.22, x + w * 0.38, (x + w * 0.14, y + h + BUBBLE_TAIL)
@@ -131,9 +140,9 @@ def bubble_svg(x: float, y: float, w: float, h: float, speaker: str) -> str:
     seam = f"{b1 + 5:.1f},{base - 9:.1f} {tip[0]:.1f},{tip[1] - 9:.1f} {b2 - 5:.1f},{base - 9:.1f}"
     return (
         f'<rect x="{x + 6:.1f}" y="{y + 8:.1f}" width="{w:.1f}" height="{h:.1f}" rx="30" fill="#000" opacity="0.22"/>'
-        f'<g stroke="{INK}" stroke-width="5" stroke-linejoin="round" fill="#ffffff">'
+        f'<g stroke="{ink}" stroke-width="5" stroke-linejoin="round" fill="{fill}">'
         f'<polygon points="{tail}"/><rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="30"/></g>'
-        f'<polygon points="{seam}" fill="#ffffff"/>'
+        f'<polygon points="{seam}" fill="{fill}"/>'
     )
 
 
@@ -146,19 +155,19 @@ def _frame(boxes: list[Box], color: str = INK, width: int = 6) -> str:
     )
 
 
-def _nope_yep(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _nope_yep(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     return Scene(
         under=['<rect x="540" y="0" width="540" height="1080" fill="#ffffff"/>'],
         over=[
-            f'<line x1="540" y1="0" x2="540" y2="1080" stroke="{INK}" stroke-width="5"/>'
-            f'<line x1="0" y1="540" x2="1080" y2="540" stroke="{INK}" stroke-width="5"/>'
+            f'<line x1="540" y1="0" x2="540" y2="1080" stroke="{theme.ink}" stroke-width="5"/>'
+            f'<line x1="0" y1="540" x2="1080" y2="540" stroke="{theme.ink}" stroke-width="5"/>'
         ],
     )
 
 
-def _expanding_brain(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
-    lines = "".join(f'<line x1="0" y1="{i * 330}" x2="1080" y2="{i * 330}" stroke="{INK}" stroke-width="5"/>' for i in (1, 2, 3))
-    return Scene(over=[lines + f'<line x1="540" y1="0" x2="540" y2="1320" stroke="{INK}" stroke-width="5"/>'])
+def _expanding_brain(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
+    lines = "".join(f'<line x1="0" y1="{i * 330}" x2="1080" y2="{i * 330}" stroke="{theme.ink}" stroke-width="5"/>' for i in (1, 2, 3))
+    return Scene(over=[lines + f'<line x1="540" y1="0" x2="540" y2="1320" stroke="{theme.ink}" stroke-width="5"/>'])
 
 
 def _button(cx: float, cy: float) -> str:
@@ -171,33 +180,38 @@ def _button(cx: float, cy: float) -> str:
     )
 
 
-def _two_buttons(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _two_buttons(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     defs = (
         '<defs><radialGradient id="btn-top" cx="0.4" cy="0.35" r="0.75"><stop offset="0" stop-color="#ff6b5e"/>'
         '<stop offset="1" stop-color="#c81d1d"/></radialGradient></defs>'
     )
     return Scene(
-        over=[defs + _button(300, 305) + _button(780, 275) + f'<line x1="0" y1="700" x2="1080" y2="700" stroke="{INK}" stroke-width="6"/>']
+        over=[
+            defs
+            + _button(300, 305)
+            + _button(780, 275)
+            + f'<line x1="0" y1="700" x2="1080" y2="700" stroke="{theme.ink}" stroke-width="6"/>'
+        ]
     )
 
 
-def _midwit(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _midwit(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     scene = Scene(
         under=[
-            '<defs><linearGradient id="mw-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffdf5"/>'
-            '<stop offset="1" stop-color="#fdeccf"/></linearGradient></defs><rect width="1400" height="900" fill="url(#mw-bg)"/>'
-            + charts.bell_curve_svg()
+            f'<defs><linearGradient id="mw-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{theme.paper}"/>'
+            f'<stop offset="1" stop-color="{mix(theme.paper, theme.accents[0], 0.18)}"/></linearGradient></defs>'
+            '<rect width="1400" height="900" fill="url(#mw-bg)"/>' + charts.bell_curve_svg(colors=theme.accents, ink=theme.ink)
         ]
     )
     for k, iq in enumerate((55, 70, 85, 100, 115, 130, 145)):
-        scene.texts.append(Placed((700 + (k - 3) * 150 - 45, 792, 90, 36), str(iq), "ui_bold", fill="#1b0c41"))
+        scene.texts.append(Placed((700 + (k - 3) * 150 - 45, 792, 90, 36), str(iq), "ui_bold", fill=theme.ink))
     for k, pct in enumerate(("14%", "34%", "34%", "14%")):
-        scene.texts.append(Placed((700 + (k - 2) * 150 + 25, 742, 100, 30), pct, "ui", fill="#4a0c6b"))
-    scene.texts.append(Placed((560, 840, 280, 44), "IQ", "ui_bold", fill="#1b0c41"))
+        scene.texts.append(Placed((700 + (k - 2) * 150 + 25, 742, 100, 30), pct, "ui", fill=theme.ink))
+    scene.texts.append(Placed((560, 840, 280, 44), "IQ", "ui_bold", fill=theme.ink))
     return scene
 
 
-def _gru(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _gru(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     parts = []
     for r in fmt.regions:
         x, y, _w, h = r.box
@@ -212,10 +226,10 @@ def _gru(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: 
             f'<rect x="{x + 294}" y="{y + 360}" width="282" height="14" rx="4" fill="#8a6a48"/>'
         )
     frames = [(r.box[0], r.box[1], 1200 // 2 - 18, r.box[3]) for r in fmt.regions]
-    return Scene(under=parts, over=[_frame(frames)])
+    return Scene(under=parts, over=[_frame(frames, theme.ink)])
 
 
-def _joke_pie(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _joke_pie(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     slices = charts.pie_slices(data)
     scene = Scene(
         under=[
@@ -230,12 +244,14 @@ def _joke_pie(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], col
     for i, (label, _) in enumerate(slices):
         y = top + i * 80
         color = colors[i % len(colors)]
-        scene.under.append(f'<rect x="830" y="{y + 14}" width="40" height="40" rx="8" fill="{color}" stroke="{INK}" stroke-width="2"/>')
+        scene.under.append(
+            f'<rect x="830" y="{y + 14}" width="40" height="40" rx="8" fill="{color}" stroke="{theme.ink}" stroke-width="2"/>'
+        )
         scene.texts.append(Placed((886, y, 280, 68), label, "ui_bold", align="left"))
     return scene
 
 
-def _venn(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _venn(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     three = bool(texts.get("c", "").strip())
     if three:
         circles = [(470, 450, colors[0]), (730, 450, colors[1]), (600, 660, colors[2])]
@@ -245,24 +261,24 @@ def _venn(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors:
         radius = 310
         boxes = {"a": (170, 470, 280, 160), "b": (750, 470, 280, 160), "center": (520, 490, 160, 140)}
     svg = "".join(
-        f'<circle cx="{cx}" cy="{cy}" r="{radius}" fill="{color}" fill-opacity="0.55" stroke="{INK}" stroke-width="4"/>'
+        f'<circle cx="{cx}" cy="{cy}" r="{radius}" fill="{color}" fill-opacity="0.55" stroke="{theme.ink}" stroke-width="4"/>'
         for cx, cy, color in circles
     )
     return Scene(under=[svg], boxes=boxes)
 
 
-def _comic(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
-    return Scene(over=[_frame([r.box for r in fmt.regions])])
+def _comic(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
+    return Scene(over=[_frame([r.box for r in fmt.regions], theme.ink)])
 
 
-def _chat(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
-    avatar = ["#ed6925", "#781c6d", "#cf4446", "#4a0c6b"]
-    scene = Scene(under=['<rect width="1080" height="1080" fill="#ffffff"/><rect width="1080" height="120" fill="#1b0c41"/>'])
-    scene.texts.append(Placed((40, 30, 48, 60), "#", "light", fill="#fb9b06"))
+def _chat(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
+    avatar = [theme.bands[0], theme.bands[1], theme.bands[2], theme.bands[0]]
+    scene = Scene(under=[f'<rect width="1080" height="1080" fill="#ffffff"/><rect width="1080" height="120" fill="{theme.dark}"/>'])
+    scene.texts.append(Placed((40, 30, 48, 60), "#", "light", fill=theme.accents[2]))
     for i in range(4):
         y = 150 + i * 225
         if i == 3:
-            scene.under.append(f'<rect x="0" y="{y - 20}" width="1080" height="225" fill="#fff4d6"/>')
+            scene.under.append(f'<rect x="0" y="{y - 20}" width="1080" height="225" fill="{mix(theme.accents[2], "#ffffff", 0.82)}"/>')
         if i:
             scene.under.append(f'<line x1="40" y1="{y - 20}" x2="1040" y2="{y - 20}" stroke="#ece6f2" stroke-width="2"/>')
         scene.under.append(f'<rect x="40" y="{y}" width="84" height="84" rx="18" fill="{avatar[i]}"/>')
@@ -273,11 +289,12 @@ def _chat(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors:
     return scene
 
 
-def _terminal(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _terminal(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     scene = Scene(
         under=[
-            '<rect x="20" y="10" width="1160" height="780" rx="18" fill="#1a1030" stroke="#3a2a5a" stroke-width="3"/>'
-            '<path d="M20,28 a18,18 0 0 1 18,-18 h1124 a18,18 0 0 1 18,18 v38 h-1160 z" fill="#2a1b47"/>'
+            f'<rect x="20" y="10" width="1160" height="780" rx="18" fill="{mix(theme.dark, "#000000", 0.3)}" '
+            f'stroke="{mix(theme.dark, "#ffffff", 0.2)}" stroke-width="3"/>'
+            f'<path d="M20,28 a18,18 0 0 1 18,-18 h1124 a18,18 0 0 1 18,18 v38 h-1160 z" fill="{mix(theme.dark, "#ffffff", 0.08)}"/>'
             '<circle cx="60" cy="38" r="11" fill="#ff5f57"/><circle cx="94" cy="38" r="11" fill="#febc2e"/>'
             '<circle cx="128" cy="38" r="11" fill="#28c840"/>'
         ]
@@ -290,7 +307,7 @@ def _terminal(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], col
     return scene
 
 
-def _nutrition(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _nutrition(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     rules = [
         '<rect x="40" y="40" width="820" height="1120" fill="#ffffff" stroke="#000" stroke-width="5"/>',
         '<rect x="66" y="158" width="768" height="3" fill="#000"/>',
@@ -317,9 +334,10 @@ _ALIGN = (
 )
 
 
-def _alignment(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str]) -> Scene:
+def _alignment(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
     scene = Scene()
-    tints, bands = ("#fff3c4", "#ffe2c9", "#f8d0dc"), ("#ed6925", "#a52c60", "#4a0c6b")
+    bands = theme.bands
+    tints = tuple(mix(b, "#ffffff", 0.82) for b in bands)
     for r, row in enumerate(_ALIGN):
         for c, label in enumerate(row):
             x, y = 24 + c * 388, 130 + r * 352
@@ -331,7 +349,7 @@ def _alignment(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], co
     return scene
 
 
-SCENES: dict[str, Callable[[MemeFormat, dict[str, str], list[MemeDatum], list[str]], Scene]] = {
+SCENES: dict[str, Callable[[MemeFormat, dict[str, str], list[MemeDatum], list[str], Theme], Scene]] = {
     "nope_yep": _nope_yep,
     "expanding_brain": _expanding_brain,
     "two_buttons": _two_buttons,
@@ -340,6 +358,8 @@ SCENES: dict[str, Callable[[MemeFormat, dict[str, str], list[MemeDatum], list[st
     "joke_pie_3d": _joke_pie,
     "venn": _venn,
     "comic_strip_3": _comic,
+    "right_right": _comic,
+    "shocked_strip": _comic,
     "comic_grid_4": _comic,
     "chat_thread": _chat,
     "terminal": _terminal,
@@ -359,18 +379,24 @@ def compose(
     data: list[MemeDatum] | None = None,
     *,
     palette: tuple[str, ...] = (),
+    theme: Theme | None = None,
 ) -> tuple[bytes, int, int]:
     """Render one meme to PNG; raises ImageProviderError when the build cannot be drawn.
 
-    A brand ``palette`` (3+ hex colors) recolors the template's chart marks; otherwise they use inferno."""
+    A brand ``palette`` (3+ hex colors) recolors the template's chart marks; otherwise they use the ``theme``'s accents
+    (inferno when none is given)."""
     data = data or []
-    colors = list(palette) if len(palette) >= 3 else charts.PIE_COLORS
+    theme = theme or INFERNO
+    colors = list(palette) if len(palette) >= 3 else list(theme.accents)
     words = {name: t.text.strip() for name, t in texts.items()}
     if fmt.id == "spurious_correlation":
-        return charts.spurious_png(words, data)
+        return charts.spurious_png(words, data, (colors[0], colors[1]) if len(palette) >= 3 else (theme.bands[0], theme.bands[1]))
 
     width, height = fmt.size
-    scene = SCENES.get(fmt.id, lambda *_: Scene())(fmt, words, data, colors)
+    scene = SCENES.get(fmt.id, lambda *_: Scene())(fmt, words, data, colors, theme)
+    background = {"#1b0c41": theme.dark, "#fffaf0": theme.paper, "#120a24": mix(theme.dark, "#000000", 0.45)}.get(
+        fmt.background, fmt.background
+    )
     measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     drawn: list[tuple[Fitted, Box, str, str, str, str | None]] = []
     bubbles: list[str] = []
@@ -402,7 +428,7 @@ def compose(
             bw = max(fitted.width + 2 * BUBBLE_PAD, 170)
             bh = fitted.height + 2 * BUBBLE_PAD
             bx = box[0] + (box[2] - bw) // 2
-            bubbles.append(bubble_svg(bx, box[1], bw, bh, texts[slot.name].speaker))
+            bubbles.append(bubble_svg(bx, box[1], bw, bh, texts[slot.name].speaker, theme.ink, theme.bubble_fill))
             drawn.append(
                 (
                     fitted,
@@ -423,10 +449,10 @@ def compose(
     regions = "".join(region_svg(region, art[region.name]) for region in fmt.regions if art.get(region.name, "").strip())
     svg = (
         f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
-        f'<rect width="{width}" height="{height}" fill="{fmt.background}"/>{cast_svg(cast_defs)}'
+        f'<rect width="{width}" height="{height}" fill="{background}"/>{cast_svg(cast_defs)}'
         f"{''.join(scene.under)}{regions}{''.join(scene.over)}{''.join(bubbles)}</svg>"
     )
-    png, _, _ = svg_to_png(svg, width=width, background=fmt.background)
+    png, _, _ = svg_to_png(svg, width=width, background=background)
 
     with Image.open(io.BytesIO(png)) as source:
         img = source.convert("RGB")
@@ -440,22 +466,21 @@ def compose(
 
 MASCOT_SCENE = """
 <defs>
-  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a0c6b"/><stop offset="1" stop-color="#cf4446"/></linearGradient>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b0c41"/><stop offset="1" stop-color="#a52c60"/></linearGradient>
   <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fcffa4"/><stop offset="1" stop-color="#fb9b06" stop-opacity="0"/></radialGradient>
-  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#781c6d"/><stop offset="1" stop-color="#4a0c6b"/></linearGradient>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a52c60"/><stop offset="0.6" stop-color="#ed6925"/><stop offset="1" stop-color="#f7d13d"/></linearGradient>
 </defs>
 <rect width="1080" height="1080" fill="url(#bg)"/>
-<circle cx="540" cy="560" r="330" fill="#ed6925" opacity="0.18"/>
-<ellipse cx="540" cy="820" rx="250" ry="36" fill="#000004" opacity="0.3"/>
-<rect x="400" y="560" width="280" height="250" rx="60" fill="url(#body)"/>
-<rect x="455" y="610" width="170" height="90" rx="22" fill="#ed6925"/>
-<path d="M400,640 C330,600 300,540 320,500" stroke="#4a0c6b" stroke-width="44" fill="none" stroke-linecap="round"/>
-<path d="M680,640 C750,600 780,540 760,500" stroke="#4a0c6b" stroke-width="44" fill="none" stroke-linecap="round"/>
-<circle cx="320" cy="490" r="34" fill="#f7d13d"/><circle cx="760" cy="490" r="34" fill="#f7d13d"/>
-<rect x="370" y="300" width="340" height="270" rx="70" fill="url(#body)"/>
-<rect x="405" y="335" width="270" height="190" rx="48" fill="#1b0c41"/>
-<ellipse cx="490" cy="420" rx="30" ry="40" fill="#fcffa4"/><ellipse cx="590" cy="420" rx="30" ry="40" fill="#fcffa4"/>
-<path d="M500,480 Q540,465 580,480" stroke="#fcffa4" stroke-width="10" fill="none" stroke-linecap="round"/>
-<line x1="540" y1="300" x2="540" y2="240" stroke="#4a0c6b" stroke-width="12"/>
-<circle cx="540" cy="226" r="40" fill="url(#glow)"/><circle cx="540" cy="226" r="18" fill="#fb9b06"/>
+<circle cx="540" cy="560" r="330" fill="#ed6925" opacity="0.16"/>
+<ellipse cx="540" cy="840" rx="260" ry="34" fill="#000004" opacity="0.3"/>
+<path d="M340,800 C300,560 340,300 540,300 C740,300 780,560 740,800 C700,760 670,830 630,780 C590,830 560,760 520,790 C480,830 450,760 410,800 C380,780 360,830 340,800 Z" fill="url(#body)" stroke="#14101f" stroke-width="6" stroke-linejoin="round"/>
+<ellipse cx="470" cy="500" rx="34" ry="50" fill="#1b0c41"/><ellipse cx="610" cy="500" rx="34" ry="50" fill="#1b0c41"/>
+<ellipse cx="480" cy="484" rx="12" ry="17" fill="#fcffa4"/><ellipse cx="620" cy="484" rx="12" ry="17" fill="#fcffa4"/>
+<path d="M500,580 Q540,615 580,580" stroke="#1b0c41" stroke-width="10" fill="none" stroke-linecap="round"/>
+<rect x="400" y="700" width="280" height="150" rx="14" fill="#2a1b47" stroke="#14101f" stroke-width="6"/>
+<rect x="416" y="714" width="248" height="112" rx="8" fill="#4a0c6b"/>
+<circle cx="540" cy="770" r="22" fill="#f7d13d" opacity="0.9"/>
+<path d="M740,640 C800,560 840,470 880,380" stroke="#fcffa4" stroke-width="14" fill="none" stroke-linecap="round"/>
+<path d="M880,380 C930,360 960,330 970,290 C930,320 900,330 880,380 Z" fill="#fcffa4" stroke="#14101f" stroke-width="4"/>
+<circle cx="540" cy="226" r="0" fill="url(#glow)"/>
 """

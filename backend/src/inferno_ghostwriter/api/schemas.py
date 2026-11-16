@@ -615,6 +615,8 @@ class MemePitchOut(BaseModel):
     words: list[str]
     tried: bool
     current: bool
+    # The independent panel's total (four judges, 4-40; a joke a cold reader would not get scores far lower), if it judged.
+    panel_score: int | None = None
 
 
 class MemeSlotOut(BaseModel):
@@ -638,11 +640,24 @@ class MemeInfoOut(BaseModel):
     fallback_from: str
     pitches: list[MemePitchOut]
     slots: list[MemeSlotOut]
+    # The look the meme is drawn in (older memes read as the brand look).
+    look: str = "inferno_flat"
+    look_label: str = "Inferno flat"
+    # How the render review went: passed, redrawn, kept, skipped or "" (no review, e.g. formats with no art).
+    review_verdict: str = ""
 
 
 class MemeWordsIn(BaseModel):
     # Slot name -> new text; slots left out keep their words.
     words: dict[str, str] = Field(min_length=1)
+
+
+class MemeLookOut(BaseModel):
+    id: str
+    label: str
+    description: str
+    # Five colors of the look's palette, for the Look menu's swatch strip.
+    swatch: list[str]
 
 
 class MemeFormatOut(BaseModel):
@@ -666,6 +681,8 @@ class RedrawIn(BaseModel):
     meme_format: str | None = None
     # Memes only: draw this stored pitch (an index from ``ImageOut.meme.pitches``).
     meme_concept: int | None = Field(default=None, ge=0)
+    # Memes only: draw the meme in this look (see GET /api/meme-looks); without one a redraw picks a different look.
+    meme_look: str | None = None
     # The opening image only: pitch again in this style (see GET /api/opening-styles), or build this stored pitch
     # (an index from ``ImageOut.opening.pitches``) with no new pitching or judging.
     opening_style: str | None = None

@@ -17,16 +17,13 @@ between them with no new pitching or judging call.
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from PIL import Image
-
 from inferno_ghostwriter.config import Settings
-from inferno_ghostwriter.images.base import ImageProviderError, draw_with_retry
+from inferno_ghostwriter.images.base import ImageProviderError, draw_with_retry, thumbnail_png
 from inferno_ghostwriter.images.memes import ArtDirection, MemeContext, MemeMaker, MemeResult
 from inferno_ghostwriter.images.memes.generate import clip_post
 from inferno_ghostwriter.images.memes.generate import load_state as load_meme_state
@@ -685,7 +682,7 @@ class OpeningRoom:
             title=ctx.title, markdown=ctx.markdown, voice_profile=ctx.voice_profile, brief="", humor=ctx.humor
         )
         meme_ctx = replace(base, brief=f"{concept.concept} ({concept.hook})", position="opening", opening="", joke="")
-        meme = await self.memes.make(previous, meme_ctx, art, redraw=bool(previous), usage=usage)
+        meme = await self.memes.make(previous, meme_ctx, art, redraw=bool(previous), review=False, usage=usage)
         return _Built(
             meme.png,
             meme.width,
@@ -711,7 +708,7 @@ class OpeningRoom:
                 effort=self.settings.effort_opening_review,
                 max_tokens=6000,
                 usage=usage,
-                images=[_thumbnail_png(png)],
+                images=[thumbnail_png(png)],
             )
         except LLMImagesUnsupportedError:
             return None
@@ -776,14 +773,3 @@ def _score(review: RenderReview) -> int:
 
 def _review_entry(review: RenderReview, verdict: str) -> dict[str, Any]:
     return {"verdict": verdict, "clickability": review.clickability, "craft": review.craft, "problems": review.problems[:5]}
-
-
-def _thumbnail_png(png: bytes, width: int = 800) -> bytes:
-    """A smaller copy for the review: cheaper to send, and closer to how a feed shows it."""
-    with Image.open(io.BytesIO(png)) as source:
-        img = source.convert("RGB")
-    if img.width > width:
-        img = img.resize((width, round(img.height * width / img.width)), Image.Resampling.LANCZOS)
-    out = io.BytesIO()
-    img.save(out, format="PNG", optimize=True)
-    return out.getvalue()

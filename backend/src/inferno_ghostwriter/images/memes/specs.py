@@ -33,10 +33,17 @@ class MemeConcept(BaseModel):
     texts: list[MemeText] = Field(description="Final words for every text slot of the format.")
     data: list[MemeDatum] = Field(description="Chart data, only for formats whose menu entry asks for it; empty list otherwise.")
     caption: str = Field(description="A short caption to sit under the image, in the author's style. Never repeats the meme's words.")
+    look: str = Field(
+        default="",
+        description="The look id from the looks menu that serves this joke best (it also varies from the author's recent memes).",
+    )
     scores: ConceptScores
 
 
 class MemeIdeas(BaseModel):
+    angles: list[str] = Field(
+        default_factory=list, description="About 12 one-line raw comedy angles found in the post, written before the concepts."
+    )
     concepts: list[MemeConcept] = Field(description="Five distinct concepts, at least three format families.")
     chosen: int = Field(description="Index of the strongest concept.")
     why: str = Field(description="One sentence on why the chosen concept wins.")
@@ -56,3 +63,30 @@ class MemeBuild(BaseModel):
     data: list[MemeDatum] = Field(description="Chart data for chart formats; empty list otherwise.")
     alt: str = Field(description="Alt text: what the image shows, including every word in it.")
     caption: str = Field(description="Caption in the author's style, without the credit.")
+
+
+class MemeJudge(BaseModel):
+    concept: int = Field(description="Index of the concept in the list, from 0.")
+    feed_reader: int = Field(description="A tired senior practitioner scrolling a feed: would they laugh and share it? 1-10.")
+    comedy_editor: int = Field(description="A comedy editor: a real twist, economy of words, the punch word last, no explaining. 1-10.")
+    author: int = Field(description="The author: pays off this post and sounds like their humor. 1-10.")
+    gets_it: int = Field(description="Does a reader who has not read the post understand the joke in five seconds? 1-10.")
+    note: str = Field(description="One line: what makes it land and the biggest risk.")
+
+
+class MemeVerdict(BaseModel):
+    scores: list[MemeJudge] = Field(description="One entry per concept, in order.")
+    chosen: int = Field(description="Index of the concept the panel would publish.")
+    punch_up: list[MemeText] = Field(
+        default_factory=list,
+        description="Sharper final words for the chosen concept, one entry per text slot (same names and limits). Empty if already tight.",
+    )
+    summary: str = Field(description="One sentence on why the chosen concept wins.")
+
+
+class MemeReview(BaseModel):
+    passes: bool = Field(description="True if this meme is ready to publish as it is.")
+    funny: int = Field(description="Would it get a laugh and a share at thumbnail size? 1-10.")
+    craft: int = Field(description="Legible, balanced, on-look, the ghost on-model; nothing covered, cramped or broken. 1-10.")
+    problems: list[str] = Field(default_factory=list, description="Specific visible problems, worst first.")
+    fix: str = Field("", description="Concrete instructions for a redraw that fixes them ('' when it passes).")

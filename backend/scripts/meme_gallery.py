@@ -1,6 +1,7 @@
 """Render every meme format into a contact sheet for a visual review.
 
     uv run python scripts/meme_gallery.py                      # canned demo builds, free
+    uv run python scripts/meme_gallery.py --looks              # every format in every look (themes + art-free formats), free
     uv run python scripts/meme_gallery.py --real --yes         # real Claude memes for your latest projects (costs money)
     uv run python scripts/meme_gallery.py --real --yes --format venn --projects 2
 
@@ -18,6 +19,8 @@ from pathlib import Path
 from inferno_ghostwriter.demo import meme_build_payload
 from inferno_ghostwriter.images.memes.compose import compose
 from inferno_ghostwriter.images.memes.formats import FAMILIES, FORMATS, get_format
+from inferno_ghostwriter.images.memes.generate import render_build
+from inferno_ghostwriter.images.memes.looks import LOOKS
 from inferno_ghostwriter.images.memes.specs import MemeBuild
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +33,19 @@ def demo_cards(out: Path) -> list[tuple[str, str, str]]:
         png, _, _ = compose(fmt, {t.slot: t for t in build.texts}, {a.region: a.svg for a in build.art}, build.cast_defs, build.data)
         (out / f"{fmt.id}.png").write_bytes(png)
         cards.append((f"{fmt.id}.png", f"{fmt.name} ({FAMILIES[fmt.family]})", build.alt))
+    return cards
+
+
+def look_cards(out: Path) -> list[tuple[str, str, str]]:
+    """Every format in every look. Art is the demo ghost, so what varies is the theme: gutters, charts, bubbles, bands."""
+    cards = []
+    for fmt in FORMATS:
+        build = MemeBuild.model_validate(meme_build_payload(fmt.id))
+        for look in LOOKS:
+            png, _, _ = render_build(fmt, build, (), look)
+            name = f"{fmt.id}-{look.id}.png"
+            (out / name).write_bytes(png)
+            cards.append((name, f"{fmt.name} in {look.label}", build.alt))
     return cards
 
 
@@ -91,6 +107,7 @@ def write_index(out: Path, cards: list[tuple[str, str, str]]) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, default=ROOT / "data" / "meme-gallery")
+    parser.add_argument("--looks", action="store_true", help="Render every format in every look (free).")
     parser.add_argument("--real", action="store_true", help="Ask Claude for new memes for your latest ready projects (costs money).")
     parser.add_argument("--yes", action="store_true", help="Confirm a --real run.")
     parser.add_argument("--projects", type=int, default=3)
@@ -101,7 +118,13 @@ def main() -> None:
     if args.real and not args.yes:
         parser.error("--real calls Claude and costs money; add --yes to confirm.")
     args.out.mkdir(parents=True, exist_ok=True)
-    cards = asyncio.run(real_cards(args.out, args.projects, args.only)) if args.real else demo_cards(args.out)
+    cards = (
+        asyncio.run(real_cards(args.out, args.projects, args.only))
+        if args.real
+        else look_cards(args.out)
+        if args.looks
+        else demo_cards(args.out)
+    )
     print(f"Wrote {len(cards)} memes: {write_index(args.out, cards)}")
 
 

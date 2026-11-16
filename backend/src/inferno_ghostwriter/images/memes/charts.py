@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any
 
 from inferno_ghostwriter.images.base import ImageProviderError
@@ -102,12 +103,21 @@ def pie_label_points(
 
 
 def bell_curve_svg(
-    *, left: float = 100, right: float = 1300, center: float = 700, sigma: float = 150, base: float = 780, peak: float = 520
+    *,
+    left: float = 100,
+    right: float = 1300,
+    center: float = 700,
+    sigma: float = 150,
+    base: float = 780,
+    peak: float = 520,
+    colors: Sequence[str] = PIE_COLORS,
+    ink: str = "#1b0c41",
 ) -> str:
     def y(x: float) -> float:
         return base - peak * math.exp(-(((x - center) / sigma) ** 2) / 2)
 
-    bands = ["#f7d13d", "#fb9b06", "#ed6925", "#cf4446", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"]
+    a = [colors[i % len(colors)] for i in range(6)]
+    bands = [a[2], a[5], a[0], a[3], a[3], a[0], a[5], a[2]]
     parts = []
     for k, color in enumerate(bands):
         x0, x1 = max(left, center + (k - 4) * sigma), min(right, center + (k - 3) * sigma)
@@ -115,17 +125,17 @@ def bell_curve_svg(
         pts = " ".join(f"{x:.1f},{y(x):.1f}" for x in xs)
         parts.append(f'<polygon points="{x0:.1f},{base} {pts} {x1:.1f},{base}" fill="{color}" opacity="0.5"/>')
     curve = " ".join(f"{x:.1f},{y(x):.1f}" for x in range(int(left), int(right) + 1, 8))
-    parts.append(f'<polyline points="{curve}" fill="none" stroke="#1b0c41" stroke-width="6" stroke-linejoin="round"/>')
-    parts.append(f'<line x1="{left}" y1="{base}" x2="{right}" y2="{base}" stroke="#1b0c41" stroke-width="4"/>')
+    parts.append(f'<polyline points="{curve}" fill="none" stroke="{ink}" stroke-width="6" stroke-linejoin="round"/>')
+    parts.append(f'<line x1="{left}" y1="{base}" x2="{right}" y2="{base}" stroke="{ink}" stroke-width="4"/>')
     for k in range(-3, 4):
         x = center + k * sigma
         parts.append(
-            f'<line x1="{x}" y1="{base}" x2="{x}" y2="{y(x):.1f}" stroke="#1b0c41" stroke-width="2" stroke-dasharray="6 6" opacity="0.5"/>'
+            f'<line x1="{x}" y1="{base}" x2="{x}" y2="{y(x):.1f}" stroke="{ink}" stroke-width="2" stroke-dasharray="6 6" opacity="0.5"/>'
         )
     return "".join(parts)
 
 
-def spurious_png(texts: dict[str, str], data: list[MemeDatum]) -> tuple[bytes, int, int]:
+def spurious_png(texts: dict[str, str], data: list[MemeDatum], colors: tuple[str, str] = ("#ed6925", "#781c6d")) -> tuple[bytes, int, int]:
     """A dead-serious dual-axis line chart of two series that have nothing to do with each other."""
     names: list[str] = []
     for d in data:
@@ -169,8 +179,8 @@ def spurious_png(texts: dict[str, str], data: list[MemeDatum]) -> tuple[bytes, i
         "data": {"values": rows},
         "encoding": {"x": {"field": "x", "type": "ordinal", "sort": order, "axis": {"title": None, "labelAngle": 0, "labelFontSize": 13}}},
         "layer": [
-            series("a", "#ed6925", texts.get("series_a", ""), "left"),
-            series("b", "#781c6d", texts.get("series_b", ""), "right"),
+            series("a", colors[0], texts.get("series_a", ""), "left"),
+            series("b", colors[1], texts.get("series_b", ""), "right"),
         ],
         "resolve": {"scale": {"y": "independent"}},
         "config": {"axis": {"gridColor": "#efe6f5", "domainColor": "#c8bcd6"}},

@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { MemeFormatOut, MemeInfoOut } from '../../api/types.gen'
+import type { MemeFormatOut, MemeInfoOut, MemeLookOut } from '../../api/types.gen'
 import { MemeIdeasDialog, MemeWordsDialog } from './MemeDialogs'
 
 const MEME: MemeInfoOut = {
@@ -12,6 +12,9 @@ const MEME: MemeInfoOut = {
   ideas_left: 1,
   has_art: false,
   fallback_from: '',
+  look: 'inferno_flat',
+  look_label: 'Inferno flat',
+  review_verdict: '',
   pitches: [
     {
       index: 0,
@@ -21,6 +24,7 @@ const MEME: MemeInfoOut = {
       words: ['git blame', 'fatal: everyone'],
       tried: true,
       current: true,
+      panel_score: 31,
     },
     {
       index: 1,
@@ -30,6 +34,7 @@ const MEME: MemeInfoOut = {
       words: ['Pizza', 'Pie charts'],
       tried: false,
       current: false,
+      panel_score: -60,
     },
   ],
   slots: [
@@ -42,7 +47,35 @@ const FORMATS: MemeFormatOut[] = [
   { id: 'venn', name: 'Venn diagram', family: 'chart', family_label: 'Chart jokes', when_to_use: '' },
 ]
 
+const LOOKS: MemeLookOut[] = [
+  { id: 'inferno_flat', label: 'Inferno flat', description: 'The brand look.', swatch: ['#ed6925', '#781c6d', '#f7d13d', '#cf4446', '#4a0c6b'] },
+  { id: 'kawaii', label: 'Kawaii', description: 'Chibi cute.', swatch: ['#ff8fb8', '#9be3c8', '#b9a2ff', '#ffc09f', '#8fd3ff'] },
+]
+
 describe('MemeIdeasDialog', () => {
+  it('shows the panel score and lets the author draw the meme in another look', async () => {
+    const onLook = vi.fn()
+    render(
+      <MemeIdeasDialog
+        open
+        onClose={vi.fn()}
+        meme={MEME}
+        formats={FORMATS}
+        looks={LOOKS}
+        onLook={onLook}
+        onPick={vi.fn()}
+        onNext={vi.fn()}
+        onFormat={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('Panel 31/40')).toBeInTheDocument()
+    expect(screen.getByText('Panel ruled out')).toBeInTheDocument()
+    const group = screen.getByRole('group', { name: 'Meme look' })
+    expect(within(group).getByRole('button', { name: 'Inferno flat' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(within(group).getByRole('button', { name: 'Kawaii' }))
+    expect(onLook).toHaveBeenCalledWith('kawaii')
+  })
+
   it('lists every pitch and lets the author pick one, ask for the next, or change format', async () => {
     const onPick = vi.fn()
     const onNext = vi.fn()

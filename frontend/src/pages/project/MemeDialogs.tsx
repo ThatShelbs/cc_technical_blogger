@@ -1,7 +1,7 @@
 import { Lightbulb, Type } from 'lucide-react'
 import { useState } from 'react'
 
-import type { MemeFormatOut, MemeInfoOut, MemeSlotOut } from '../../api/types.gen'
+import type { MemeFormatOut, MemeInfoOut, MemeLookOut, MemeSlotOut } from '../../api/types.gen'
 import { Badge, Button, Dialog, Field, Input, Notice, Select, Textarea } from '../../components/ui'
 import { cx } from '../../lib/cx'
 
@@ -11,17 +11,21 @@ export function MemeIdeasDialog({
   onClose,
   meme,
   formats,
+  looks = [],
   onPick,
   onNext,
   onFormat,
+  onLook,
 }: {
   open: boolean
   onClose: () => void
   meme: MemeInfoOut
   formats: MemeFormatOut[]
+  looks?: MemeLookOut[]
   onPick: (index: number) => void
   onNext: () => void
   onFormat: (id: string) => void
+  onLook?: (id: string) => void
 }) {
   return (
     <Dialog open={open} onClose={onClose} title="Meme ideas" wide>
@@ -38,6 +42,11 @@ export function MemeIdeasDialog({
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="accent">{pitch.format_name}</Badge>
               {pitch.current ? <Badge>Showing now</Badge> : pitch.tried ? <Badge>Tried</Badge> : null}
+              {pitch.panel_score != null && (
+                <span className="text-xs text-muted" title="Score from an independent panel of three judges (4-40)">
+                  Panel {pitch.panel_score < 0 ? 'ruled out' : `${pitch.panel_score}/40`}
+                </span>
+              )}
             </div>
             <p className="mt-2 text-sm">{pitch.premise}</p>
             {pitch.words.length > 0 && <p className="mt-1 line-clamp-3 text-xs text-muted">{pitch.words.join(' / ')}</p>}
@@ -55,6 +64,7 @@ export function MemeIdeasDialog({
         </Button>
         <MemeFormatPicker formats={formats} value={meme.format} onPick={onFormat} />
       </div>
+      {onLook && looks.length > 0 && <MemeLookPicker looks={looks} value={meme.look ?? 'inferno_flat'} onPick={onLook} />}
     </Dialog>
   )
 }
@@ -152,5 +162,37 @@ export function MemeFormatPicker({
         </optgroup>
       ))}
     </Select>
+  )
+}
+
+/** Draw the meme again in a chosen look (style and palette). Each chip shows the look's colors. */
+export function MemeLookPicker({ looks, value, onPick }: { looks: MemeLookOut[]; value: string; onPick: (id: string) => void }) {
+  return (
+    <div className="mt-4 border-t border-line pt-4">
+      <p className="mb-2 text-sm font-medium">Look</p>
+      <p className="mb-3 text-xs text-muted">Redraws the same joke in another style. Redraw on its own picks a different look each time.</p>
+      <div role="group" aria-label="Meme look" className="flex flex-wrap gap-2">
+        {looks.map((look) => (
+          <button
+            key={look.id}
+            type="button"
+            title={look.description}
+            aria-pressed={look.id === value}
+            onClick={() => look.id !== value && onPick(look.id)}
+            className={cx(
+              'flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
+              look.id === value ? 'border-accent bg-sunken' : 'border-line hover:bg-sunken',
+            )}
+          >
+            <span aria-hidden className="flex">
+              {look.swatch.map((color) => (
+                <span key={color} className="size-3 first:rounded-l-full last:rounded-r-full" style={{ backgroundColor: color }} />
+              ))}
+            </span>
+            {look.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

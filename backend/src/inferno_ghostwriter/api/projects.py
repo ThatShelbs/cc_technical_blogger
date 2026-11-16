@@ -27,6 +27,7 @@ from inferno_ghostwriter.api.schemas import (
     LinkedInPostOut,
     MemeFormatOut,
     MemeInfoOut,
+    MemeLookOut,
     MemePitchOut,
     MemeSlotOut,
     MemeWordsIn,
@@ -56,6 +57,8 @@ from inferno_ghostwriter.evolution import change_stage, edit_rate, start_analysi
 from inferno_ghostwriter.export import PLATFORMS, Platform, build_bundle, copy_html, linkedin_post
 from inferno_ghostwriter.images import ImageProviderError, to_png
 from inferno_ghostwriter.images.memes import FAMILIES, FORMATS, get_format, load_state
+from inferno_ghostwriter.images.memes.generate import panel_scores
+from inferno_ghostwriter.images.memes.looks import LOOKS, get_look, is_look
 from inferno_ghostwriter.images.opening.room import JUDGES, fit_of, sources_of
 from inferno_ghostwriter.images.opening.room import load_state as load_opening_state
 from inferno_ghostwriter.images.opening.room import ruled_out as opening_ruled_out
@@ -197,6 +200,7 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
     fmt = get_format(str(state.get("format", "")))
     premise = concepts[chosen].get("premise", "") if isinstance(chosen, int) and 0 <= chosen < len(concepts) else ""
     tried = set(state.get("tried") or [])
+    panel = panel_scores(state, len(concepts))
     pitches = [
         MemePitchOut(
             index=i,
@@ -206,6 +210,7 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
             words=[str(t.get("text", "")).strip() for t in c.get("texts") or [] if str(t.get("text", "")).strip()],
             tried=i in tried,
             current=i == chosen,
+            panel_score=panel[i] if panel else None,
         )
         for i, c in enumerate(concepts)
         if (pitch_fmt := get_format(str(c.get("format", ""))))
@@ -216,6 +221,7 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
         for s in (fmt.slots if fmt and state.get("build") else ())
     ]
     failed = get_format(str(state.get("fallback_from", "")))
+    look = get_look(state.get("look"))
     return MemeInfoOut(
         format=fmt.id if fmt else "",
         format_name=fmt.name if fmt else "",
@@ -225,6 +231,9 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
         fallback_from=failed.name if failed else "",
         pitches=pitches,
         slots=slots,
+        look=look.id,
+        look_label=look.label,
+        review_verdict=str((state.get("review") or {}).get("verdict") or ("skipped" if (state.get("review") or {}).get("skipped") else "")),
     )
 
 
@@ -716,6 +725,7 @@ async def _image_job(
     instruction: str = "",
     meme_format: str | None = None,
     meme_concept: int | None = None,
+    meme_look: str | None = None,
     opening_style: str | None = None,
     opening_concept: int | None = None,
 ) -> JobOut:
@@ -742,6 +752,7 @@ async def _image_job(
             instruction=instruction,
             meme_format=meme_format,
             meme_concept=meme_concept,
+            meme_look=meme_look,
             opening_style=opening_style,
             opening_concept=opening_concept,
             usage=ctx.add_usage,
@@ -765,11 +776,13 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
     ``meme_concept``. The opening image can pitch again in one style with ``opening_style`` or build one of the
     panel's stored pitches with ``opening_concept``."""
     image = image_or_404(session, image_id)
-    if body.meme_format is not None or body.meme_concept is not None:
+    if body.meme_format is not None or body.meme_concept is not None or body.meme_look is not None:
         if not is_meme(image):
             raise HTTPException(422, "Only memes have formats and pitches.")
         if body.meme_format is not None and not get_format(body.meme_format):
             raise HTTPException(422, f"Unknown meme format {body.meme_format!r}.")
+        if body.meme_look is not None and not is_look(body.meme_look):
+            raise HTTPException(422, f"Unknown meme look {body.meme_look!r}.")
         if body.meme_concept is not None and body.meme_concept >= len((load_state(meme_spec(image)) or {}).get("concepts") or []):
             raise HTTPException(422, "This meme has no such pitch.")
     if body.opening_style is not None or body.opening_concept is not None:
@@ -786,6 +799,7 @@ async def redraw_image(image_id: int, body: RedrawIn, session: SessionDep, servi
         rethink=body.rethink,
         meme_format=body.meme_format,
         meme_concept=body.meme_concept,
+        meme_look=body.meme_look,
         opening_style=body.opening_style,
         opening_concept=body.opening_concept,
     )
@@ -830,6 +844,12 @@ def set_meme_words(image_id: int, body: MemeWordsIn, session: SessionDep, servic
         return image_out(services.images.set_meme_words(image_id, body.words, persona=persona, brand_kit=dict(project.brand_kit or {})))
     except ImageProviderError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/meme-looks", response_model=list[MemeLookOut])
+def meme_looks() -> list[MemeLookOut]:
+    """Every look a meme can be drawn in (the Look menu); swatches are the look's own palette, dark to light."""
+    return [MemeLookOut(id=look.id, label=look.label, description=look.description, swatch=list(look.theme.accents[:5])) for look in LOOKS]
 
 
 @router.get("/meme-formats", response_model=list[MemeFormatOut])

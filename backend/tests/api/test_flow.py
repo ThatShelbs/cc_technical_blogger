@@ -569,7 +569,7 @@ def test_redraw_all_images_uses_the_new_brand_kit(client: TestClient, sample_doc
 
 def test_meme_formats_new_ideas_and_edits(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
     formats = client.get("/api/meme-formats").json()
-    assert len(formats) == 18 and {"nope_yep", "joke_pie_3d", "comic_grid_4"} <= {f["id"] for f in formats}
+    assert len(formats) == 23 and {"nope_yep", "joke_pie_3d", "comic_grid_4"} <= {f["id"] for f in formats}
 
     project = ready_post(client, sample_docx)
     meme = next(i for i in project["images"] if i["kind"] == "meme")
@@ -590,9 +590,20 @@ def test_meme_formats_new_ideas_and_edits(client: TestClient, sample_docx: bytes
     assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_format": "nope"}).status_code == 422
     assert client.post(f"/api/images/{hero['id']}/redraw", json={"meme_format": "venn"}).status_code == 422
 
+    looks = client.get("/api/meme-looks").json()
+    assert len(looks) >= 10 and {"kawaii", "viridis_lab", "inferno_flat"} <= {look["id"] for look in looks}
+    assert all(len(look["swatch"]) == 5 for look in looks)
+    assert current()["meme"]["look"] in {look["id"] for look in looks}
+    before = current()["meme"]["look"]
+    assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_look": "kawaii"}).json()["status"] == "succeeded"
+    assert current()["meme"]["look"] == "kawaii" and current()["meme"]["look_label"] == "Kawaii" and before
+    assert client.post(f"/api/images/{meme['id']}/redraw", json={"meme_look": "nope"}).status_code == 422
+    assert client.post(f"/api/images/{hero['id']}/redraw", json={"meme_look": "kawaii"}).status_code == 422
+    assert all(p["panel_score"] is not None for p in current()["meme"]["pitches"])
+
     job = client.post(f"/api/images/{meme['id']}/edit", json={"instruction": "Make the footnote meaner"}).json()
     assert job["status"] == "succeeded", job
-    assert current()["meme"]["format"] == "nutrition_label" and len(current()["history"]) == 4
+    assert current()["meme"]["format"] == "nutrition_label" and len(current()["history"]) == 5
 
 
 def test_meme_ideas_board_and_word_editing_need_no_claude(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
