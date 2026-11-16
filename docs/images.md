@@ -102,10 +102,40 @@ One failed image never fails the post: it shows its error and a **Redraw** butto
 ## Redraw, new idea, replace, versions
 
 - **Edit**: tell Claude what to change ("make the arrows orange", "label the y-axis in percent"). Claude gets the current SVG or chart spec and changes only what you describe (`POST /api/images/{id}/edit`, `prompts/image_edit.md`). Only images Claude drew can be edited this way.
-- **Redraw**: Claude draws the same idea again with a different composition or treatment.
+- **Redraw**: Claude makes the image better, not just different. It first looks at the current image and names its weakest point and the concrete fixes (`ImprovementPlan`, `prompts/image_improve.md`; the PNG is sent when the connection can show images, else its source), then redraws the same idea with those fixes plus one or two experiments: other colors, another cast (dogs, cats, people, robots or objects instead of the ghost), another staging or another medium. The card says what was tried, and the next redraw avoids the last eight experiments. See *Redraw that improves* below.
+- **Remix**: choose the experiment yourself (colors, who is in it, staging, medium); anything left on *Surprise me* is picked for you.
+- **Builds on**: draw this image from an earlier one so both share data, colors and shapes. See *Images that build on each other* below.
 - **New idea**: Claude throws out the concept and designs a different image for the same purpose.
 - **Replace**: upload your own image (PNG, JPEG, WebP, ...; converted to PNG).
 - **Versions**: every version is kept; click one to restore it.
+
+## Redraw that improves
+
+`images/remix.py` is the only place a redraw experiment is defined, and every image goes through it: the opening image, the closing meme and everything between.
+
+| Dimension | Options | Applies to |
+| --- | --- | --- |
+| Colors (`palette`) | inferno, viridis, ocean, sunrise pastel, forest, one flame on grey, magma noir, candy pop, blueprint, sepia print | every image (charts, code-drawn openers and meme templates take the colors in code) |
+| Who is in it (`cast`) | the ghost, friendly robots, dogs, cats, stylized people, woodland animals, an octopus, living objects, no characters | illustrations, visual-metaphor openers, memes |
+| Staging (`staging`) | close-up, wide shot, isometric, top-down, before/after split, strict symmetry, diagonal | illustrations, diagrams, visual-metaphor and data-art openers |
+| Medium (`medium`) | flat vector, paper cut, line art, soft 3D clay, woodcut/risograph | illustrations, icons, visual-metaphor and data-art openers |
+
+- `choose_tweaks` picks up to two experiments with no model call, from the dimensions that suit the image (`remix_dimensions`), skipping what the last eight redraws tried (`ProjectImage.remix["recent"]`).
+- A post's brand-kit palette is never replaced at random; a palette you pin in **Remix** is.
+- The ghost stays the house character. A redraw may try another cast because you asked for experiments; real people's likenesses and other companies' characters are never used.
+- `POST /api/images/{id}/redraw` takes `tweaks` (`{"palette": "viridis", "cast": "dogs"}`) and `improve` (false = only the twist). `GET /api/remix-options` lists the catalog. `ImageOut.remix` holds the critique and the experiments; `ImageOut.remix_dimensions` what can vary.
+- Picking a stored pitch or a format (the Ideas boards) skips the critique: you chose the idea. **Redraw all images** redraws plainly, with no critique and no experiments, so a brand-kit change does not also change the look.
+- A failed critique never fails the redraw: the experiments still apply.
+
+## Images that build on each other
+
+Two images that tell one story (a single fitted line, then the same points split into groups for Simpson's paradox) must look like the same data taken further, not two unrelated datasets.
+
+- The planner sets `builds_on` on an image slot to the id of the earlier image it extends (`ImageSlot.builds_on`, `prompts/plan.md`); `normalize_slots` keeps only links to an earlier image that is still in the post.
+- The later image waits for the earlier one, then is designed with that image's source in the prompt (`ImageService._builds_on`): a chart copies the base chart's data rows, scales, colors and size and adds only what is new; other kinds reuse the palette, shapes, labels and layout.
+- On the card, **Builds on** links an image to any earlier drawn image and redraws it from it (`POST /api/images/{id}/build-on`), or unlinks it (`DELETE`).
+- Redrawing the earlier image leaves the later ones drawn from its old version; the card says so and offers **Redraw them to match** (`POST /api/images/{id}/redraw-dependents`).
+- The opening image and the closing meme stand on their own, and uploads cannot be built on (they have no source).
 
 ## Text that follows the image
 

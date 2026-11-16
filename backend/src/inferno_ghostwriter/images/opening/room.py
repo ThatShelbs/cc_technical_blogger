@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -36,6 +37,7 @@ from inferno_ghostwriter.images.opening.specs import (
     RenderReview,
 )
 from inferno_ghostwriter.images.opening.styles import AUTO, BY_ID, FALLBACK, STYLES, OpeningStyle, get_style
+from inferno_ghostwriter.images.remix import dimensions_for, variation_for
 from inferno_ghostwriter.images.render import svg_to_png
 from inferno_ghostwriter.images.specs import SvgSpec
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
@@ -62,10 +64,14 @@ SVG_RULES = {
         "where they make the metaphor click, such as the buckets of a plinko board. No headline or title text."
     ),
     "data_art": (
-        "Abstract, beautiful data art: network graphs, streams of coloured particles sorting into lanes, flowing lines, "
-        "candlestick or line motifs, scatter clouds. It must encode the post's idea in its structure (what sorts into what, "
-        "which node matters, what flows where), with the focal element in the warm colours. No text, no numbers, no axis "
-        "values, nothing that reads as a real measurement."
+        "Abstract data art, the kind of image a data visualization studio hangs on the wall: flowing lines, fields of "
+        "particles, soft networks, layered contours, ribbons, grids of cells, gradients and glows. It is ABSTRACT. Draw "
+        "no literal objects or scenes (no coins, dice, cards, flags, cups, people, hands, devices, icons or logos), no "
+        "metaphor-as-picture (that is the visual metaphor style) and no chart that could be read as a real measurement. "
+        "The subject shows only as a quiet hint: its structure (many sorting into few, one node holding the network "
+        "together, a stream splitting in two), the rhythm of its data (bursts, drift, clusters, a break in a trend) and a "
+        "colour story (the focal element in the warm colours, the rest cool and deep). A viewer who knows the post should "
+        "feel the subject; a viewer who does not should simply see something beautiful. No text, no numbers, no axis values."
     ),
     "receipt": (
         "An oversized, crisp mock of the one screen that proves the post's point: a code editor, a terminal, a prompt and "
@@ -74,6 +80,25 @@ SVG_RULES = {
         "hook. Fewer, bigger lines beat a full screen. No real product logos or brand marks."
     ),
 }
+
+
+# Things data art never draws: they make it a visual metaphor (a different style) and pull in clip art.
+LITERAL_OBJECTS = re.compile(
+    r"\b(coins?|dice|die|cards?|poker|flags?|cups?|mugs?|people|person|man|woman|hands?|fingers?|faces?|robots?|ghosts?|dogs?|cats?|"
+    r"laptops?|phones?|screens?|computers?|brains?|lightbulbs?|rockets?|trophy|gears?|clocks?|keys?|locks?|shields?|"
+    r"flips?|flipping|tosses?|slot machines?|roulette|casino|buckets?|plinko|arrows?|logos?|icons?)\b",
+    re.IGNORECASE,
+)
+
+
+def literal_objects(text: str) -> list[str]:
+    """Literal objects a data-art pitch names (data art is abstract, so these are a sign it is really a visual metaphor)."""
+    found: list[str] = []
+    for match in LITERAL_OBJECTS.finditer(text):
+        word = match.group(1).lower()
+        if word not in found:
+            found.append(word)
+    return found
 
 
 @dataclass
@@ -217,12 +242,39 @@ class OpeningRoom:
         rethink: bool = False,
         style: str | None = None,
         concept_index: int | None = None,
+        meme_format: str | None = None,
         usage: UsageSink | None = None,
     ) -> OpeningResult:
-        """Make the opening image. ``style`` re-pitches in one style; ``concept_index`` builds that stored pitch."""
+        """Make the opening image. ``style`` re-pitches in one style; ``concept_index`` builds that stored pitch.
+
+        ``meme_format`` opens the post with a meme in that catalog format (the whole bank is open to an opener, as it
+        is to the closer): the meme room pitches five jokes in it and draws the best, and the opening state keeps
+        every earlier pitch on the board."""
         state = load_state(spec)
         index: int | None = None
-        if concept_index is not None:
+        if meme_format is not None:
+            if state is None or state.get("brief") != ctx.brief:
+                state = {
+                    "version": STATE_VERSION,
+                    "room": "opening",
+                    "brief": ctx.brief,
+                    "mode": "meme",
+                    "concepts": [],
+                    "summary": "",
+                    "chosen": None,
+                    "tried": [],
+                }
+            picked = OpeningConcept(
+                style="meme",
+                template="",
+                hook="A joke that sets up the problem this post solves.",
+                concept=f"A meme in a format you picked that sets up the tension of: {ctx.title}.",
+                content="",
+                data_claim="",
+            )
+            state["concepts"] = [*state.get("concepts", []), {**picked.model_dump(), "panel": {}}]
+            index = len(state["concepts"]) - 1
+        elif concept_index is not None:
             if state is None or not 0 <= concept_index < len(state.get("concepts", [])):
                 raise ImageProviderError("That idea is no longer available. Click New idea for fresh pitches.")
             index = concept_index
@@ -247,7 +299,15 @@ class OpeningRoom:
         for attempt, i in enumerate(order[:MAX_BUILDS]):
             concept = load_concepts(state)[i]
             tried.add(i)
-            built = await self._build(concept, state, ctx, art, redraw=redraw and attempt == 0, usage=usage)
+            built = await self._build(
+                concept,
+                state,
+                ctx,
+                art,
+                redraw=redraw and attempt == 0,
+                usage=usage,
+                meme_format=meme_format if attempt == 0 else None,
+            )
             if built is not None:
                 state["chosen"] = i
                 break
@@ -440,6 +500,12 @@ class OpeningRoom:
                 problems.append("Include at least two open visual metaphors (`editorial`).")
             if not any(c.style == "data_art" for c in concepts):
                 problems.append("Include at least one `data_art` concept.")
+        for i, concept in enumerate(concepts):
+            if concept.style == "data_art" and (objects := literal_objects(f"{concept.concept} {concept.content}")):
+                problems.append(
+                    f"Concept {i} (`data_art`) pictures {', '.join(objects[:4])}. Data art is abstract: describe only structure, "
+                    "flow, rhythm and colour (streams, particles, networks, contours); literal objects belong in `editorial`."
+                )
         return problems
 
     async def _judge(
@@ -508,12 +574,13 @@ class OpeningRoom:
         usage: UsageSink | None,
         fix: str = "",
         keep_research: bool = False,
+        meme_format: str | None = None,
     ) -> _Built | None:
         style = BY_ID.get(concept.style) or BY_ID[FALLBACK]
         try:
             if style.builder == "meme":
-                previous = str(state.get("meme") or "") if redraw and state.get("style") == "meme" else ""
-                return await self._build_meme(concept, previous, ctx, art, usage)
+                previous = str(state.get("meme") or "") if redraw and state.get("style") == "meme" and not meme_format else ""
+                return await self._build_meme(concept, previous, ctx, art, usage, meme_format)
             if style.builder == "svg":
                 return await self._build_svg(style, concept, ctx, art, redraw=redraw, fix=fix, usage=usage)
             return await self._build_template(
@@ -536,6 +603,13 @@ class OpeningRoom:
         fix: str,
         usage: UsageSink | None,
     ) -> _Built:
+        allowed = dimensions_for("hero", style.id)
+        if style.id == "data_art":
+            fix += (
+                "\nThis is abstract data art. If the concept above names literal objects or actions (coins, flips, dice, people, "
+                "buckets), do not draw them: translate each into abstract structure (coins become particles, a flip becomes a "
+                "stream splitting in two, buckets become lanes) and keep the subject only as a subtle hint.\n"
+            )
         prompt = render(
             "opening_build_svg",
             style_label=style.label,
@@ -544,7 +618,11 @@ class OpeningRoom:
             concept=_concept_text(concept),
             visual_style=art.visual_style,
             brand=art.brand,
-            variation="This is a redraw: keep the idea but give it a fresh composition and staging." if redraw else "",
+            variation=(
+                (variation_for(art, allowed) or "This is a redraw: keep the idea but give it a fresh composition and staging.")
+                if redraw
+                else ""
+            ),
             fix=fix,
             image_guidance=art.image_guidance,
             post=clip_post(ctx.markdown, 5000, tail=0),
@@ -635,7 +713,11 @@ class OpeningRoom:
             spec=templates.build_spec(template),
             title=ctx.title,
             concept=_concept_text(concept),
-            variation="This is a redraw: keep the idea but find fresher, sharper wording." if redraw else "",
+            variation=(
+                (variation_for(art, (), kind="template") or "This is a redraw: keep the idea but find fresher, sharper wording.")
+                if redraw
+                else ""
+            ),
             fix=fix,
             facts=facts_block,
             image_guidance=art.image_guidance,
@@ -675,14 +757,20 @@ class OpeningRoom:
         return _Built(png, width, height, "claude-opening", build.alt, self._caption(build.caption, build), extra)
 
     async def _build_meme(
-        self, concept: OpeningConcept, previous: str, ctx: OpeningContext, art: ArtDirection, usage: UsageSink | None
+        self,
+        concept: OpeningConcept,
+        previous: str,
+        ctx: OpeningContext,
+        art: ArtDirection,
+        usage: UsageSink | None,
+        meme_format: str | None = None,
     ) -> _Built:
         """The meme room pitches and draws the opener from the winning premise; a redraw keeps its joke."""
         base = ctx.meme_context or MemeContext(
             title=ctx.title, markdown=ctx.markdown, voice_profile=ctx.voice_profile, brief="", humor=ctx.humor
         )
         meme_ctx = replace(base, brief=f"{concept.concept} ({concept.hook})", position="opening", opening="", joke="")
-        meme = await self.memes.make(previous, meme_ctx, art, redraw=bool(previous), review=False, usage=usage)
+        meme = await self.memes.make(previous, meme_ctx, art, redraw=bool(previous), meme_format=meme_format, review=False, usage=usage)
         return _Built(
             meme.png,
             meme.width,
@@ -703,7 +791,18 @@ class OpeningRoom:
             return await self.llm.structured(
                 task="opening review",
                 system=self.system,
-                prompt=render("opening_review", title=ctx.title, style_label=style.label, concept=concept or "(the post's central idea)"),
+                prompt=render(
+                    "opening_review",
+                    title=ctx.title,
+                    style_label=style.label,
+                    style_check=(
+                        "\nThis is abstract data art. It fails if it shows recognizable objects, scenes, people, clip-art icons or any "
+                        "text or numbers; it should only hint at the subject through structure, rhythm and colour.\n"
+                        if style.id == "data_art"
+                        else ""
+                    ),
+                    concept=concept or "(the post's central idea)",
+                ),
                 schema=RenderReview,
                 effort=self.settings.effort_opening_review,
                 max_tokens=6000,

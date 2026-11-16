@@ -7,6 +7,7 @@ What it should show: $brief
 Visual style: $visual_style
 $brand
 $variation
+$builds_on
 
 The other images in this post (look like one set with them, and do not show what another image already shows):
 $siblings

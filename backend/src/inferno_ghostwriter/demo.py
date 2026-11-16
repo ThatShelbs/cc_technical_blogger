@@ -505,6 +505,13 @@ def _structured_payload(name: str, prompt: str = "", is_showcase: bool = False) 
             "summary": "Added a rule to the Lexicon.",
             "edits": [{"item": "c1", "find": "## Lexicon", "replace": "## Lexicon\n\n- Lead with the concrete example, then the rule."}],
         }
+    if name == "ImprovementPlan":
+        return {
+            "weakness": "The focal point competes with the background.",
+            "improvements": ["Enlarge the focal element and calm the background", "Cut any text that repeats the caption"],
+            "keep": ["The central metaphor"],
+            "fresh_angle": "Show the same idea from a surprising viewpoint.",
+        }
     if name in ("TrendDigest", "IdeaBatch", "IdeaRanking"):
         from inferno_ghostwriter.idealab import demo_data
 

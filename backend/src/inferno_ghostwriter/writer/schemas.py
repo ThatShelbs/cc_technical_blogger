@@ -20,6 +20,14 @@ class ImageSlot(BaseModel):
     section_index: int = Field(description="-1 for the hero (before the first section), otherwise the section it belongs to.")
     purpose: str = Field(description="The value this image adds for the reader.")
     brief: str = Field(description="What the image should show.")
+    builds_on: str = Field(
+        default="",
+        description=(
+            "The slot_id of an EARLIER image this one extends or refines (the same chart with the groups split out, the "
+            "same diagram with one more layer); '' when it stands alone. The two are drawn from one source so they share data, "
+            "colors and shapes."
+        ),
+    )
 
 
 class Callback(BaseModel):
