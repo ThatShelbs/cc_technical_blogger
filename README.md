@@ -24,7 +24,7 @@
 
 ![Inferno Ghostwriter editor in day mode, showing a finished post with its opening image](docs/screenshots/editor-day.png)
 
-> **Just curious?** Run `launch.bat --demo` (Windows) or `./launch.sh --demo` (macOS/Linux). It opens on a finished example post with no account, no API key and no cost. **Never opened a terminal?** Follow the [step-by-step guide with screenshots](docs/getting-started.md).
+> **Just curious?** Run `launch.bat --demo` (Windows) or `./launch.sh --demo` (macOS/Linux). It opens on a finished example post with no account, no API key and no cost. **No writing samples yet?** That is fine: the setup guide can build your voice from a ready-made style, writers you admire or a short interview ([details](docs/no-writing-samples.md)). **Never opened a terminal?** Follow the [step-by-step guide with screenshots](docs/getting-started.md).
 
 ## Why not just use an AI chat?
 
@@ -60,7 +60,8 @@ It is specialized for technical writing: data science, Python, data visualizatio
 ## Features
 
 - **Learns your voice.** Upload your posts (Word, PDF, Markdown, HTML, or a URL; Medium exports are cleaned up automatically). Add writers you admire as *influences*: Inferno Ghostwriter borrows their techniques, never their identity.
-- **Voice profile.** A versioned `voice_profile.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing. Regenerate or edit it any time.
+- **A voice even with no writing samples.** About half of authors start with none. Pick one of 12 ready-made voices, name writers you admire (their public work is studied for style traits, never copied), answer a short interview, or get a random one. Add your own posts any time and the voice sharpens ([details](docs/no-writing-samples.md)).
+- **Voice profile.** A versioned `voice_profile.md` per persona: your soul, tone, signature moves, structure, title formulas, humor, teaching style, credibility habits, caption format, lexicon, and verbatim voice anchors, grounded in measured statistics from your writing once you have some. Regenerate or edit it any time.
 - **Optional web research** on current best practices for titles, storytelling, skimmable structure, humor, insight, credibility and teaching.
 - **Personas.** Create several (different names, different voices); exactly one is on at a time. Switch personas and pin any earlier voice profile version from the sidebar, name versions, rename personas, or branch a version into a new, separately named persona.
 - **Idea Lab: know what to write next.** Live research reads free public feeds (vendor blogs, papers, new repositories, Hacker News, Stack Exchange, publications and newsletters, industry news) and sends out Claude web search scouts for launches, what notable practitioners are claiming, what other writers are all publishing, and what each industry is building. Brainstorm 10, 25 or 50 ideas from that research and from your own portfolio (what to build on, where to branch out), each with a title, brief, outline and the links it came from. Order them by AI suggestion, theme or source, keep sending searches to dig deeper, then write any idea, or A/B test it, in one click.
@@ -150,6 +151,7 @@ Everything stays on your computer in the `data/` folder: samples, voice profiles
 ## Documentation
 
 - [Getting started: step by step with screenshots](docs/getting-started.md)
+- [A voice without writing samples](docs/no-writing-samples.md)
 - [Onboarding for contributors](docs/onboarding.md)
 - [Architecture and repository layout](docs/architecture.md)
 - [Voice pipeline and evaluation](docs/voice-pipeline.md)

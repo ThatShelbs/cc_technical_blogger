@@ -54,7 +54,8 @@ flowchart TB
 | `export/` | HTML/Markdown rendering and platform bundles, including the LinkedIn carousel (PDF + PPTX) and the X Article teaser post. |
 | `prompts/` | All prompts as Markdown templates. |
 | `demo.py` | Fake Claude used by tests and `--demo`. |
-| `example.py`, `sample_content/` | The offline "Sample Author" example persona and the bundled sample posts that let a first run work with no files (see below). |
+| `example.py`, `sample_content/` | The offline "Sample Author" example persona, the bundled sample posts and the ready-made voice archetypes (`archetypes.json`) that let a first run work with no files (see below). |
+| `voice/sources.py` | Voices for authors with no writing: validates a persona's chosen source and turns it into the persona brief for voice synthesis (see [no-writing-samples.md](no-writing-samples.md)). |
 | `personas.py` | Persona helpers shared by the routes and the example seeding (add a sample, delete a persona). |
 | `doctor.py` | `inferno-ghostwriter doctor`: machine checks with a fix for each problem, and the first-launch demo offer. |
 
@@ -77,7 +78,7 @@ backend/                           FastAPI + uv (Python 3.13)
     export/     Medium, Substack, LinkedIn (carousel PDF/PPTX), X Article, Gumroad (PDF), Markdown/Word bundles
     llm/        Claude client, sign-in resolution
     prompts/    Every prompt, as readable Markdown
-    sample_content/  Bundled sample posts and the example voice profile
+    sample_content/  Bundled sample posts, ready-made voice archetypes and the example voice profile
   tests/        pytest (fake Claude)
   evals/        Voice-fidelity and AI-detection evals (real API, opt-in)
 frontend/                          React 19 + Vite + Tailwind CSS 4

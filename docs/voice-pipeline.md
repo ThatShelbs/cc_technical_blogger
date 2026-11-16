@@ -44,6 +44,8 @@ When a persona has web research turned on, Claude searches for current guidance 
 
 ## 5. Voice profile
 
+> **No writing samples?** A persona can start from a chosen source instead (a ready-made voice, named writers, an interview or a random pick; see [no-writing-samples.md](no-writing-samples.md)). `voice/sources.py` turns it into a persona brief that goes into the synthesis prompt as `$persona_brief`, and `$mode_note` tells Claude there is no verbatim evidence: Voice Anchors become labeled illustrative lines, structure targets are ranges, and nothing is measured. A blend's web research is cached on the persona until the writers change and its sources are saved with the voice profile version. Steps 1-3 are skipped for such a persona; once it has its own posts they run as usual and its own writing decides identity.
+
 `prompts/voice_synthesize.md` turns the baseline, analyses and research into `voice_profile.md` with fixed sections: Soul · Voice & Tone · Signature Moves · Structure Blueprint · Titles & Subtitles · Humor · Teaching Style · Credibility & Trust · Images & Captions (including a one-line **visual style** for generated images) · Lexicon (including a *never use* list of generic AI-writing tells) · Do / Don't · Voice Anchors (verbatim passages).
 
 Every version is kept. Editing it in the app saves a new version. The synthesis also sees what Inferno Ghostwriter has learned from your edits (below), so the next version's Lexicon and Do / Don't reflect it.

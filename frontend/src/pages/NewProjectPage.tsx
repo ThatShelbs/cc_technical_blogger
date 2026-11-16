@@ -98,7 +98,7 @@ export function NewProjectPage() {
           <Notice tone="warn" title={persona ? `${persona.name} has no voice profile yet` : 'No persona is turned on'}>
             {persona ? (
               <Link className="font-semibold underline" to={`/personas/${persona.id}`}>
-                Add your writing and generate the voice profile first.
+                Add your writing or start from a ready-made voice, then generate the voice profile first.
               </Link>
             ) : (
               <Link className="font-semibold underline" to="/welcome">

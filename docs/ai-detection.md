@@ -13,7 +13,7 @@ The same checks also steer the writing: after the editor's pass, a **humanize** 
 
 ## How it is scored
 
-Four parts, each compared with **your own posts** (`backend/src/inferno_ghostwriter/authenticity/`). The weights are 40 / 30 / 15 / 15. When a part does not run, its weight is shared out among the others.
+Four parts, each compared with **your own posts** (`backend/src/inferno_ghostwriter/authenticity/`). The weights are 40 / 30 / 15 / 15. When a part does not run, its weight is shared out among the others. A persona with no posts of its own (see [no-writing-samples.md](no-writing-samples.md)) has nothing to compare with, so the twin test is skipped and the rest are scored against a generic human range until you add posts.
 
 1. **Detectors** (`local_detector.py`, `light_detector.py`, `detector_worker.py`). Pick any mix in Settings; each runs on your computer and scores every post against your own range (the average weights the light check half as much as a trained model):
    - **the light check** (default, built in): instant, no download. It reads what language models smooth out: even sentence lengths, few personal markers (contractions, "I" and "you", questions, asides), little concrete detail and repeated openings. A rougher signal than the trained models, so select one of them as well for a firmer read;

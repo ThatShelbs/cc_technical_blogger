@@ -109,6 +109,8 @@ npm run e2e          # Playwright, against the real backend in demo mode
 | What an A/B test's challenger changes, or how a winner is blended | `abtest/perturb.py`, `abtest/blend.py`, `abtest/service.py` | See [ab-testing.md](ab-testing.md); `uv run pytest tests/unit/test_abtest.py tests/api/test_ab_tests.py`. |
 | What images look like | `prompts/image_system.md`, `image_spec.md`, `images/service.py` | See [images.md](images.md). |
 | How a post opens (opening image styles, the judging panel, templates) | `images/opening/` (`styles.py` is the catalog), `prompts/opening_*.md` | See [opening-images.md](opening-images.md); `uv run pytest tests/unit/test_opening.py tests/api/test_opening.py`; `uv run python scripts/opening_gallery.py`. |
+| A ready-made voice (archetype) | `backend/src/inferno_ghostwriter/sample_content/archetypes.json` | See [no-writing-samples.md](no-writing-samples.md); `uv run pytest tests/api/test_voice_sources.py`. |
+| How a persona with no writing gets its voice (interview, writers, surprise) | `voice/sources.py`, `prompts/persona_research*.md`, `frontend/src/components/VoiceStart.tsx`, `lib/onboarding.ts` | Same; run the `with no files of your own` e2e test. |
 | A screen | `frontend/src/pages/` | Check day and night mode. |
 | Colors | `frontend/src/index.css` tokens only | Never raw colors in components. |
 | An API endpoint | `backend/src/inferno_ghostwriter/api/` plus a model in `api/schemas.py` | `uv run python scripts/export_types.py`, then add a payload to `demo.py` for any new structured output. |
@@ -120,6 +122,8 @@ npm run e2e          # Playwright, against the real backend in demo mode
 
 - **Persona**: one writing voice with its own samples and voice profile. Exactly one is **on** at a time.
 - **Sample**: a post you give Inferno Ghostwriter to learn from. *Own* samples define your voice; *influence* samples are writers you admire, whose techniques (not identity) are borrowed.
+- **Persona source**: where a persona's voice starts when it has no posts of its own: an *archetype* (a bundled ready-made voice), a *blend* of named writers, an *interview*, or a *random* pick. `Persona.source`, default `samples`.
+- **Persona brief**: the text a source turns into (an archetype's description, research on named writers, interview answers) that voice synthesis reads next to any sample analyses.
 - **Voice profile**: the generated, versioned `voice_profile.md` describing how a persona writes. Regenerate it, edit it, name versions, or pin an old one.
 - **Dials**: per-post settings (length, images, humor, education level, formality, technical depth...). The 0-10 style dials are relative to the author: 5 means "as they write".
 - **Exemplars**: the most similar of your own posts, included in full as examples when drafting.

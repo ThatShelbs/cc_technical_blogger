@@ -96,15 +96,28 @@ A typical 1,500-word post uses a few dollars of API credit at most. In **Setting
 
 ![Creating a persona: a name and a byline for image credits](screenshots/getting-started/06-persona.png)
 
-## Step 8: Teach it your voice
+## Step 8: Choose your voice
+
+The setup guide asks where your voice should come from. Both answers are good: pick the one that fits you today. You can always change your mind or add the other later.
+
+### If you have writing: choose **I have writing to share**
 
 1. Gather **three or more** posts you have written. Word files, PDFs, Markdown, HTML, or links to the posts online all work. Medium exports are cleaned up automatically.
-2. Drag them into the box, or click to choose files, or paste a link.
+2. Drag them into the box, click to choose files, paste a link, or paste the text itself.
 3. Wait for the confirmation, such as **Added 1 sample.**
 
-   **No posts yet?** Choose **I'm starting fresh** instead and pick a ready-made voice, writers you admire, a short interview or a surprise. See [A voice without writing samples](no-writing-samples.md). You can add your own posts later.
+![Choosing where your voice comes from, and adding writing samples](screenshots/getting-started/07-add-writing.png)
 
-![Adding writing samples: drag files in, choose them, or paste a link](screenshots/getting-started/07-add-writing.png)
+### If you have none yet: choose **I'm starting fresh**
+
+1. Pick one of four ways to get a voice: **Pick a voice** (12 ready-made styles with a preview line), **Inspired by writers** (name up to four writers you admire; their public work is studied for style, never copied), **Answer a few questions** (write the way you talk), or **Surprise me** (shuffle a random voice).
+2. Click **Use this voice**.
+
+![Starting fresh: choosing a ready-made voice](screenshots/getting-started/07b-start-fresh.png)
+
+More on each path: [A voice without writing samples](no-writing-samples.md). Add your own posts later and regenerate, and the voice gets more like you.
+
+### Then, for both
 
 4. Click **Generate my voice profile**. It takes a minute. When it finishes, read it. If something is off, edit it: it is plain text, and it is yours.
 
@@ -165,7 +178,7 @@ Drop `--demo` to run the real app. If macOS says the script cannot be opened, ru
 | The browser opens on an error or does not open | Wait a minute and refresh, or open `http://127.0.0.1:8732` yourself. The black window must still be open. |
 | "Port already in use" | Another copy is running. Close its black window, or restart your computer. |
 | It says a path is too long | Move the folder closer to the drive root, such as `C:\InfernoGhostwriter`. |
-| The post does not sound like me | Add more of your own posts (five or more is better), regenerate the voice profile, and edit anything off in it. Every edit you make also teaches the persona. |
+| The post does not sound like me | Add more of your own posts (five or more is better), regenerate the voice profile, and edit anything off in it. Every edit you make also teaches the persona. If you started from a ready-made voice or an interview, a single post or pasted text of your own already helps a lot. |
 | Setup is not what you expected | Run `uv run --project backend inferno-ghostwriter doctor` and send its output when you ask for help. |
 
 ## What next

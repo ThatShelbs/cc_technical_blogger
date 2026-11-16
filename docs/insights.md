@@ -15,7 +15,7 @@ Every persona has an **Insights** tab (Personas → a persona → Insights, or `
 | Formula flow (Sankey) | The formula of every post with text | no |
 | Track record | Posts, images, references, scores, edit lessons | no |
 
-The measured cards work as soon as a persona has samples. A persona with no samples and no posts shows one empty state that links to the samples tab.
+The measured cards work as soon as a persona has samples. A persona with no samples and no posts shows one empty state that links to the samples tab. A persona that started from a ready-made voice, writers or an interview has no digest or voice mix either (they are measured on your own sentences) until you add your own posts and refresh the insights.
 
 ## The digest
 

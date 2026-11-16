@@ -130,6 +130,8 @@ test('with no files of your own: remove the example, start from a ready-made voi
   await page.getByRole('radio', { name: /starting fresh/ }).click()
   await page.getByRole('button', { name: /Pick a voice/ }).click()
   await page.getByRole('button', { name: /The Dry-Wit Staff Engineer/ }).click()
+  await page.getByRole('radio', { name: /starting fresh/ }).scrollIntoViewIfNeeded()
+  await shot(page, 'getting-started/07b-start-fresh', { fullPage: true })
   await page.getByRole('button', { name: 'Use this voice' }).click()
 
   await page.getByRole('button', { name: 'Generate my voice profile' }).click()

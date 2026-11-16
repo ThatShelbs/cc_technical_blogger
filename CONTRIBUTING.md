@@ -11,7 +11,7 @@ scripts/setup.sh       # macOS / Linux
 
 This installs [uv](https://docs.astral.sh/uv/) (Python 3.13 and the backend environment) and [Node.js](https://nodejs.org) 22 LTS if you agree, installs all packages, and finishes by running `inferno-ghostwriter doctor`, which tells you how to fix anything still missing. Re-run it any time; it is safe to repeat. The [Anthropic CLI](https://github.com/anthropics/anthropic-cli/releases) is optional, only for testing *Sign in with Claude*.
 
-You do **not** need API keys or any writing of your own to develop: demo mode and the test suite use a fake Claude and a fake image model, and the app ships with sample posts and an example persona.
+You do **not** need API keys or any writing of your own to develop: demo mode and the test suite use a fake Claude and a fake image model, and the app ships with sample posts and an example persona. Many real users have no writing samples either, so keep that journey working too: see [docs/no-writing-samples.md](docs/no-writing-samples.md).
 
 ## Run it
 
