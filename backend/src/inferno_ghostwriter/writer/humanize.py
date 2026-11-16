@@ -125,11 +125,13 @@ async def machine_scores(
         try:
             results = await chosen.score([detector_input(p) for p in passages])
             out = []
+            measured = False
             for result in results:
-                curvature = (result.get("curvature") or {}).get("score")
-                classifier = (result.get("classifier") or {}).get("score")
-                out.append((curvature or 0.0) + 4 * (classifier or 0.0))
-            return out
+                light, curvature, classifier = ((result.get(key) or {}).get("score") for key in ("light", "curvature", "classifier"))
+                measured = measured or any(v is not None for v in (light, curvature, classifier))
+                out.append(2 * (light or 0.0) + (curvature or 0.0) + 4 * (classifier or 0.0))
+            if measured:  # a passage too short for every selected model gives no signal: use the twin test then
+                return out
         except Exception as exc:  # noqa: BLE001 - fall back to the twin test
             log.warning("Detector models failed while comparing passages: %s", exc)
     if not profile.passages or not settings.ai_detection:

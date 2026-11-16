@@ -58,6 +58,10 @@ class Persona(SQLModel, table=True):
     voice_sample_max_words: int = 0
     voice_sample_min_words: int = 0
     voice_influence_weight: int = 5
+    # Where the voice comes from: "samples" (the author's own posts), or, for authors with none,
+    # "archetype" | "blend" | "interview" | "random" (see voice.sources). source_spec holds the choice.
+    source: str = "samples"
+    source_spec: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, default={}))
     # What the author keeps changing in generated posts (see voice.lessons), most frequent first.
     edit_lessons: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, default=[]))
     # What made the author's well-received posts work (see voice.playbook): {text, project_id, title, outcome, added_at}.

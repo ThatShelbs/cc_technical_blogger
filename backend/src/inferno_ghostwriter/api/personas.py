@@ -9,6 +9,8 @@ from sqlmodel import Session, col, func, select
 
 from inferno_ghostwriter.api.deps import ServicesDep, SessionDep, persona_or_404, sample_or_404
 from inferno_ghostwriter.api.schemas import (
+    ArchetypeOut,
+    InterviewQuestionOut,
     JobOut,
     PersonaCreate,
     PersonaDuplicateIn,
@@ -17,9 +19,11 @@ from inferno_ghostwriter.api.schemas import (
     SampleDetail,
     SampleKind,
     SampleOut,
+    SampleTextIn,
     SampleUpdate,
     SampleWritingOut,
     SeedSamplesOut,
+    SurpriseOut,
     UploadResult,
     UrlImportIn,
     VoiceProfileEdit,
@@ -27,6 +31,7 @@ from inferno_ghostwriter.api.schemas import (
     VoiceProfileLabelIn,
     VoiceProfileOut,
     VoiceProfileVersion,
+    VoiceSourceIn,
 )
 from inferno_ghostwriter.db import Persona, PersonaEvolution, Sample, VoiceProfile, utcnow
 from inferno_ghostwriter.evolution import EVOLUTION_JOBS
@@ -39,6 +44,7 @@ from inferno_ghostwriter.sample_content import SAMPLE_AUTHOR, sample_posts
 from inferno_ghostwriter.services import Services
 from inferno_ghostwriter.storage import safe_filename
 from inferno_ghostwriter.voice import current_voice_profile, generate_voice_profile, latest_voice_profile, unpin, voice_profile_version
+from inferno_ghostwriter.voice import sources as voice_sources
 from inferno_ghostwriter.voice.insights import INSIGHTS_JOB
 from inferno_ghostwriter.writer.formulas import clean as clean_formula
 
@@ -69,7 +75,8 @@ def persona_out(session: Session, persona: Persona, services: Services) -> Perso
         .where(PersonaEvolution.persona_id == persona.id, PersonaEvolution.state == "pending")
     ).one()
     return PersonaOut(
-        **persona.model_dump(exclude={"updated_at"}),
+        **persona.model_dump(exclude={"updated_at", "source_spec"}),
+        source_spec={k: v for k, v in (persona.source_spec or {}).items() if k != "researched"},
         own_samples=counts.get("own", 0),
         influence_samples=counts.get("influence", 0),
         voice_profile_version=current.version if current else None,
@@ -341,6 +348,18 @@ def import_seed_samples(persona_id: int, session: SessionDep, services: Services
     return UploadResult(added=added, errors=errors)
 
 
+@router.post("/personas/{persona_id}/samples/text", response_model=SampleOut, status_code=201)
+def add_text_sample(persona_id: int, body: SampleTextIn, session: SessionDep) -> SampleOut:
+    """Add pasted text (a post, an email, a bio...) as a sample, for authors who have no files."""
+    persona_or_404(session, persona_id)
+    name = f"{safe_filename(body.title.strip() or 'Pasted text')}.md"
+    try:
+        sample = add_sample(session, persona_id, body.kind, name, parse_file(name, body.text.encode("utf-8")))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return sample_out(sample)
+
+
 @router.get("/sample-writing", response_model=SampleWritingOut)
 def sample_writing() -> SampleWritingOut:
     """The bundled sample posts, for someone who has no writing of their own to upload yet."""
@@ -387,13 +406,67 @@ def delete_sample(sample_id: int, session: SessionDep) -> None:
 # -- voice profile -----------------------------------------------------------------------
 
 
+@router.get("/archetypes", response_model=list[ArchetypeOut])
+def list_archetypes() -> list[ArchetypeOut]:
+    """The bundled voices a person can start from when they have no writing of their own."""
+    return [ArchetypeOut(**{k: a[k] for k in ("id", "name", "tagline", "preview", "dials")}) for a in voice_sources.archetypes()]
+
+
+@router.get("/voice-interview", response_model=list[InterviewQuestionOut])
+def voice_interview() -> list[InterviewQuestionOut]:
+    """The short questions that build a voice for someone with no writing of their own."""
+    return [InterviewQuestionOut(**q) for q in voice_sources.INTERVIEW_QUESTIONS]
+
+
+@router.get("/voice-surprise", response_model=SurpriseOut)
+def voice_surprise(seed: int | None = None) -> SurpriseOut:
+    """A random voice to start from (the same ``seed`` gives the same one)."""
+    spec = voice_sources.random_spec(seed)
+
+    def out(archetype_id: str) -> ArchetypeOut:
+        a = voice_sources.get_archetype(archetype_id)
+        return ArchetypeOut(**{k: a[k] for k in ("id", "name", "tagline", "preview", "dials")})
+
+    return SurpriseOut(spec=spec, archetype=out(spec["archetype"]), secondary=out(spec["secondary"]))
+
+
+@router.put("/personas/{persona_id}/voice-source", response_model=PersonaOut)
+def set_voice_source(persona_id: int, body: VoiceSourceIn, session: SessionDep, services: ServicesDep) -> PersonaOut:
+    """Choose where this persona's voice starts (no writing needed); generate the voice profile next."""
+    persona = persona_or_404(session, persona_id)
+    try:
+        spec = voice_sources.clean_spec(body.source, body.spec)
+    except voice_sources.SourceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    voice_sources.apply_source(persona, body.source, spec)
+    persona.updated_at = utcnow()
+    session.add(persona)
+    session.commit()
+    session.refresh(persona)
+    return persona_out(session, persona, services)
+
+
+@router.delete("/personas/{persona_id}/voice-source", response_model=PersonaOut)
+def clear_voice_source(persona_id: int, session: SessionDep, services: ServicesDep) -> PersonaOut:
+    """Go back to learning the voice from the author's own posts only."""
+    persona = persona_or_404(session, persona_id)
+    persona.source = "samples"
+    persona.source_spec = {}
+    persona.updated_at = utcnow()
+    session.add(persona)
+    session.commit()
+    session.refresh(persona)
+    return persona_out(session, persona, services)
+
+
 @router.post("/personas/{persona_id}/voice-profile", response_model=JobOut, status_code=202)
 async def start_voice_profile(
     persona_id: int, session: SessionDep, services: ServicesDep, body: VoiceProfileGenerateIn | None = None
 ) -> JobOut:
-    persona_or_404(session, persona_id)
-    if not session.exec(select(Sample).where(Sample.persona_id == persona_id, Sample.kind == "own")).first():
-        raise HTTPException(422, "Add at least one sample of your own writing first.")
+    persona = persona_or_404(session, persona_id)
+    has_start = persona.source != "samples" and bool(persona.source_spec)
+    if not has_start and not session.exec(select(Sample).where(Sample.persona_id == persona_id, Sample.kind == "own")).first():
+        raise HTTPException(422, "Add at least one sample of your own writing, or pick a voice to start from, first.")
     active = services.jobs.active_for(persona_id=persona_id)
     if active:
         return JobOut(**active[0].model_dump())

@@ -126,7 +126,7 @@ def _settings_out(services: ServicesDep) -> SettingsOut:
         use_fallbacks=s.use_fallbacks,
         revision_passes=s.revision_passes,
         ai_detection=s.ai_detection,
-        deep_check=s.deep_check,
+        detector_models=local_detector.selected_models(s),
         humanize_rounds=s.humanize_rounds,
         reference_max_searches=s.reference_max_searches,
         check_reference_links=s.check_reference_links,
@@ -147,8 +147,14 @@ def get_settings(services: ServicesDep) -> SettingsOut:
 def update_settings(body: SettingsIn, services: ServicesDep) -> SettingsOut:
     for key in RUNTIME_SETTINGS:
         value = getattr(body, key)
-        if value is not None:
-            services.save_runtime_setting(key, value.strip() if isinstance(value, str) else value)
+        if value is None:
+            continue
+        if key == "detector_models":
+            unknown = sorted(set(value) - set(local_detector.BY_ID))
+            if unknown:
+                raise HTTPException(422, f"Unknown detector: {', '.join(unknown)}.")
+            value = local_detector.clean_selection(value)
+        services.save_runtime_setting(key, value.strip() if isinstance(value, str) else value)
     return _settings_out(services)
 
 
@@ -173,7 +179,7 @@ def detector_status(services: ServicesDep) -> DetectorStatusOut:
 
 @router.post("/detector/setup", response_model=DetectorStatusOut, status_code=202)
 async def setup_detector(services: ServicesDep) -> DetectorStatusOut:
-    """Install the detector packages and download the models once (about 1.3 GB), then turn the detectors on."""
+    """Install the packages and download the selected trained models once (about 1.3 GB). The light check needs none of this."""
     state = local_detector.status(services.settings)
     if not state["available"]:
         raise HTTPException(409, state["detail"])
@@ -183,7 +189,6 @@ async def setup_detector(services: ServicesDep) -> DetectorStatusOut:
             await ctx.progress(0.05, "Installing PyTorch and downloading the detector models (one time, about 1.3 GB)")
             if not services.settings.demo:
                 await asyncio.to_thread(local_detector.setup_detector, services.settings)
-            services.save_runtime_setting("deep_check", True)
             await ctx.progress(1.0, "The detector models are ready")
             return {"ready": True}
 

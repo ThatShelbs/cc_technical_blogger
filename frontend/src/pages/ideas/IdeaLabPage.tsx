@@ -1,7 +1,8 @@
 import { useSearchParams } from 'react-router'
 
+import { Tabs } from '../../components/tabs'
+import { panelDomId, tabDomId } from '../../lib/tabs'
 import { PageHeader } from '../../components/ui'
-import { cx } from '../../lib/cx'
 import { BankTab } from './BankTab'
 import { IdeasTab } from './IdeasTab'
 import { ResearchTab } from './ResearchTab'
@@ -34,26 +35,8 @@ export function IdeaLabPage() {
         title="Idea Lab"
         subtitle="What to write next: ideas from what is happening in the field and from your own portfolio, each with a title, brief and outline."
       />
-      <div role="tablist" aria-label="Idea Lab" className="mb-6 flex gap-1 border-b border-line">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            id={`idea-tab-${item.id}`}
-            aria-selected={tab === item.id}
-            aria-controls={`idea-panel-${item.id}`}
-            onClick={() => open(item.id)}
-            className={cx(
-              '-mb-px border-b-2 px-4 py-2 text-sm font-semibold',
-              tab === item.id ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg',
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" id={`idea-panel-${tab}`} aria-labelledby={`idea-tab-${tab}`}>
+      <Tabs tabs={TABS} value={tab} onChange={open} label="Idea Lab" idPrefix="idea" className="mb-6" />
+      <div role="tabpanel" id={panelDomId('idea', tab)} aria-labelledby={tabDomId('idea', tab)}>
         {tab === 'ideas' && <IdeasTab openResearch={() => open('research')} />}
         {tab === 'bank' && <BankTab />}
         {tab === 'research' && <ResearchTab openSources={() => open('sources')} />}

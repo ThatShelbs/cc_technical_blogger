@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { errorText } from '../api/client'
-import { usePersonaMutations, usePersonas } from '../api/hooks'
+import { useArchetypes, usePersonaMutations, usePersonas } from '../api/hooks'
+import { sourceSummary } from '../lib/onboarding'
 import { Badge, Button, Card, Dialog, EmptyState, Field, Input, Notice, PageHeader, Spinner, Switch } from '../components/ui'
 
 export function CreatePersonaForm({ onCreated, submitLabel = 'Create persona' }: { onCreated?: (id: number) => void; submitLabel?: string }) {
@@ -34,6 +35,7 @@ export function CreatePersonaForm({ onCreated, submitLabel = 'Create persona' }:
 
 export function PersonasPage() {
   const { data: personas, isLoading } = usePersonas()
+  const archetypes = useArchetypes()
   const { activate, removeExample } = usePersonaMutations()
   const [creating, setCreating] = useState(false)
 
@@ -55,7 +57,8 @@ export function PersonasPage() {
           title="No personas yet"
           action={<Button onClick={() => setCreating(true)}>Create your first persona</Button>}
         >
-          A persona learns a voice from writing samples.
+          A persona is a writing voice. It learns from your own posts, or starts from a ready-made voice, writers you admire or a short interview if you have
+          none yet.
         </EmptyState>
       )}
       <div className="grid gap-4 md:grid-cols-2">
@@ -80,6 +83,7 @@ export function PersonasPage() {
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {persona.is_example && <Badge tone="accent">Example</Badge>}
+              {persona.source !== 'samples' && <Badge tone="accent">{sourceSummary(persona, archetypes.data)}</Badge>}
               <Badge>{persona.own_samples} of my posts</Badge>
               <Badge>{persona.influence_samples} influences</Badge>
               {persona.voice_profile_version ? (

@@ -102,7 +102,7 @@ A typical 1,500-word post uses a few dollars of API credit at most. In **Setting
 2. Drag them into the box, or click to choose files, or paste a link.
 3. Wait for the confirmation, such as **Added 1 sample.**
 
-   **No posts yet?** Click **Use 3 sample posts** to try the whole flow with short example posts, and replace them with your own later.
+   **No posts yet?** Choose **I'm starting fresh** instead and pick a ready-made voice, writers you admire, a short interview or a surprise. See [A voice without writing samples](no-writing-samples.md). You can add your own posts later.
 
 ![Adding writing samples: drag files in, choose them, or paste a link](screenshots/getting-started/07-add-writing.png)
 

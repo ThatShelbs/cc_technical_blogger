@@ -8,6 +8,7 @@ import { keys, usePersona, usePersonaMutations, useSaveVoiceProfile, useVoicePro
 import type { PersonaOut } from '../api/types.gen'
 import { useJob } from '../api/useJob'
 import { Markdown } from './Article'
+import { hasVoiceStart } from '../lib/onboarding'
 import { Badge, Button, Card, Dialog, EmptyState, Field, Input, Notice, ProgressBar, Select, StatTile, Textarea } from './ui'
 import { cx } from '../lib/cx'
 
@@ -225,15 +226,15 @@ export function VoiceProfilePanel({ personaId, onGenerated }: { personaId: numbe
               variant="flame"
               size="lg"
               onClick={() => mutations.generateVoiceProfile.mutate({ id: personaId }, { onSuccess: (created) => setJobId(created.id) })}
-              disabled={ownSamples === 0}
+              disabled={!hasVoiceStart(persona.data)}
               loading={mutations.generateVoiceProfile.isPending}
             >
               Generate my voice profile
             </Button>
           }
         >
-          {ownSamples === 0
-            ? 'Add at least one post you wrote, then generate.'
+          {!hasVoiceStart(persona.data)
+            ? 'Add a post you wrote, or choose a voice to start from (no writing needed), then generate.'
             : 'Inferno Ghostwriter studies your posts (and any influences), then writes a field guide to your voice that every post follows.'}
         </EmptyState>
       ) : editing !== null ? (

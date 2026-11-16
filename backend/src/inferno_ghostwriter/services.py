@@ -31,7 +31,7 @@ RUNTIME_SETTINGS = (
     "use_fallbacks",
     "revision_passes",
     "ai_detection",
-    "deep_check",
+    "detector_models",
     "humanize_rounds",
     "reference_max_searches",
     "check_reference_links",
@@ -72,6 +72,10 @@ def load_runtime_settings(engine: Engine, settings: Settings) -> None:
             row = session.get(AppSetting, key)
             if row is not None and row.value is not None:
                 setattr(settings, key, row.value)
+        # Older versions had one switch for both trained detectors ("deep_check"): keep them selected for those authors.
+        old = session.get(AppSetting, "deep_check")
+        if old is not None and old.value is True and session.get(AppSetting, "detector_models") is None:
+            settings.detector_models = ["light", "curvature", "classifier"]
 
 
 def build_services(

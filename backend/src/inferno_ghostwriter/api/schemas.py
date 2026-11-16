@@ -58,7 +58,7 @@ class SettingsOut(BaseModel):
     use_fallbacks: bool
     revision_passes: int
     ai_detection: bool
-    deep_check: bool
+    detector_models: list[str]
     humanize_rounds: int
     reference_max_searches: int
     check_reference_links: bool
@@ -75,7 +75,8 @@ class SettingsIn(BaseModel):
     use_fallbacks: bool | None = None
     revision_passes: int | None = Field(None, ge=0, le=2)
     ai_detection: bool | None = None
-    deep_check: bool | None = None
+    # Detector ids to use (see GET /detector); an empty list turns the detectors off.
+    detector_models: list[str] | None = None
     humanize_rounds: int | None = Field(None, ge=0, le=2)
     reference_max_searches: int | None = Field(None, ge=1, le=8)
     check_reference_links: bool | None = None
@@ -254,6 +255,9 @@ class PersonaOut(BaseModel):
     voice_sample_max_words: int
     voice_sample_min_words: int
     voice_influence_weight: int
+    # Where the voice comes from: "samples" or a chosen start for authors without posts (see voice.sources).
+    source: str
+    source_spec: dict[str, Any]
     edit_lessons: list[EditLesson]
     playbook: list[PlaybookEntry]
     # Proposals from published posts waiting for review.
@@ -351,6 +355,41 @@ class VoiceProfileGenerateIn(BaseModel):
     label: str = Field("", max_length=80)
 
 
+class VoiceSourceIn(BaseModel):
+    """Choose where a persona's voice starts: an archetype, a surprise, named writers or an interview."""
+
+    source: Literal["archetype", "random", "blend", "interview"]
+    spec: dict[str, Any] = Field(default_factory=dict)
+
+
+class ArchetypeOut(BaseModel):
+    id: str
+    name: str
+    tagline: str
+    preview: str
+    dials: dict[str, int]
+
+
+class InterviewQuestionOut(BaseModel):
+    id: str
+    question: str
+    hint: str
+
+
+class SurpriseOut(BaseModel):
+    spec: dict[str, Any]
+    archetype: ArchetypeOut
+    secondary: ArchetypeOut | None
+
+
+class SampleTextIn(BaseModel):
+    """Pasted text added as a sample (an email, a post, a bio...)."""
+
+    text: str = Field(min_length=1)
+    title: str = Field("", max_length=200)
+    kind: SampleKind = "own"
+
+
 class VoiceProfileLabelIn(BaseModel):
     label: str = Field(max_length=80)
 
@@ -405,13 +444,28 @@ class JobOut(BaseModel):
     created_at: datetime
 
 
+class DetectorModelOut(BaseModel):
+    id: str
+    label: str
+    summary: str
+    # Needs the one-time PyTorch and model download.
+    heavy: bool
+    size: str
+    selected: bool
+    # The trained models are installed (the light check always is).
+    installed: bool
+
+
 class DetectorStatusOut(BaseModel):
-    """The local AI-text detector models (see authenticity.local_detector)."""
+    """The AI-text detectors (see authenticity.local_detector): every model to pick from, and what is selected."""
 
     available: bool
+    # Every selected model is installed.
     ready: bool
+    # At least one selected model can run now.
     enabled: bool
-    models: dict[str, str]
+    selected: list[str]
+    models: list[DetectorModelOut]
     detail: str
     # Set while the one-time setup (install and download) runs.
     job: JobOut | None = None
