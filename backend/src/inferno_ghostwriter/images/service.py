@@ -11,6 +11,7 @@ import json
 import logging
 import re
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -46,6 +47,8 @@ log = logging.getLogger(__name__)
 
 # Pixel width each SVG kind is rasterized at (height follows the SVG's viewBox).
 RENDER_WIDTH = {"hero": 1600, "illustration": 1600, "diagram": 1600, "screenshot": 1600, "icon": 768, "meme": 1080}
+MAX_EDIT_NOTES = 8
+MAX_EDIT_SPEC = 20000
 STALE_PENDING = "Generation stopped before this image was made. Click Redraw to create it."
 
 
@@ -206,6 +209,7 @@ class ImageService:
         try:
             if instruction.strip():
                 updates = await self._edit(image, persona=persona, instruction=instruction, brand_kit=brand_kit, usage=usage)
+                updates["edits"] = [*(image.edits or []), instruction.strip()][-MAX_EDIT_NOTES:]
             else:
                 updates = await self._produce(
                     image,
@@ -261,6 +265,7 @@ class ImageService:
             {
                 "file_name": file_name,
                 "provider": "upload",
+                "edits": [],
                 "seed": None,
                 "width": width,
                 "height": height,
@@ -314,7 +319,7 @@ class ImageService:
             entry = image.history[index]
         fields: dict[str, Any] = {
             k: entry[k]
-            for k in ("file_name", "provider", "seed", "prompt", "spec", "alt", "caption", "credit", "width", "height")
+            for k in ("file_name", "provider", "seed", "prompt", "spec", "alt", "caption", "credit", "width", "height", "edits")
             if k in entry
         }
         return self._save(image_id, {**fields, "status": "ready", "error": None}, record=False)
@@ -345,6 +350,12 @@ class ImageService:
         art = self._art_direction(brand_kit, persona, voice_profile)
         remixed: dict[str, Any] | None = None
         picked = meme_concept is not None or opening_concept is not None or meme_format is not None or opening_style is not None
+        # A redraw or remix builds on the author's edits; picking another idea or rethinking starts over.
+        keep_edits = (
+            bool(image.edits) and bool(image.spec) and not rethink and not picked and image.provider not in ("upload", "placeholder")
+        )
+        if keep_edits:
+            art = replace(art, edits=tuple(image.edits))
         if remix and (redraw or rethink or tweaks):
             art, remixed = await self._remix(
                 image,
@@ -376,6 +387,8 @@ class ImageService:
         )
         if remixed is not None:
             updates["remix"] = remixed
+        if image.edits and not keep_edits:
+            updates["edits"] = []
         return updates
 
     async def _remix(
@@ -499,6 +512,8 @@ class ImageService:
             # The redraw's own brainstorm and twist replace the generic line.
             rethought = "\nThrow out the previous concept and design a completely different idea that serves the same purpose."
             variation = planned + (rethought if rethink else "")
+        if art.edits and image.spec and not rethink:
+            variation += remixing.edit_note(art.edits, image.spec[:MAX_EDIT_SPEC])
         prompt = render(
             "image_spec",
             kind=kind,
@@ -823,7 +838,7 @@ class ImageService:
             if record and updates.get("file_name"):
                 entry = {
                     k: getattr(image, k)
-                    for k in ("file_name", "provider", "seed", "prompt", "spec", "alt", "caption", "credit", "width", "height")
+                    for k in ("file_name", "provider", "seed", "prompt", "spec", "alt", "caption", "credit", "width", "height", "edits")
                 }
                 entry["created_at"] = datetime.now(UTC).isoformat()
                 image.history = [*image.history, entry]

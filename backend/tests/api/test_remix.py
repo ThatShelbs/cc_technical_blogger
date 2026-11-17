@@ -109,3 +109,32 @@ def test_an_image_can_build_on_an_earlier_one_and_follows_it(client: TestClient,
 
     cleared = client.delete(f"/api/images/{later['id']}/build-on")
     assert cleared.status_code == 200 and cleared.json()["builds_on"] == ""
+
+
+def test_redraw_and_remix_build_on_an_edited_image(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = make_post(client, sample_docx)
+    diagram = images(client, project)["img2"]
+
+    # Never edited: the redraw prompt carries no edit block.
+    fake_llm.calls.clear()
+    client.post(f"/api/images/{diagram['id']}/redraw", json={})
+    plain = next(c for c in fake_llm.calls if c["task"] == "diagram image design")
+    assert "<edits>" not in plain["prompt"]
+
+    assert client.post(f"/api/images/{diagram['id']}/edit", json={"instruction": "Make the arrows orange"}).json()["status"] == "succeeded"
+    fake_llm.calls.clear()
+    assert client.post(f"/api/images/{diagram['id']}/redraw", json={"tweaks": {"palette": "viridis"}}).json()["status"] == "succeeded"
+    draw = next(c for c in fake_llm.calls if c["task"] == "diagram image design")
+    assert "Make the arrows orange" in draw["prompt"] and "<current_design>" in draw["prompt"]
+    assert "viridis" in draw["prompt"].lower()
+    # Later redraws keep building on it ...
+    fake_llm.calls.clear()
+    client.post(f"/api/images/{diagram['id']}/redraw", json={})
+    assert "Make the arrows orange" in next(c for c in fake_llm.calls if c["task"] == "diagram image design")["prompt"]
+    # ... until the author asks for a new idea.
+    fake_llm.calls.clear()
+    client.post(f"/api/images/{diagram['id']}/redraw", json={"rethink": True})
+    assert "<edits>" not in next(c for c in fake_llm.calls if c["task"] == "diagram image design")["prompt"]
+    fake_llm.calls.clear()
+    client.post(f"/api/images/{diagram['id']}/redraw", json={})
+    assert "<edits>" not in next(c for c in fake_llm.calls if c["task"] == "diagram image design")["prompt"]

@@ -4,6 +4,10 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ## [Unreleased]
 
+### Fixed
+
+- **Redraw and Remix keep your edits.** After you changed an image with **Edit**, Redraw and Remix went back to the original idea. They now build on the edited picture (illustrations, diagrams, charts, the opening image and memes) and only change the look; *New idea* still starts fresh.
+
 ### Added
 
 - **Build a voice with no writing samples.** About half of new authors have no posts to learn from, so the setup guide's **Your voice** step now starts with a fork: *I have writing* (upload, URL or newly pasted text) or *I'm starting fresh*. Fresh authors pick a ready-made voice (12 archetypes), name 1-4 public writers to be inspired by (a web search extracts style traits only), answer a short interview, or get a random voice, then generate the voice profile as usual. The same chooser appears on a persona's Samples tab, and adding your own posts later sharpens the voice. See [docs/no-writing-samples.md](docs/no-writing-samples.md).

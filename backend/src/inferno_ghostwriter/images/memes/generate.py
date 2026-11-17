@@ -29,7 +29,7 @@ from inferno_ghostwriter.images.memes.specs import (
     MemeText,
     MemeVerdict,
 )
-from inferno_ghostwriter.images.remix import PALETTE, ImprovementPlan, Tweak, variation_for
+from inferno_ghostwriter.images.remix import PALETTE, ImprovementPlan, Tweak, edit_note, variation_for
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
 from inferno_ghostwriter.llm.base import LLMImagesUnsupportedError, UsageSink
 from inferno_ghostwriter.prompts import raw, render
@@ -105,6 +105,8 @@ class ArtDirection:
     improvement: ImprovementPlan | None = None
     tweaks: tuple[Tweak, ...] = ()
     cast: str = ""
+    # The author's edit instructions for the image being redrawn: when set, a redraw builds on the edited picture.
+    edits: tuple[str, ...] = ()
 
 
 @dataclass
@@ -342,7 +344,13 @@ class MemeMaker:
         chosen_look = choose_look(look, concept.look if concept else None, post.recent_looks, avoid=avoid)
         state["look"] = chosen_look.id
         state.pop("review", None)
-        built = await self._produce(fmt, concept, post.title, art, chosen_look, redraw=redraw, usage=usage) if concept else None
+        # A redraw of an edited meme keeps the edits: its current art and words go into the build.
+        current = state.get("build") if art.edits and redraw and not meme_format and concept_index is None and not rethink else None
+        built = (
+            await self._produce(fmt, concept, post.title, art, chosen_look, redraw=redraw, current=current, usage=usage)
+            if concept
+            else None
+        )
         if built is None and concept is not None:
             # The format could not be drawn. Another pitch in a format with no art (it cannot fail) keeps a whole
             # joke; squeezing this one into a caption meme is the last resort.
@@ -544,12 +552,32 @@ class MemeMaker:
             return None
 
     async def _produce(
-        self, fmt: MemeFormat, concept: MemeConcept, title: str, art: ArtDirection, look: Look, *, redraw: bool, usage: UsageSink | None
+        self,
+        fmt: MemeFormat,
+        concept: MemeConcept,
+        title: str,
+        art: ArtDirection,
+        look: Look,
+        *,
+        redraw: bool,
+        current: dict[str, Any] | None = None,
+        usage: UsageSink | None,
     ) -> Built | None:
-        return self._direct(fmt, concept, art, look) or await self._build(fmt, concept, title, art, look, redraw=redraw, usage=usage)
+        return self._direct(fmt, concept, art, look) or await self._build(
+            fmt, concept, title, art, look, redraw=redraw, current=current, usage=usage
+        )
 
     async def _build(
-        self, fmt: MemeFormat, concept: MemeConcept, title: str, art: ArtDirection, look: Look, *, redraw: bool, usage: UsageSink | None
+        self,
+        fmt: MemeFormat,
+        concept: MemeConcept,
+        title: str,
+        art: ArtDirection,
+        look: Look,
+        *,
+        redraw: bool,
+        current: dict[str, Any] | None = None,
+        usage: UsageSink | None,
     ) -> Built | None:
         concept_text = json.dumps(
             {
@@ -579,6 +607,8 @@ class MemeMaker:
             ),
             image_guidance=art.image_guidance,
         )
+        if current:
+            prompt += edit_note(art.edits, json.dumps(current, indent=1), what="build")
         return await self._attempts(fmt, prompt, art, look, task=f"meme build ({fmt.id})", usage=usage)
 
     async def _revise(
