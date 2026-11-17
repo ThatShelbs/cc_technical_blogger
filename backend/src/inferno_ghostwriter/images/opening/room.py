@@ -37,7 +37,7 @@ from inferno_ghostwriter.images.opening.specs import (
     RenderReview,
 )
 from inferno_ghostwriter.images.opening.styles import AUTO, BY_ID, FALLBACK, STYLES, OpeningStyle, get_style
-from inferno_ghostwriter.images.remix import dimensions_for, variation_for
+from inferno_ghostwriter.images.remix import dimensions_for, edit_note, variation_for
 from inferno_ghostwriter.images.render import svg_to_png
 from inferno_ghostwriter.images.specs import SvgSpec
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
@@ -307,6 +307,8 @@ class OpeningRoom:
                 redraw=redraw and attempt == 0,
                 usage=usage,
                 meme_format=meme_format if attempt == 0 else None,
+                fix=self._edited_note(state, concept, art) if redraw and attempt == 0 and i == state.get("chosen") else "",
+                keep_research=bool(art.edits),
             )
             if built is not None:
                 state["chosen"] = i
@@ -354,6 +356,17 @@ class OpeningRoom:
         if built is None:
             raise ImageProviderError("Claude's edit could not be drawn. Try rewording the instruction.")
         return await self._finish(state, built, ctx, art, usage, review=False)
+
+    @staticmethod
+    def _edited_note(state: dict[str, Any], concept: OpeningConcept, art: ArtDirection) -> str:
+        """Tells a redraw of an edited opening image to keep the edits (the stored pitch alone would lose them)."""
+        style = BY_ID.get(concept.style) or BY_ID[FALLBACK]
+        if not art.edits or style.builder == "meme":  # an opening meme's own room reads the edits
+            return ""
+        if style.builder == "svg":
+            return edit_note(art.edits, str(state.get("svg") or ""), what="svg") if state.get("svg") else ""
+        build = state.get("build")
+        return edit_note(art.edits, json.dumps(build, indent=1), what="build") if build else ""
 
     def reword(self, spec: str, words: dict[str, str], art: ArtDirection) -> OpeningResult:
         """Retype the words of a code-drawn opening image and draw it again. No model call; numbers stay as they are."""

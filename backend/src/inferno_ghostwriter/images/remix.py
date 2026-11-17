@@ -328,6 +328,17 @@ def apply_to_art(art: Any, plan: ImprovementPlan | None, tweaks: list[Tweak]) ->
     return replace(art, **changes)
 
 
+def edit_note(edits: tuple[str, ...] | list[str], current: str, *, what: str = "design") -> str:
+    """Prompt text that makes a redraw build on the author's edited picture instead of the original idea."""
+    lines = "\n".join(f"- {e}" for e in edits)
+    return (
+        "\nThe author edited this image by instruction, and the edited picture is what to build on:\n"
+        f"<edits>\n{lines}\n</edits>\n<current_{what}>\n{current}\n</current_{what}>\n"
+        "Keep the current content and every change above; apply only the new look this redraw asks for. "
+        "Do not go back to the original idea.\n"
+    )
+
+
 def variation_for(art: Any, allowed: tuple[str, ...] | None = None, *, kind: str = "") -> str:
     """The redraw instruction for one builder: the critique plus the twists that make sense for what it draws.
 

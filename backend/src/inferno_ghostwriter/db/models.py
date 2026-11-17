@@ -348,6 +348,9 @@ class ProjectImage(SQLModel, table=True):
     builds_on: str = ""
     # What the last redraw tried (see images/remix.py): the critique, the improvements and the twist, newest tweaks first.
     remix: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # The author's "Edit" instructions since this image's idea was last picked (newest last). While there are any,
+    # a redraw or remix builds on the edited picture instead of going back to the original brief or pitch.
+    edits: list[str] = Field(default_factory=list, sa_column=Column(JSON))
 
 
 class ProjectReference(SQLModel, table=True):

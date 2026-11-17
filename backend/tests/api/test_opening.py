@@ -125,3 +125,18 @@ def test_low_humor_never_opens_with_a_meme_and_the_persona_default_applies(clien
     later = client.get(f"/api/projects/{created['project']['id']}").json()
     assert later["resolved_dials"]["opening_style"] == "versus" and image(client, later, "hero")["opening"]["style"] == "versus"
     assert client.patch(f"/api/personas/{pid}", json={"default_opening_style": "hologram"}).json()["default_opening_style"] == "auto"
+
+
+def test_redraw_of_an_edited_opener_keeps_the_edit(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = post_with(client, sample_docx, opening_style="versus")
+    hero = image(client, project, "hero")
+    url = f"/api/images/{hero['id']}"
+    assert client.post(f"{url}/edit", json={"instruction": "Make the headline shorter"}).json()["status"] == "succeeded"
+    fake_llm.calls.clear()
+    assert client.post(f"{url}/redraw", json={}).json()["status"] == "succeeded"
+    build = next(c for c in fake_llm.calls if c["task"].startswith("opening ") and "Make the headline shorter" in c["prompt"])
+    assert "<current_build>" in build["prompt"]
+    # Another idea starts over.
+    fake_llm.calls.clear()
+    assert client.post(f"{url}/redraw", json={"opening_concept": 1}).json()["status"] == "succeeded"
+    assert not any("Make the headline shorter" in c["prompt"] for c in fake_llm.calls)
