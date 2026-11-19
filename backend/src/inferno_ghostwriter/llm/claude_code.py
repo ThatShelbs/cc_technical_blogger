@@ -361,18 +361,26 @@ class ClaudeCodeLLM:
         cancel: threading.Event,
     ) -> tuple[int, str]:
         with self._slots:
-            proc = subprocess.Popen(
-                args,
-                cwd=workdir,
-                env=child_env(),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=NO_WINDOW,
-            )
+            try:
+                proc = subprocess.Popen(
+                    args,
+                    cwd=workdir,
+                    env=child_env(),
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    creationflags=NO_WINDOW,
+                )
+            except OSError as exc:
+                # Claude Code moved or was replaced (it updates itself), or the temp folder vanished. Say so as an
+                # LLMError, so one failed call (a judging seat, say) never takes the whole image down.
+                emit(None)
+                raise LLMError(
+                    f"Could not start Claude Code ({type(exc).__name__}: {exc}). Check that it is installed and signed in, then try again."
+                ) from exc
             stderr: list[str] = []
             drain = threading.Thread(target=lambda: stderr.extend(proc.stderr or []), daemon=True)
             drain.start()

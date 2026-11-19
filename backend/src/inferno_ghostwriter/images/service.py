@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import traceback
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -239,7 +241,9 @@ class ImageService:
         except Exception as exc:
             # One broken image must never take down the post (or leave a spinner running forever).
             log.exception("Image %s failed", image_id)
-            updates = {"status": "error", "error": f"Could not create this image ({exc!r}). Click Redraw to try again."}
+            tb = traceback.extract_tb(exc.__traceback__)
+            where = f" at {Path(tb[-1].filename).name}:{tb[-1].lineno}" if tb else ""
+            updates = {"status": "error", "error": f"Could not create this image ({exc!r}{where}). Click Redraw to try again."}
         return self._save(image_id, updates)
 
     def fail_pending(self, project_id: int | None = None, reason: str = STALE_PENDING) -> int:

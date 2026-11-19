@@ -6,6 +6,7 @@ All notable changes to Inferno Ghostwriter (called Proseferno before 0.2) are do
 
 ### Fixed
 
+- **Picking a meme format no longer fails with "FileNotFoundError".** With a Claude subscription, a Claude Code process that could not start (for example after it updated itself) crashed the whole image instead of just one judge. It is now a plain "Could not start Claude Code" error, a failed judge simply sits out, and unexpected image errors say where they happened.
 - **Redraw and Remix keep your edits.** After you changed an image with **Edit**, Redraw and Remix went back to the original idea. They now build on the edited picture (illustrations, diagrams, charts, the opening image and memes) and only change the look; *New idea* still starts fresh.
 
 ### Added
