@@ -6,7 +6,7 @@ Open a post and click **Export**. Each platform gives you a zip bundle; Medium, 
 
 | Platform | Bundle contents | Notes |
 | --- | --- | --- |
-| **Medium** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1400×788), `README.txt` | Title → title, subtitle → subtitle, sections → Medium's large heading, subsections → small heading. The opening image becomes the story preview. |
+| **Medium** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1400×560, 5:2), `README.txt` | Title → title, subtitle → subtitle, sections → Medium's large heading, subsections → small heading. The opening image becomes the story preview; Medium crops it to about 2.2:1, so an opening that must stay whole (a meme) is padded to 5:2 in the pasted HTML and `images/`. |
 | **Substack** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1200×630), `README.txt` | The copied body excludes the title and subtitle; paste those into Substack's fields (they are listed in the README). Use the thumbnail as the social preview. |
 | **LinkedIn** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1920×1080 cover), `feed-post.txt`, `carousel.pdf`, `carousel.pptx`, `README.txt` | See below. |
 | **X** | `post.html`, `post.md`, `images/`, `thumbnail.png` (1500×600 header), `teaser-post.txt`, `README.txt` | See below. |

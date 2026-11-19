@@ -108,6 +108,15 @@ def test_a_meme_sandwich(client: TestClient, sample_docx: bytes, fake_llm: FakeL
     with zipfile.ZipFile(io.BytesIO(bundle.content)) as zf, Image.open(io.BytesIO(zf.read("thumbnail.png"))) as thumb:
         assert thumb.size == (1500, 600)
 
+    medium = client.get(f"/api/projects/{project['id']}/export/medium")
+    with zipfile.ZipFile(io.BytesIO(medium.content)) as zf:
+        with Image.open(io.BytesIO(zf.read("thumbnail.png"))) as thumb:
+            assert thumb.size == (1400, 560)
+        # An opening meme is padded to 5:2, so Medium's story-preview crop only trims padding.
+        hero_file = next(n for n in zf.namelist() if n.startswith("images/") and "hero" in n)
+        with Image.open(io.BytesIO(zf.read(hero_file))) as opener:
+            assert opener.width * 2 == opener.height * 5
+
 
 def test_low_humor_never_opens_with_a_meme_and_the_persona_default_applies(client: TestClient, sample_docx: bytes) -> None:
     project = post_with(client, sample_docx, humor=1)

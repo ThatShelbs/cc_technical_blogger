@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import re
 import zipfile
@@ -31,10 +32,11 @@ from inferno_ghostwriter.writer import split_title
 Platform = Literal["medium", "substack", "linkedin", "x", "gumroad", "markdown"]
 PLATFORMS: tuple[Platform, ...] = ("medium", "substack", "linkedin", "x", "gumroad", "markdown")
 
-# Thumbnail sizes: Medium and Substack crop previews from a wide image; 1200x630 is the
+# Medium crops the story preview from the first image at roughly 2.2:1, so its thumbnail is 5:2 (wider than that
+# crop, so only side padding is ever trimmed). Thumbnail sizes: Medium and Substack crop previews from a wide image; 1200x630 is the
 # common social-card size and suits Gumroad covers too. LinkedIn article covers are 1920x1080; X Article headers are 5:2.
 THUMBNAIL_SIZE = {
-    "medium": (1400, 788),
+    "medium": (1400, 560),
     "substack": (1200, 630),
     "linkedin": (1920, 1080),
     "x": X_HEADER_SIZE,
@@ -48,7 +50,8 @@ INSTRUCTIONS = {
 1. In Inferno Ghostwriter's export dialog, click "Copy for Medium" and paste into a new Medium story
    (images are embedded in the copied content). If any image does not come through, drag it in
    from the images/ folder and paste its caption from post.md.
-2. Medium uses the first image as the story preview; thumbnail.png is sized for that.
+2. Medium crops the story preview from the first image (about 2.2:1). The opening image in this export
+   is already padded so nothing is cut off; if you pick "Change preview image", use thumbnail.png (5:2).
 3. Headings are mapped to Medium's two heading sizes (large = section, small = subsection).
 4. Add up to five tags: {tags}
 """,
@@ -109,7 +112,8 @@ def copy_html(project: Project, images: list[ProjectImage], image_dir: Path, pla
     figures = figures_for(images, image_dir)
     if platform == "medium":
         # Medium: title h1, subtitle h2, sections h3 (large heading), subsections h4 (small heading).
-        return body_html(project.markdown, figures, src=data_uri, heading_shift=1)
+        keep_whole = thumbnail_fit(images) == "contain"
+        return body_html(project.markdown, figures, src=lambda f: _medium_uri(f, keep_whole), heading_shift=1)
     if platform in ("substack", "linkedin", "x"):
         # The title (and subtitle) go in the platform's own fields; ## and ### map to its two heading sizes.
         return body_html(strip_title(project.markdown), figures, src=data_uri, include_title=True)
@@ -135,9 +139,13 @@ def build_bundle(
     slug = slugify(title)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        keep_whole = platform == "medium" and thumbnail_fit(images) == "contain"
         for fig in figures.values():
             if fig.path is not None and fig.path.exists():
-                zf.write(fig.path, f"images/{fig.file_name}")
+                if keep_whole and fig.slot_id == "hero":
+                    zf.writestr(f"images/{fig.file_name}", _thumbnail(fig.path, MEDIUM_PREVIEW_SIZE, "contain"))
+                else:
+                    zf.write(fig.path, f"images/{fig.file_name}")
         hero = figures.get("hero")
         if hero is not None and hero.path is not None and hero.path.exists():
             zf.writestr("thumbnail.png", _thumbnail(hero.path, THUMBNAIL_SIZE[platform], thumbnail_fit(images)))
@@ -169,6 +177,18 @@ def build_bundle(
 
         zf.writestr("README.txt", INSTRUCTIONS[platform].format(title=title, subtitle=subtitle, tags=tags))
     return f"{slug}-{platform}.zip", buffer.getvalue()
+
+
+MEDIUM_PREVIEW_SIZE = (1600, 640)
+
+
+def _medium_uri(fig: Figure, keep_whole: bool) -> str:
+    """Image data for a Medium paste. An opening image that must stay whole (a meme) is padded to 5:2 so Medium's
+    preview crop only trims padding."""
+    if keep_whole and fig.slot_id == "hero" and fig.path is not None and fig.path.exists():
+        png = _thumbnail(fig.path, MEDIUM_PREVIEW_SIZE, "contain")
+        return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    return data_uri(fig)
 
 
 def thumbnail_fit(images: list[ProjectImage]) -> str:
