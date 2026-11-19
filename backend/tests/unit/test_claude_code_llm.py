@@ -137,3 +137,10 @@ async def test_router_follows_the_connection_setting() -> None:
     assert router.active is api
     settings.claude_connection = "subscription"
     assert router.active is subscription
+
+
+async def test_a_missing_claude_binary_is_an_llm_error_not_a_crash(tmp_path: Path) -> None:
+    gone = ClaudeCodeLLM(Settings(_env_file=None), ClaudeCodeCLI([str(tmp_path / "no-such-claude.exe")]))  # type: ignore[call-arg]
+
+    with pytest.raises(LLMError, match="Could not start Claude Code"):
+        await gone.text(task="draft", system=SYSTEM, prompt="Write it.", effort="low")
