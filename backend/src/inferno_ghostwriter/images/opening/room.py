@@ -2,13 +2,19 @@
 
 1. **Pitch** (``OpeningIdeas``): six concepts across the styles that suit the post (four in one style when the author
    chose it). On Auto at least two are open visual metaphors and one is data art, so imaginative ideas always compete.
-2. **Panel** (``OpeningVerdict``): a separate call scores every concept as four judges (scroller, art director, fact
-   checker, author). Code adds the scores; a fact checker or author score under 5 rules a concept out.
+2. **Panel** (``images/panel.py``): independent seats on Haiku, Sonnet and Opus (scroller, cold reader, art
+   director, fact checker, author) score every concept at once. Code adds the votes; vetoes rule a concept out.
 3. **Research** (data styles only): the winning claim's numbers are looked up with web search.
-4. **Build**: Claude-drawn SVG (metaphor, data art, receipt), a code template (cheat sheet, versus, big number,
-   framework, chart) or the meme room. Every number a data opener prints must pass ``facts.check``.
-5. **Review** (``RenderReview``): Claude looks at the finished PNG; a failure gets one redraw with its fix, and the
-   better of the two is kept. Connections that cannot show Claude an image skip this step.
+4. **Build**: a kit-staged scene (visual metaphor: kit characters and props plus one custom object Claude draws,
+   ``scene.py``), Claude SVG (data art, receipt; linted and snapped to the scheme), a code template (cheat sheet,
+   versus, big number, framework, chart) or the meme room. Every number a data opener prints must pass ``facts.check``.
+   A fresh opener builds its two best concepts at once.
+5. **Render panel**: blind readers see only the pictures and say what they mean (matched against each concept's
+   ``reader_takeaway``), a craft and an appeal seat look closely, and a final pick on Opus chooses between the feed
+   cards and may ask for one fix. Connections that cannot show Claude an image skip this step.
+
+Colors come from a ``Scheme`` (inferno, magma or viridis on white, gray or near-black; a brand palette wins), stored
+on the image and rotated against the author's recent images.
 
 A concept that cannot be built (no verifiable data, a drawing that fails twice) gives way to the next best one; the
 last resort is a visual metaphor. Pitches and verdicts are kept on the image, so "New idea" and the ideas board move
@@ -17,6 +23,7 @@ between them with no new pitching or judging call.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -25,23 +32,29 @@ from typing import Any
 
 from inferno_ghostwriter.config import Settings
 from inferno_ghostwriter.images.base import ImageProviderError, draw_with_retry, thumbnail_png
+from inferno_ghostwriter.images.lint import lint
 from inferno_ghostwriter.images.memes import ArtDirection, MemeContext, MemeMaker, MemeResult
 from inferno_ghostwriter.images.memes.generate import clip_post
 from inferno_ghostwriter.images.memes.generate import load_state as load_meme_state
 from inferno_ghostwriter.images.opening import facts, templates
+from inferno_ghostwriter.images.opening.canvas import SAFE_BOTTOM, SAFE_TOP
+from inferno_ghostwriter.images.opening.feedcard import feed_card
+from inferno_ghostwriter.images.opening.scene import compose_scene, scene_menu
 from inferno_ghostwriter.images.opening.specs import (
     OpeningBuild,
     OpeningConcept,
     OpeningIdeas,
-    OpeningVerdict,
-    RenderReview,
+    SceneSpec,
 )
 from inferno_ghostwriter.images.opening.styles import AUTO, BY_ID, FALLBACK, STYLES, OpeningStyle, get_style
+from inferno_ghostwriter.images.palettes import DARK_SURFACES, LIGHT_SURFACES, Scheme, brand_scheme, from_id, house_ramp, scheme
+from inferno_ghostwriter.images.palettes import pick as pick_colors
+from inferno_ghostwriter.images.panel import PanelResult, convene, final_pick, parse_seats
 from inferno_ghostwriter.images.remix import dimensions_for, edit_note, variation_for
 from inferno_ghostwriter.images.render import svg_to_png
 from inferno_ghostwriter.images.specs import SvgSpec
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
-from inferno_ghostwriter.llm.base import Citation, LLMImagesUnsupportedError, LLMRefusalError, ResearchResult, UsageSink
+from inferno_ghostwriter.llm.base import Citation, LLMRefusalError, ResearchResult, UsageSink
 from inferno_ghostwriter.prompts import raw, render
 
 log = logging.getLogger(__name__)
@@ -126,6 +139,10 @@ class OpeningContext:
     recent_styles: tuple[str, ...] = ()
     # Builds the opening meme's context (the image service knows the plan, callbacks and recent formats).
     meme_context: MemeContext | None = None
+    # Color schemes ("ramp:surface") the author's latest images used, newest first.
+    recent_schemes: tuple[str, ...] = ()
+    # The author's taste from their thumbs (images/taste.py), as a prompt note; "" when unknown.
+    taste: str = ""
 
 
 @dataclass
@@ -173,12 +190,23 @@ def load_concepts(state: dict[str, Any]) -> list[OpeningConcept]:
 
 def total(entry: dict[str, Any]) -> tuple[int, int]:
     panel = entry.get("panel") or {}
+    if "total" in panel:  # the seat panel: a weighted mean, 1-10, shown on the 4-40 scale of the old four judges
+        return round(float(panel["total"]) * 4), 0
     return sum(int(panel.get(j, 0)) for j in JUDGES), int(panel.get("scroller", 0))
 
 
 def ruled_out(entry: dict[str, Any]) -> bool:
     panel = entry.get("panel") or {}
+    if "vetoed" in panel:
+        return bool(panel["vetoed"])
     return bool(panel) and (int(panel.get("fact_checker", 10)) < VETO or int(panel.get("author", 10)) < VETO)
+
+
+def scheme_of(state: dict[str, Any] | None, palette: tuple[str, ...]) -> Scheme:
+    """The colors an opener is drawn in: a brand palette first, then the stored scheme, then the house default."""
+    if len(palette) >= 3 and house_ramp(palette) is None:
+        return brand_scheme(palette)
+    return from_id(str((state or {}).get("scheme") or "")) or scheme()
 
 
 def ranking(state: dict[str, Any], skip: set[int] | None = None) -> list[int]:
@@ -216,6 +244,8 @@ def _concept_text(concept: OpeningConcept) -> str:
         parts.append(f"Content: {concept.content}")
     if concept.data_claim:
         parts.append(f"Data claim: {concept.data_claim}")
+    if concept.reader_takeaway:
+        parts.append(f"Reader takeaway: {concept.reader_takeaway}")
     return "\n".join(p for p in parts if p)
 
 
@@ -294,8 +324,25 @@ class OpeningRoom:
             order = [index, *(i for i in order if i != index)]
         tried = set(state.get("tried", []))
         state.pop("fallback_from", None)
+        previous_scheme = str(state.get("scheme") or "")
+        sch = pick_colors(art.palette, ctx.recent_schemes, avoid=[previous_scheme] if (redraw or rethink) and previous_scheme else ())
+        state["scheme"] = sch.id
         first_style = state["concepts"][order[0]]["style"] if order else FALLBACK
         built: _Built | None = None
+        fresh = not (redraw or rethink or concept_index is not None or meme_format is not None or style)
+        if fresh and len(order) > 1 and self.settings.image_render_candidates > 1:
+            # A fresh opener builds its best concepts at once and lets the render panel choose between the pictures.
+            chosen_build = await self._build_and_choose(state, order, ctx, art, sch, tried, usage)
+            if chosen_build is not None:
+                i, built = chosen_build
+                state["chosen"] = i
+                # The panel preferred this concept; nothing failed, so it is not a stand-in.
+                first_style = str(state["concepts"][i].get("style") or first_style)
+                order = []
+            else:
+                # Those concepts were just tried and could not be built; go on with the rest.
+                tried_now = set(state.get("tried_parallel", []))
+                order = [i for i in order if i not in tried and i not in tried_now]
         for attempt, i in enumerate(order[:MAX_BUILDS]):
             concept = load_concepts(state)[i]
             tried.add(i)
@@ -304,6 +351,7 @@ class OpeningRoom:
                 state,
                 ctx,
                 art,
+                sch,
                 redraw=redraw and attempt == 0,
                 usage=usage,
                 meme_format=meme_format if attempt == 0 else None,
@@ -323,14 +371,119 @@ class OpeningRoom:
                 content="",
                 data_claim="",
             )
-            built = await self._build(concept, state, ctx, art, redraw=False, usage=usage)
+            built = await self._build(concept, state, ctx, art, sch, redraw=False, usage=usage)
             if built is None:
                 raise ImageProviderError("The opening image could not be drawn. Click Redraw to try again.")
             state["chosen"] = None
         if built.state.get("style", FALLBACK) != first_style:
             state["fallback_from"] = first_style
         state["tried"] = sorted(tried)
-        return await self._finish(state, built, ctx, art, usage)
+        return self._finish(state, built)
+
+    async def _build_and_choose(
+        self,
+        state: dict[str, Any],
+        order: list[int],
+        ctx: OpeningContext,
+        art: ArtDirection,
+        sch: Scheme,
+        tried: set[int],
+        usage: UsageSink | None,
+    ) -> tuple[int, _Built] | None:
+        """Build the best concepts at once, then let the render panel and the final pick choose; None if none built."""
+        count = max(2, self.settings.image_render_candidates)
+        # The best concepts, at most one of them a meme (each meme is a whole writers' room of its own).
+        picks: list[int] = []
+        for i in [i for i in order if not ruled_out(state["concepts"][i])] or order:
+            is_meme = state["concepts"][i].get("style") == "meme"
+            if is_meme and any(state["concepts"][j].get("style") == "meme" for j in picks):
+                continue
+            picks.append(i)
+            if len(picks) >= count:
+                break
+        concepts = load_concepts(state)
+        scratch = [dict(state) for _ in picks]
+        results = await asyncio.gather(
+            *(self._build(concepts[i], scratch[k], ctx, art, sch, redraw=False, usage=usage) for k, i in enumerate(picks))
+        )
+        tried.update(picks)
+        state["tried_parallel"] = list(picks)
+        options = [(i, b, scratch[k]) for k, (i, b) in enumerate(zip(picks, results, strict=True)) if b is not None]
+        if not options:
+            return None
+        chosen = 0
+        review: dict[str, Any] = {"verdict": "passed", "candidates": [o[0] for o in options]}
+        seats = parse_seats(self.settings.image_panel_render)
+        if seats:
+            pngs = [thumbnail_png(o[1].png) for o in options]
+            cards = [feed_card(o[1].png, ctx.title) for o in options]
+            labels = [f"[{BY_ID[concepts[o[0]].style].label}] {concepts[o[0]].concept}" for o in options]
+            intents = [concepts[o[0]].reader_takeaway or concepts[o[0]].concept for o in options]
+            panel = await convene(
+                self.llm, seats, context=self._panel_context(ctx), candidates=labels, images=pngs, intents=intents, usage=usage
+            )
+            if panel.answered:
+                pick = await final_pick(
+                    self.llm,
+                    context=self._panel_context(ctx),
+                    candidates=labels,
+                    images=cards,
+                    panel=panel,
+                    spec=self.settings.image_panel_final,
+                    usage=usage,
+                )
+                order_ = panel.ranking()
+                vetoed_all = len(panel.vetoed) == len(options)
+                chosen = pick.chosen if pick is not None and (pick.chosen not in panel.vetoed or vetoed_all) else order_[0]
+                review = {
+                    "verdict": "passed",
+                    "panel": panel.summary(),
+                    "why": pick.why if pick else "",
+                    "fix": pick.fix if pick else "",
+                    "candidates": [o[0] for o in options],
+                }
+                fixable = concepts[options[chosen][0]].style != "meme"  # a meme would need its own room to change
+                if pick is not None and pick.fix.strip() and pick.chosen == chosen and fixable:
+                    i, current, scratch_state = options[chosen]
+                    fix = (
+                        "\nThe art director looked at the finished picture and asked for one change; keep everything else "
+                        f"exactly as it is:\n<instruction>\n{pick.fix.strip()}\n</instruction>\n" + self._current_note(current.state)
+                    )
+                    again = await self._build(
+                        concepts[i], scratch_state, ctx, art, sch, redraw=False, usage=usage, fix=fix, keep_research=True
+                    )
+                    if again is not None:
+                        options[chosen] = (i, again, scratch_state)
+                        review["verdict"] = "redrawn"
+            else:
+                review = {"skipped": True, "note": "This connection cannot show Claude the image, so it was not reviewed."}
+        i, built, scratch_state = options[chosen]
+        state.pop("tried_parallel", None)
+        review["winner"] = chosen
+        for key in ("research", "post_numbers"):
+            if key in scratch_state:
+                state[key] = scratch_state[key]
+        state["review"] = review
+        return i, built
+
+    @staticmethod
+    def _current_note(built_state: dict[str, Any]) -> str:
+        """The picture as built, for a change that must keep the rest of it."""
+        if built_state.get("scene"):
+            return f"\nThe current scene to change:\n<current>\n{json.dumps(built_state['scene'], indent=1)}\n</current>\n"
+        if built_state.get("svg"):
+            return f"\nThe current SVG to change:\n<current>\n{built_state['svg']}\n</current>\n"
+        if built_state.get("build"):
+            return f"\nThe current build to change:\n<current>\n{json.dumps(built_state['build'], indent=1)}\n</current>\n"
+        return ""
+
+    def _panel_context(self, ctx: OpeningContext) -> str:
+        return (
+            f"This is the opening image and thumbnail of a technical blog post.\nPost title: {ctx.title}\n"
+            f"The post's hook: {ctx.hook or '(not planned)'}\nHumor level {ctx.humor}/10.\n"
+            + (f"The author asked: {ctx.note}\n" if ctx.note else "")
+            + f"The post's opening:\n<post>\n{clip_post(ctx.markdown, 5000, tail=0)}\n</post>"
+        )
 
     async def edit(
         self, spec: str, instruction: str, ctx: OpeningContext, art: ArtDirection, *, usage: UsageSink | None = None
@@ -350,12 +503,15 @@ class OpeningRoom:
         concept = self._chosen_concept(state)
         if style.builder == "svg":
             note += f"\nThe current SVG to edit:\n<current>\n{state.get('svg', '')}\n</current>\n"
+        elif style.builder == "scene" and state.get("scene"):
+            note += f"\nThe current scene to edit:\n<current>\n{json.dumps(state['scene'], indent=1)}\n</current>\n"
         else:
             note += f"\nThe current build to edit:\n<current>\n{json.dumps(state.get('build') or {}, indent=1)}\n</current>\n"
-        built = await self._build(concept, state, ctx, art, redraw=False, usage=usage, fix=note, keep_research=True)
+        sch = scheme_of(state, art.palette)
+        built = await self._build(concept, state, ctx, art, sch, redraw=False, usage=usage, fix=note, keep_research=True)
         if built is None:
             raise ImageProviderError("Claude's edit could not be drawn. Try rewording the instruction.")
-        return await self._finish(state, built, ctx, art, usage, review=False)
+        return self._finish(state, built)
 
     @staticmethod
     def _edited_note(state: dict[str, Any], concept: OpeningConcept, art: ArtDirection) -> str:
@@ -365,6 +521,8 @@ class OpeningRoom:
             return ""
         if style.builder == "svg":
             return edit_note(art.edits, str(state.get("svg") or ""), what="svg") if state.get("svg") else ""
+        if style.builder == "scene" and state.get("scene"):
+            return edit_note(art.edits, json.dumps(state["scene"], indent=1), what="scene")
         build = state.get("build")
         return edit_note(art.edits, json.dumps(build, indent=1), what="build") if build else ""
 
@@ -389,7 +547,7 @@ class OpeningRoom:
             )
             if problems:
                 raise ImageProviderError("New words cannot add numbers that were not researched: " + " ".join(problems[:2]))
-        png, width, height = templates.draw(template, build, art.palette)
+        png, width, height = templates.draw(template, build, art.palette, scheme_of(state, art.palette))
         state["build"] = build.model_dump()
         caption = self._caption(build.caption, build)
         return OpeningResult(png, width, height, "claude-opening", json.dumps(state), build.alt, caption)
@@ -442,7 +600,8 @@ class OpeningRoom:
                 f"\nThis author's last opening images were: {recent}. Vary the look unless one of these is clearly best.\n"
                 if recent and not fixed
                 else ""
-            ),
+            )
+            + (f"\n{ctx.taste}\n" if ctx.taste else ""),
             exclude=("\nThese ideas were already used; pitch different ones:\n" + "\n".join(f"- {e}" for e in exclude) + "\n")
             if exclude
             else "",
@@ -524,41 +683,28 @@ class OpeningRoom:
     async def _judge(
         self, ctx: OpeningContext, concepts: list[OpeningConcept], entries: list[dict[str, Any]], usage: UsageSink | None
     ) -> str:
-        listing = "\n\n".join(f"Concept {i}:\n{_concept_text(c)}" for i, c in enumerate(concepts))
-        prompt = render(
-            "opening_judge",
-            title=ctx.title,
-            hook=ctx.hook or "(not planned)",
-            humor=ctx.humor,
-            note=f"The author asked: {ctx.note}" if ctx.note else "",
-            concepts=listing,
-            post=clip_post(ctx.markdown, 6000, tail=0),
-        )
-        try:
-            verdict = await self.llm.structured(
-                task="opening panel",
-                system=self.system,
-                prompt=prompt,
-                schema=OpeningVerdict,
-                effort=self.settings.effort_opening_judge,
-                max_tokens=8000,
-                usage=usage,
+        """The independent pitch panel (images/panel.py); without enough seats the pitch order stands."""
+        seats = parse_seats(self.settings.image_panel_opening)
+        result: PanelResult | None = None
+        if seats:
+            result = await convene(
+                self.llm, seats, context=self._panel_context(ctx), candidates=[_concept_text(c) for c in concepts], usage=usage
             )
-        except LLMError as exc:
+        if result is None or not result.ok:
             # Without a verdict the concepts keep the order they were pitched in (the pitcher put its best first).
-            log.info("Opening panel failed (%s); using pitch order", exc)
+            log.info("Opening panel: too few seats answered; using pitch order")
             for i, entry in enumerate(entries):
-                entry["panel"] = {j: max(1, 6 - i) for j in JUDGES} | {"note": "Not judged (the panel call failed)."}
+                entry["panel"] = {"total": max(1, 6 - i), "vetoed": False, "note": "Not judged (the panel did not answer)."}
             return ""
-        for score in verdict.scores:
-            if 0 <= score.concept < len(entries):
-                entries[score.concept]["panel"] = {
-                    **{j: max(1, min(10, int(getattr(score, j)))) for j in JUDGES},
-                    "note": score.note,
-                }
-        for entry in entries:
-            entry.setdefault("panel", {j: 1 for j in JUDGES} | {"note": "The panel did not score this one."})
-        return verdict.summary
+        for i, entry in enumerate(entries):
+            entry["panel"] = {
+                "total": round(result.totals[i] + (100 if i in result.vetoed else 0), 2),
+                "vetoed": i in result.vetoed,
+                "note": " | ".join(result.notes[i][:3]),
+                "seats": {k: v[i] for k, v in result.seats.items()},
+            }
+        best = result.best()
+        return result.notes[best][0].split(": ", 1)[-1] if best is not None and result.notes[best] else ""
 
     # -- building ------------------------------------------------------------------------
 
@@ -582,6 +728,7 @@ class OpeningRoom:
         state: dict[str, Any],
         ctx: OpeningContext,
         art: ArtDirection,
+        sch: Scheme | None = None,
         *,
         redraw: bool,
         usage: UsageSink | None,
@@ -590,14 +737,17 @@ class OpeningRoom:
         meme_format: str | None = None,
     ) -> _Built | None:
         style = BY_ID.get(concept.style) or BY_ID[FALLBACK]
+        sch = sch or scheme_of(state, art.palette)
         try:
             if style.builder == "meme":
                 previous = str(state.get("meme") or "") if redraw and state.get("style") == "meme" and not meme_format else ""
                 return await self._build_meme(concept, previous, ctx, art, usage, meme_format)
+            if style.builder == "scene":
+                return await self._build_scene(style, concept, ctx, art, sch, redraw=redraw, fix=fix, usage=usage)
             if style.builder == "svg":
-                return await self._build_svg(style, concept, ctx, art, redraw=redraw, fix=fix, usage=usage)
+                return await self._build_svg(style, concept, ctx, art, sch, redraw=redraw, fix=fix, usage=usage)
             return await self._build_template(
-                style, concept, state, ctx, art, redraw=redraw, fix=fix, keep_research=keep_research, usage=usage
+                style, concept, state, ctx, art, sch, redraw=redraw, fix=fix, keep_research=keep_research, usage=usage
             )
         except (ImageProviderError, LLMRefusalError) as exc:
             # This concept cannot be drawn (or researched); the next one gets its turn. Connection and credential
@@ -605,12 +755,79 @@ class OpeningRoom:
             log.info("Opening %s could not be built: %s", style.id, exc)
             return None
 
+    async def _build_scene(
+        self,
+        style: OpeningStyle,
+        concept: OpeningConcept,
+        ctx: OpeningContext,
+        art: ArtDirection,
+        sch: Scheme,
+        *,
+        redraw: bool,
+        fix: str,
+        usage: UsageSink | None,
+    ) -> _Built:
+        """A visual metaphor staged from the kit: Claude casts and arranges it (one SceneSpec call), code draws it."""
+        allowed = dimensions_for("hero", style.id)
+        prompt = render(
+            "opening_build_scene",
+            title=ctx.title,
+            concept=_concept_text(concept),
+            colors=sch.describe(),
+            visual_style=art.visual_style,
+            brand=art.brand,
+            variation=(
+                (variation_for(art, allowed) or "This is a redraw: keep the idea but give it a fresh layout, cast and staging.")
+                if redraw
+                else ""
+            ),
+            fix=fix,
+            kit=scene_menu(),
+            image_guidance=art.image_guidance,
+            post=clip_post(ctx.markdown, 5000, tail=0),
+        )
+
+        async def ask(note: str) -> SceneSpec:
+            return await self.llm.structured(
+                task="opening scene",
+                system=self.system,
+                prompt=prompt + note,
+                schema=SceneSpec,
+                effort=self.settings.effort_images,
+                max_tokens=16000,
+                usage=usage,
+            )
+
+        used = {"scheme": sch.id}
+
+        def draw(made: SceneSpec, last: bool) -> tuple[bytes, int, int]:
+            colors = sch
+            if made.tone in ("dark", "light") and colors.ramp_id != "brand" and (made.tone == "dark") != colors.dark:
+                colors = scheme(colors.ramp_id, (DARK_SURFACES if made.tone == "dark" else LIGHT_SURFACES)[0])
+            png, width, height, problems = compose_scene(made, colors)
+            if problems and not last:
+                raise ImageProviderError("\n".join(problems))
+            used["scheme"] = colors.id
+            return png, width, height
+
+        made, (png, width, height) = await draw_with_retry(ask, draw)
+        return _Built(
+            png,
+            width,
+            height,
+            "claude-scene",
+            made.alt,
+            made.caption,
+            {"style": style.id, "template": "", "svg": None, "build": None, "scene": made.model_dump(), "scheme": used["scheme"]},
+        )
+
     async def _build_svg(
         self,
         style: OpeningStyle,
         concept: OpeningConcept,
         ctx: OpeningContext,
         art: ArtDirection,
+        sch: Scheme,
         *,
         redraw: bool,
         fix: str,
@@ -630,6 +847,7 @@ class OpeningRoom:
             title=ctx.title,
             concept=_concept_text(concept),
             visual_style=art.visual_style,
+            colors=sch.describe(),
             brand=art.brand,
             variation=(
                 (variation_for(art, allowed) or "This is a redraw: keep the idea but give it a fresh composition and staging.")
@@ -652,7 +870,14 @@ class OpeningRoom:
                 usage=usage,
             )
 
-        def draw(made: SvgSpec, _last: bool) -> tuple[bytes, int, int]:
+        def draw(made: SvgSpec, last: bool) -> tuple[bytes, int, int]:
+            # Free checks first (stray marks, dead references, text out of the crop band), and colors snapped to the scheme.
+            report = lint(
+                made.svg, size=(1600, 900), allowed_colors=sch.allowed, safe_band=(SAFE_TOP, SAFE_BOTTOM), what="the opening image"
+            )
+            if report.problems and not last:
+                raise ImageProviderError("\n".join(report.problems))
+            made.svg = report.svg
             png, width, height = svg_to_png(made.svg, width=1600)
             if not _png_aspect_ok(width, height):
                 raise ImageProviderError("Use viewBox `0 0 1600 900`: the opening image must be 16:9.")
@@ -670,6 +895,7 @@ class OpeningRoom:
         state: dict[str, Any],
         ctx: OpeningContext,
         art: ArtDirection,
+        sch: Scheme,
         *,
         redraw: bool,
         fix: str,
@@ -761,7 +987,7 @@ class OpeningRoom:
                 )
             if blocking or (wordy and not last):
                 raise ImageProviderError("\n".join(blocking + wordy))
-            return templates.draw(template, build, art.palette)
+            return templates.draw(template, build, art.palette, sch)
 
         build, (png, width, height) = await draw_with_retry(ask, draw)
         extra = {"style": style.id, "template": template.id, "svg": None, "build": build.model_dump()}
@@ -791,78 +1017,14 @@ class OpeningRoom:
             meme.provider,
             meme.alt,
             meme.caption,
-            {"style": "meme", "template": "", "svg": None, "build": None, "meme": meme.spec},
+            {"style": "meme", "template": "", "svg": None, "build": None, "meme": meme.spec}
+            | ({"scheme": str(inner["scheme"])} if (inner := load_meme_state(meme.spec)) and inner.get("scheme") else {}),
         )
 
-    # -- review and finish ------------------------------------------------------------------
+    # -- finish ------------------------------------------------------------------------------
 
-    async def _review(
-        self, png: bytes, concept: str, style: OpeningStyle, ctx: OpeningContext, usage: UsageSink | None
-    ) -> RenderReview | None:
-        """Claude's look at the finished picture; None when this connection cannot show it an image (or the call fails)."""
-        try:
-            return await self.llm.structured(
-                task="opening review",
-                system=self.system,
-                prompt=render(
-                    "opening_review",
-                    title=ctx.title,
-                    style_label=style.label,
-                    style_check=(
-                        "\nThis is abstract data art. It fails if it shows recognizable objects, scenes, people, clip-art icons or any "
-                        "text or numbers; it should only hint at the subject through structure, rhythm and colour.\n"
-                        if style.id == "data_art"
-                        else ""
-                    ),
-                    concept=concept or "(the post's central idea)",
-                ),
-                schema=RenderReview,
-                effort=self.settings.effort_opening_review,
-                max_tokens=6000,
-                usage=usage,
-                images=[thumbnail_png(png)],
-            )
-        except LLMImagesUnsupportedError:
-            return None
-        except LLMError as exc:
-            log.info("Opening review failed: %s", exc)
-            return None
-
-    async def _finish(
-        self, state: dict[str, Any], built: _Built, ctx: OpeningContext, art: ArtDirection, usage: UsageSink | None, *, review: bool = True
-    ) -> OpeningResult:
+    def _finish(self, state: dict[str, Any], built: _Built) -> OpeningResult:
         state.update(built.state)
-        style = BY_ID.get(str(state.get("style"))) or BY_ID[FALLBACK]
-        concept = self._chosen_concept(state)
-        concept_text = _concept_text(concept) if concept.concept else ""
-        if review:
-            first = await self._review(built.png, concept_text, style, ctx, usage)
-            if first is None:
-                state["review"] = {"skipped": True, "note": "This connection cannot show Claude the image, so it was not reviewed."}
-            elif first.passes:
-                state["review"] = _review_entry(first, "passed")
-            else:
-                fix = (
-                    "\nA reviewer looked at the rendered image and sent it back. Fix every problem:\n"
-                    + "\n".join(f"- {p}" for p in first.problems)
-                    + (f"\nWhat to change: {first.fix}\n" if first.fix else "\n")
-                )
-                again: _Built | None
-                if style.builder == "meme":
-                    try:
-                        meme = await self.memes.edit(str(state.get("meme") or ""), first.fix or "; ".join(first.problems), art, usage=usage)
-                        again = _Built(meme.png, meme.width, meme.height, meme.provider, meme.alt, meme.caption, {"meme": meme.spec})
-                    except (ImageProviderError, LLMRefusalError):
-                        again = None
-                else:
-                    again = await self._build(concept, state, ctx, art, redraw=False, usage=usage, fix=fix, keep_research=True)
-                second = await self._review(again.png, concept_text, style, ctx, usage) if again else None
-                if again is not None and (second is None or _score(second) >= _score(first)):
-                    built = again
-                    state.update(again.state)
-                    state["review"] = _review_entry(second, "redrawn") if second else {"verdict": "redrawn", "problems": first.problems}
-                else:
-                    state["review"] = _review_entry(first, "kept")
         return OpeningResult(built.png, built.width, built.height, built.provider, json.dumps(state), built.alt, built.caption)
 
     def _from_meme(self, state: dict[str, Any], meme: MemeResult) -> OpeningResult:
@@ -877,11 +1039,3 @@ class OpeningRoom:
         if line and "source" not in caption.lower():
             caption = f"{caption} {line}.".strip()
         return caption
-
-
-def _score(review: RenderReview) -> int:
-    return review.clickability + review.craft + (5 if review.passes else 0)
-
-
-def _review_entry(review: RenderReview, verdict: str) -> dict[str, Any]:
-    return {"verdict": verdict, "clickability": review.clickability, "craft": review.craft, "problems": review.problems[:5]}

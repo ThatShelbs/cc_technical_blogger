@@ -41,9 +41,9 @@ class ClaudeLLM:
         self._gate = _PrefixGate()
 
     @contextlib.asynccontextmanager
-    async def _warm(self, system: list[SystemBlock]) -> AsyncIterator[_Warmup]:
+    async def _warm(self, system: list[SystemBlock], model: str | None = None) -> AsyncIterator[_Warmup]:
         """Hold back a request whose cached prefix another in-flight request is still writing."""
-        keyed = _prefix_key(self.settings.model, _system_param(system))
+        keyed = _prefix_key(model or self.settings.model, _system_param(system))
         if keyed is None:
             yield _Warmup(None, "", None)
             return
@@ -67,6 +67,7 @@ class ClaudeLLM:
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
         images: list[bytes] | None = None,
+        model: str | None = None,
     ) -> T:
         client = self._client_factory()
         content: Any = prompt
@@ -79,13 +80,13 @@ class ClaudeLLM:
                 {"type": "text", "text": prompt},
             ]
 
-        async with self._warm(system) as warm:
+        async with self._warm(system, model) as warm:
 
             async def attempt() -> Any:
                 # Streamed even though nothing reads the deltas: the SDK refuses non-streaming
                 # requests whose max_tokens could take longer than 10 minutes.
                 async with client.beta.messages.stream(
-                    **self._common(system, effort, max_tokens),
+                    **self._common(system, effort, max_tokens, model),
                     messages=[{"role": "user", "content": content}],
                     output_format=schema,
                 ) as stream:
@@ -195,15 +196,17 @@ class ClaudeLLM:
 
     # -- helpers -------------------------------------------------------------
 
-    def _common(self, system: list[SystemBlock], effort: str, max_tokens: int) -> dict[str, Any]:
+    def _common(self, system: list[SystemBlock], effort: str, max_tokens: int, model: str | None = None) -> dict[str, Any]:
+        model = model or self.settings.model
         kwargs: dict[str, Any] = {
-            "model": self.settings.model,
+            "model": model,
             "max_tokens": max_tokens,
             "system": _system_param(system),
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": effort},
         }
-        if self.settings.use_fallbacks and "haiku" not in self.settings.model:
+        # Haiku has no server-side refusal fallback.
+        if self.settings.use_fallbacks and "haiku" not in model:
             kwargs["betas"] = [FALLBACK_BETA]
             kwargs["fallbacks"] = "default"
         return kwargs

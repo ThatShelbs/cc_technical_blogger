@@ -109,6 +109,7 @@ npm run e2e          # Playwright, against the real backend in demo mode
 | What an A/B test's challenger changes, or how a winner is blended | `abtest/perturb.py`, `abtest/blend.py`, `abtest/service.py` | See [ab-testing.md](ab-testing.md); `uv run pytest tests/unit/test_abtest.py tests/api/test_ab_tests.py`. |
 | What images look like | `prompts/image_system.md`, `image_spec.md`, `images/service.py` | See [images.md](images.md). |
 | How a post opens (opening image styles, the judging panel, templates) | `images/opening/` (`styles.py` is the catalog), `prompts/opening_*.md` | See [opening-images.md](opening-images.md); `uv run pytest tests/unit/test_opening.py tests/api/test_opening.py`; `uv run python scripts/opening_gallery.py`. |
+| How characters, famous memes, colors and the judging panel work | `images/kit/`, `images/memes/stagings.py`, `images/palettes.py`, `images/panel.py`, `prompts/panel_*.md` | See [image-kit.md](image-kit.md); `uv run python scripts/kit_sheet.py`; `uv run pytest tests/unit/test_image_kit.py`. |
 | A screen | `frontend/src/pages/` | Check day and night mode. |
 | Colors | `frontend/src/index.css` tokens only | Never raw colors in components. |
 | An API endpoint | `backend/src/inferno_ghostwriter/api/` plus a model in `api/schemas.py` | `uv run python scripts/export_types.py`, then add a payload to `demo.py` for any new structured output. |

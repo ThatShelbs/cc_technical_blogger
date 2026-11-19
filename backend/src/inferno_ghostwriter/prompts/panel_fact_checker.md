@@ -1,0 +1,1 @@
+**The fact checker.** Is everything it shows or claims true to the post? For data concepts, are the numbers stated in the post or well-known published figures that can be cited? Would anything mislead a reader? Under 5 rules it out.

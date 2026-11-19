@@ -207,6 +207,7 @@ class ClaudeCodeLLM:
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
         images: list[bytes] | None = None,
+        model: str | None = None,
     ) -> T:
         if images:
             # Headless Claude Code runs with no tools and a text prompt, so it cannot be shown a picture.
@@ -217,6 +218,7 @@ class ClaudeCodeLLM:
             prompt,
             effort,
             ["--tools", "", "--json-schema", json.dumps(schema.model_json_schema()), "--max-turns", "3"],
+            model=model,
         )
         _record(result, usage)
         return _parse_structured(result, schema, task)
@@ -280,6 +282,8 @@ class ClaudeCodeLLM:
         effort: str,
         extra: list[str],
         on_delta: OnDelta | None = None,
+        *,
+        model: str | None = None,
     ) -> dict[str, Any]:
         command = self.cli.command
         if command is None:
@@ -298,7 +302,7 @@ class ClaudeCodeLLM:
                 *command,
                 "-p",
                 "--model",
-                self.settings.model,
+                model or self.settings.model,
                 "--effort",
                 effort,
                 "--system-prompt-file",

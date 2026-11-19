@@ -102,9 +102,19 @@ class FakeLLM:
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
         images: list[bytes] | None = None,
+        model: str | None = None,
     ) -> Any:
         self.calls.append(
-            {"kind": "structured", "task": task, "schema": schema.__name__, "prompt": prompt, "system": system, "images": len(images or [])}
+            {
+                "kind": "structured",
+                "task": task,
+                "schema": schema.__name__,
+                "prompt": prompt,
+                "system": system,
+                "images": len(images or []),
+                "model": model,
+                "effort": effort,
+            }
         )
         if self.delay:
             await asyncio.sleep(self.delay * 20)
@@ -417,13 +427,9 @@ def _structured_payload(name: str, prompt: str = "", is_showcase: bool = False) 
         }
     if name == "OpeningIdeas":
         return opening_ideas_payload(prompt)
-    if name == "OpeningVerdict":
-        return opening_verdict_payload(prompt)
     if name == "OpeningBuild":
         match = re.search(r"Template `([a-z0-9_]+)`", prompt)
         return opening_build_payload(match.group(1) if match else "cheat_grid")
-    if name == "RenderReview":
-        return {"passes": True, "clickability": 8, "craft": 8, "problems": [], "fix": ""}
     if name == "SvgSpec":
         if "**hero**" in prompt or "**illustration**" in prompt or "Draw the opening image" in prompt:
             return {"svg": HERO_SVG, "alt": "A ghost made of a pie chart under a setting sun", "caption": "The saddest pie"}
@@ -436,10 +442,17 @@ def _structured_payload(name: str, prompt: str = "", is_showcase: bool = False) 
     if name == "MemeBuild":
         match = re.search(r"Format `([a-z0-9_]+)`", prompt)
         return meme_build_payload(match.group(1) if match else "classic_caption")
-    if name == "MemeVerdict":
-        return meme_verdict_payload(prompt)
-    if name == "MemeReview":
-        return {"passes": True, "funny": 8, "craft": 8, "problems": [], "fix": ""}
+    if name == "SeatVerdict":
+        return seat_verdict_payload(prompt)
+    if name == "MatchScores":
+        count = len(re.findall(r"^\d+\. Meant to say", prompt, flags=re.MULTILINE)) or 1
+        return {"scores": [{"candidate": i, "score": 8, "note": "Strangers got it.", "reading": ""} for i in range(count)]}
+    if name == "FinalPick":
+        return {"chosen": 0, "fix": "", "why": "The clearest joke at a glance."}
+    if name == "MemeStagingEdit":
+        return meme_staging_edit_payload(prompt)
+    if name == "SceneSpec":
+        return scene_spec_payload(prompt)
     if name == "ChartSpec":
         return {"vega_lite_json": CHART_SPEC, "alt": "Bar chart", "caption": "Accuracy by chart type", "data_is_illustrative": True}
     if name == "PostBrief":
@@ -851,6 +864,40 @@ _SHOWCASE_MEME_CYCLE = itertools.cycle(showcase.MEME_FORMATS)
 _DEMO_LOOK_CYCLE = itertools.cycle(("kawaii", "viridis_lab", "retro_comic", "corporate_slate", "soft_3d", "magma_noir"))
 
 
+DEMO_COMIC_PANELS: list[dict[str, Any]] = [
+    {
+        "backdrop": "office",
+        "shot": "wide",
+        "characters": [
+            {"role": "analyst", "kind": "person", "expression": "happy", "pose": "point", "position": "left"},
+            {"role": "ghost", "kind": "ghost", "expression": "hopeful", "pose": "stand", "position": "right"},
+        ],
+        "props": [],
+    },
+    {
+        "backdrop": "office",
+        "shot": "close_up",
+        "characters": [{"role": "ghost", "kind": "ghost", "expression": "thinking", "pose": "chin"}],
+        "props": [],
+    },
+    {
+        "backdrop": "plain",
+        "shot": "wide",
+        "characters": [
+            {"role": "analyst", "kind": "person", "expression": "deadpan", "pose": "stand", "position": "left"},
+            {"role": "ghost", "kind": "ghost", "expression": "beaming", "pose": "arms_up", "position": "right"},
+        ],
+        "props": [{"name": "chart_screen", "position": "center"}],
+    },
+    {
+        "backdrop": "office",
+        "shot": "close_up",
+        "characters": [{"role": "ghost", "kind": "ghost", "expression": "smug", "pose": "stand"}],
+        "props": [],
+    },
+]
+
+
 def meme_ideas_payload(prompt: str, is_showcase: bool = False) -> dict[str, Any]:
     """Five concepts; demo mode cycles the chosen format so each post shows a different one."""
     only = re.search(r"Only use the format `([a-z0-9_]+)`", prompt)
@@ -874,6 +921,8 @@ def meme_ideas_payload(prompt: str, is_showcase: bool = False) -> dict[str, Any]
             "data": DEMO_MEME_DATA.get(fmt, []),
             "caption": "Friday logic" if is_showcase else "Pie logic",
             "look": next(_DEMO_LOOK_CYCLE),
+            "cast": [{"role": "calm_one", "kind": "dog", "expression": "", "accessory": ""}] if fmt.startswith("this_is_fine") else [],
+            "panels": DEMO_COMIC_PANELS[: 4 if fmt == "comic_grid_4" else 3] if fmt.startswith("comic_") else [],
             "scores": {"relevance": 5, "recognizability": 4, "surprise": 4, "clarity": 5, "voice_fit": 4, "standalone": 4 - i % 2},
         }
         for i, fmt in enumerate(formats)
@@ -886,21 +935,62 @@ def meme_ideas_payload(prompt: str, is_showcase: bool = False) -> dict[str, Any]
     }
 
 
-def meme_verdict_payload(prompt: str) -> dict[str, Any]:
-    """The panel likes the first pitch best and leaves its words as they are."""
-    count = len(re.findall(r"^\d+\. \[", prompt, flags=re.MULTILINE)) or 5
-    scores = [
-        {
-            "concept": i,
-            "feed_reader": 8 - i % 3,
-            "comedy_editor": 7,
-            "author": 8,
-            "gets_it": 8,
-            "note": "Lands on the post's own claim; the risk is that it is familiar.",
-        }
-        for i in range(count)
-    ]
-    return {"scores": scores, "chosen": 0, "punch_up": [], "summary": "It pays off the post's argument in one glance."}
+DEMO_SCENE_OBJECT = (
+    '<circle cx="300" cy="260" r="200" fill="#ed6925"/>'
+    '<path d="M300,260 L300,60 A200,200 0 0 1 473,360 Z" fill="#f7d13d"/>'
+    '<path d="M300,260 L473,360 A200,200 0 0 1 200,433 Z" fill="#cf4446"/>'
+    '<circle cx="300" cy="260" r="200" fill="none" stroke="#14101f" stroke-width="8"/>'
+)
+
+
+def scene_spec_payload(prompt: str) -> dict[str, Any]:
+    """A visual-metaphor opener: the ghost stares, shocked, at a pie chart that will not compare."""
+    return {
+        "layout": "hero_left",
+        "backdrop": "plain",
+        "tone": "",
+        "characters": [{"kind": "ghost", "expression": "shocked", "pose": "point", "slot": "left", "size": "large"}],
+        "props": [],
+        "object_svg": DEMO_SCENE_OBJECT,
+        "labels": [{"text": "Which is bigger?", "slot": "object"}],
+        "alt": "The Inferno Ghostwriter ghost points, shocked, at a pie chart whose slices look the same size.",
+        "caption": "Spot the difference. You can't.",
+    }
+
+
+def seat_verdict_payload(prompt: str) -> dict[str, Any]:
+    """One panel seat: likes the first candidate best; a blind reader says what each picture shows."""
+    match = re.search(r"The (\d+) candidates", prompt)
+    count = int(match.group(1)) if match else 1
+    blind = "blind reader" in prompt.lower()
+    return {
+        "scores": [
+            {
+                "candidate": i,
+                "score": max(5, 8 - i),
+                "note": "Clear at a glance; the risk is that it is familiar.",
+                "reading": "A friendly character reacts to a chart joke." if blind else "",
+            }
+            for i in range(count)
+        ],
+        "punch_up": [],
+        "punch_for": -1,
+    }
+
+
+def meme_staging_edit_payload(prompt: str) -> dict[str, Any]:
+    """A staged meme edit: keeps the words; 'dog', 'cat', 'robot' or 'person' in the request recasts the first role."""
+    current = re.search(r"<current>\s*(\{.*?\})\s*</current>", prompt, flags=re.DOTALL)
+    state = json.loads(current.group(1)) if current else {"texts": [], "cast": [], "panels": []}
+    found = re.search(r"<instruction>\s*(.*?)\s*</instruction>", prompt, flags=re.DOTALL)
+    instruction = found.group(1).lower() if found else ""
+    kind = next((k for k in ("dog", "cat", "robot", "person") if k in instruction), "")
+    cast = state.get("cast") or []
+    if kind:
+        roles = re.search(r"Cast roles: `([a-z_]+)`", prompt)
+        role = cast[0]["role"] if cast else (roles.group(1) if roles else "star")
+        cast = [{"role": role, "kind": kind, "expression": "", "accessory": ""}, *cast[1:]]
+    return {"texts": state.get("texts", []), "cast": cast, "panels": state.get("panels", []), "note": ""}
 
 
 def meme_build_payload(format_id: str, is_showcase: bool = False) -> dict[str, Any]:
@@ -1196,23 +1286,6 @@ def opening_ideas_payload(
             }
         )
     return {"concepts": concepts}
-
-
-def opening_verdict_payload(prompt: str) -> dict[str, Any]:
-    """The panel likes the first concept best, then each later one a little less."""
-    count = len(re.findall(r"^Concept \d+:", prompt, flags=re.MULTILINE))
-    scores = [
-        {
-            "concept": i,
-            "scroller": max(3, 9 - i),
-            "art_director": max(3, 9 - i),
-            "fact_checker": 8,
-            "author": max(5, 9 - i),
-            "note": "Clear at a glance; it needs crisp labels." if i == 0 else "Solid, but less of a hook.",
-        }
-        for i in range(count)
-    ]
-    return {"scores": scores, "summary": "The first idea says the post's point fastest."}
 
 
 def opening_build_payload(

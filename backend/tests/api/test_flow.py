@@ -95,9 +95,9 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     assert kinds == ["hero", "diagram", "chart", "meme"]
     assert all(img["status"] == "ready" and img["url"] for img in project["images"])
     assert all(img["credit"].startswith("Author: Shelby Temple") for img in project["images"])
-    assert project["images"][0]["credit"] == "Author: Shelby Temple; Made with Claude Opus 5.5 (SVG)"
+    assert project["images"][0]["credit"] == "Author: Shelby Temple; Made with Claude Opus 5.5 + character kit"
     assert project["images"][2]["credit"].endswith("Claude Opus 5.5 + Vega-Lite")
-    assert [img["provider"] for img in project["images"][:3]] == ["claude-svg", "claude-svg", "vega-lite"]
+    assert [img["provider"] for img in project["images"][:3]] == ["claude-scene", "claude-svg", "vega-lite"]
     # The meme came from the writers' room: a catalog format, its joke, and four more ideas for "New idea".
     meme = project["images"][3]
     assert meme["provider"] in ("claude-meme", "vega-lite")
@@ -121,7 +121,7 @@ def test_full_post_flow(client: TestClient, sample_docx: bytes, fake_llm: FakeLL
     assert hero["opening"]["pitches"] and hero["opening"]["review"]["verdict"] == "passed"
 
     def opening_builds() -> list[dict]:
-        return [c for c in fake_llm.calls if c["task"].startswith("opening ") and c["task"].endswith(("drawing", "build"))]
+        return [c for c in fake_llm.calls if c["task"].startswith("opening ") and c["task"].endswith(("drawing", "build", "scene"))]
 
     builds_before, ideas_before = len(opening_builds()), fake_llm.tasks().count("opening ideas")
     redraw = client.post(f"/api/images/{hero['id']}/redraw", json={}).json()
@@ -533,7 +533,7 @@ def test_brand_kit_and_edit_image(client: TestClient, sample_docx: bytes, fake_l
     created = client.post("/api/projects", json={"prompt": "Pie charts", "brand_kit": kit, "dials": {"revision_passes": 0}}).json()
     project = client.get(f"/api/projects/{created['project']['id']}").json()
     assert project["brand_kit"]["palette"] == ["#112233", "#aabbcc"]
-    hero_call = next(c for c in fake_llm.calls if c["task"].startswith("opening ") and c["task"].endswith("drawing"))
+    hero_call = next(c for c in fake_llm.calls if c["task"] == "opening scene" or c["task"].endswith("drawing"))
     assert "chalkboard sketch" in hero_call["prompt"] and "#112233" in hero_call["prompt"] and "a tiny robot" in hero_call["prompt"]
     bad = client.patch(f"/api/projects/{project['id']}", json={"brand_kit": {"palette": ["orange"]}})
     assert bad.status_code == 422
@@ -555,7 +555,9 @@ def test_redraw_all_images_uses_the_new_brand_kit(client: TestClient, sample_doc
     fake_llm.calls.clear()
     job = client.post(f"{url}/images/redraw").json()
     assert job["status"] == "succeeded", job
-    designs = [c for c in fake_llm.calls if c["task"].endswith(("image design", "drawing")) or c["task"].startswith("meme build")]
+    designs = [
+        c for c in fake_llm.calls if c["task"].endswith(("image design", "drawing", "opening scene")) or c["task"].startswith("meme build")
+    ]
     # The opening image is rebuilt from the panel's pick: no new pitching or judging.
     assert "opening ideas" not in fake_llm.tasks() and "opening panel" not in fake_llm.tasks()
     # A meme in a format with no art is redrawn by code alone, with no call to Claude.
@@ -569,7 +571,7 @@ def test_redraw_all_images_uses_the_new_brand_kit(client: TestClient, sample_doc
 
 def test_meme_formats_new_ideas_and_edits(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
     formats = client.get("/api/meme-formats").json()
-    assert len(formats) == 23 and {"nope_yep", "joke_pie_3d", "comic_grid_4"} <= {f["id"] for f in formats}
+    assert len(formats) == 26 and {"nope_yep", "joke_pie_3d", "comic_grid_4"} <= {f["id"] for f in formats}
 
     project = ready_post(client, sample_docx)
     meme = next(i for i in project["images"] if i["kind"] == "meme")
@@ -705,3 +707,31 @@ def test_an_older_post_gets_its_missing_examples(client: TestClient, sample_docx
     # Nothing left to add the second time.
     again = client.post(f"/api/projects/{project['id']}/examples").json()
     assert again["result"]["added"] == []
+
+
+def test_rating_an_image_teaches_the_personas_taste(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    meme = next(i for i in project["images"] if i["kind"] == "meme")
+    assert meme["rating"] == 0
+    rated = client.put(f"/api/images/{meme['id']}/rating", json={"rating": 1}).json()
+    assert rated["rating"] == 1
+    assert client.put(f"/api/images/{meme['id']}/rating", json={"rating": 3}).status_code == 422
+    # The next meme's writers' room hears what the author liked.
+    fake_llm.calls.clear()
+    job = client.post(f"/api/images/{meme['id']}/redraw", json={"rethink": True}).json()
+    assert job["status"] == "succeeded", job
+    if "meme ideas" in fake_llm.tasks():
+        assert "The author has liked" in next(c for c in fake_llm.calls if c["task"] == "meme ideas")["prompt"]
+    hero = next(i for i in project["images"] if i["kind"] == "hero")
+    review = hero["opening"]["review"]
+    assert review["verdict"] in ("passed", "redrawn") and isinstance(review["readings"], list)
+
+
+def test_a_redraw_clears_the_rating_of_the_old_picture(client: TestClient, sample_docx: bytes, fake_llm: FakeLLM) -> None:
+    project = ready_post(client, sample_docx)
+    meme = next(i for i in project["images"] if i["kind"] == "meme")
+    client.put(f"/api/images/{meme['id']}/rating", json={"rating": -1})
+    job = client.post(f"/api/images/{meme['id']}/redraw", json={}).json()
+    assert job["status"] == "succeeded", job
+    after = next(i for i in client.get(f"/api/projects/{project['id']}").json()["images"] if i["id"] == meme["id"])
+    assert after["rating"] == 0

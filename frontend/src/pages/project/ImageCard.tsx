@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Dices, History, ImagePlus, Layers, Lightbulb, PencilLine, Sparkles, Type, Wand2 } from 'lucide-react'
+import { Dices, History, ImagePlus, Layers, Lightbulb, MonitorSmartphone, PencilLine, Sparkles, ThumbsDown, ThumbsUp, Type, Wand2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { errorText } from '../../api/client'
@@ -20,6 +20,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   'vega-lite': 'Claude + Vega-Lite',
   'claude-meme': 'Claude meme',
   'claude-opening': 'Claude + Inferno Ghostwriter layout',
+  'claude-scene': 'Claude + character kit',
   placeholder: 'Placeholder',
   upload: 'Your upload',
 }
@@ -34,7 +35,7 @@ const KIND_LABEL: Record<string, string> = {
   screenshot: 'Screenshot',
 }
 
-export function ImageCard({ projectId, image, images = [] }: { projectId: number; image: ImageOut; images?: ImageOut[] }) {
+export function ImageCard({ projectId, image, images = [], title = '' }: { projectId: number; image: ImageOut; images?: ImageOut[]; title?: string }) {
   const qc = useQueryClient()
   const mutations = useImageMutations(projectId)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -58,9 +59,16 @@ export function ImageCard({ projectId, image, images = [] }: { projectId: number
   const [instruction, setInstruction] = useState('')
   const busy = !!jobId || mutations.upload.isPending
   // Only images Claude drew have a design to edit; uploads and placeholders can be redrawn or replaced.
-  const editable = ['claude-svg', 'vega-lite', 'claude-meme', 'claude-opening'].includes(image.provider)
+  const editable = ['claude-svg', 'vega-lite', 'claude-meme', 'claude-opening', 'claude-scene'].includes(image.provider)
+  // The opening image is the thumbnail: preview it as a feed card (the crop platforms show, with the title under it).
+  const [feedOpen, setFeedOpen] = useState(false)
+  const rateable = (image.kind === 'hero' || image.kind === 'meme') && image.status !== 'pending' && !!image.url
+  const rate = (value: number) => mutations.rate.mutate({ id: image.id, rating: image.rating === value ? 0 : value })
   // The opening image (also the thumbnail) carries the panel's pitches; an opening meme has the meme tools too.
   const opening = image.kind === 'hero' ? image.opening : null
+  // Why the render panel picked this picture, and what strangers saw in it with no context.
+  const why = opening?.review?.why || image.meme?.review_why || ''
+  const readings = opening?.review?.readings?.length ? opening.review.readings : (image.meme?.review_readings ?? [])
   const isMeme = image.kind === 'meme' || !!(opening && image.meme)
   // The opening image can become a meme in any format, so it needs the bank even before it is one.
   const memeFormats = useMemeFormats(isMeme || !!opening)
@@ -138,6 +146,12 @@ export function ImageCard({ projectId, image, images = [] }: { projectId: number
       </div>
 
       {fullCaption(image) && <figcaption className="mt-2 text-center text-sm text-muted">{fullCaption(image)}</figcaption>}
+      {(why || readings.length > 0) && !busy && (
+        <p className="mt-1 text-center text-xs text-muted" aria-label="Why the panel picked this one">
+          {why ? `Why this one: ${/[.!?]$/.test(why) ? why : `${why}.`} ` : ''}
+          {readings.length > 0 ? `Strangers read it as: “${readings[0]}”` : ''}
+        </p>
+      )}
       {image.status === 'error' && (
         <div className="mt-2">
           <Notice tone="error">{image.error}</Notice>
@@ -232,7 +246,48 @@ export function ImageCard({ projectId, image, images = [] }: { projectId: number
         <p className="mt-2 text-center text-xs text-muted">Claude drew this mock screen. Use Replace if you have the real screenshot.</p>
       )}
 
+      {feedOpen && opening && image.url && (
+        <div className="mx-auto mt-3 max-w-md overflow-hidden rounded-xl border border-line bg-surface shadow" aria-label="Feed card preview">
+          <div className="aspect-[1200/630] overflow-hidden bg-sunken">
+            <img src={image.url} alt="" className={cx('size-full', opening.thumbnail_fit === 'contain' ? 'object-contain' : 'object-cover')} />
+          </div>
+          <p className="px-4 py-3 text-base leading-snug font-bold">{title || 'Your post title'}</p>
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap justify-center gap-2" aria-label={`Actions for ${KIND_LABEL[image.kind] ?? 'image'}`}>
+        {rateable && (
+          <>
+            <Button
+              size="sm"
+              variant={image.rating === 1 ? 'primary' : 'ghost'}
+              icon={<ThumbsUp className="size-4" />}
+              aria-pressed={image.rating === 1}
+              aria-label="I like this one"
+              onClick={() => rate(1)}
+              disabled={busy || mutations.rate.isPending}
+            />
+            <Button
+              size="sm"
+              variant={image.rating === -1 ? 'primary' : 'ghost'}
+              icon={<ThumbsDown className="size-4" />}
+              aria-pressed={image.rating === -1}
+              aria-label="Not for me"
+              onClick={() => rate(-1)}
+              disabled={busy || mutations.rate.isPending}
+            />
+          </>
+        )}
+        {opening && image.url && (
+          <Button
+            size="sm"
+            variant={feedOpen ? 'secondary' : 'ghost'}
+            icon={<MonitorSmartphone className="size-4" />}
+            aria-pressed={feedOpen}
+            onClick={() => setFeedOpen((open) => !open)}
+          >
+            Feed preview
+          </Button>
+        )}
         {editable && (
           <Button
             size="sm"

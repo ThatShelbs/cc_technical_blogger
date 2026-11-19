@@ -694,6 +694,11 @@ export function useImageMutations(projectId: number) {
       mutationFn: ({ id, words }: { id: number; words: Record<string, string> }) => api.put<ImageOut>(`/api/images/${id}/meme-words`, { words }),
       onSuccess: refresh,
     }),
+    /** Thumbs up (1), down (-1) or clear (0); ratings on opening images and memes teach the persona's taste. */
+    rate: useMutation({
+      mutationFn: ({ id, rating }: { id: number; rating: number }) => api.put<ImageOut>(`/api/images/${id}/rating`, { rating }),
+      onSuccess: refresh,
+    }),
     /** Redraw every image Claude drew, e.g. after changing the brand kit. */
     redrawAll: useMutation({ mutationFn: () => api.post<JobOut>(`/api/projects/${projectId}/images/redraw`) }),
     /** Change an image as described ("make the arrows orange"), keeping the rest of it. */

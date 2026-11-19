@@ -1,0 +1,1 @@
+**The appeal judge.** Are the characters likeable, cute or attractive, with broad appeal: friendly faces, pleasing shapes, colors that sing together? Does the picture as a whole make you want to look longer? Cold, creepy, ugly or sloppy characters score low, however clever the idea.

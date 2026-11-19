@@ -38,6 +38,7 @@ from inferno_ghostwriter.images.opening.room import OpeningContext, OpeningResul
 from inferno_ghostwriter.images.opening.room import load_state as load_opening_state
 from inferno_ghostwriter.images.render import add_meme_text, svg_to_png, vega_to_png
 from inferno_ghostwriter.images.specs import ChartSpec, SvgMemeSpec, SvgSpec
+from inferno_ghostwriter.images.taste import Taste, taste_of
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
 from inferno_ghostwriter.llm.base import UsageSink
 from inferno_ghostwriter.prompts import raw, render
@@ -68,6 +69,7 @@ def tool_label(provider: str, model: str) -> str:
         "vega-lite": f"{claude} + Vega-Lite",
         "claude-meme": f"{claude} (meme)",
         "claude-opening": f"{claude} (layout)",
+        "claude-scene": f"{claude} + character kit",
         "placeholder": "Inferno Ghostwriter",
     }.get(provider, provider)
 
@@ -412,6 +414,7 @@ class ImageService:
             recent=[str(e) for e in previous.get("recent", [])],
             pinned=remixing.pins_from(pins),
             keep_palette=bool(brand_palette(brand_kit)),
+            house_only=kind in ("hero", "meme"),
         )
         plan = None
         if brainstorm:
@@ -638,6 +641,7 @@ class ImageService:
     ) -> MemeContext:
         plan, dials, brief, _ = self._post_info(image.project_id)
         humor = dials.get("humor")
+        taste = self._taste(persona)
         return MemeContext(
             title=title,
             markdown=markdown,
@@ -651,6 +655,9 @@ class ImageService:
             formula=_formula_note(dials, persona, brief),
             position=position,
             opening=self._opening_meme_note(image.project_id) if position == "closing" else "",
+            recent_schemes=self._recent_schemes(persona, image.project_id),
+            taste=taste.note(("format", "look", "cast")),
+            look_weights=taste.look_weights() or None,
         )
 
     def opening_may_be_meme(self, project_id: int, persona: Persona) -> bool:
@@ -690,6 +697,8 @@ class ImageService:
             formula=formula,
             recent_styles=self._recent_opening_styles(persona, image.project_id),
             meme_context=self._meme_context(image, persona, title, markdown, voice_profile, position="opening"),
+            recent_schemes=self._recent_schemes(persona, image.project_id),
+            taste=self._taste(persona).note(("style", "cast", "ramp")),
         )
 
     def _opening_meme_note(self, project_id: int) -> str:
@@ -706,6 +715,51 @@ class ImageService:
         premise = concepts[chosen].get("premise", "") if isinstance(chosen, int) and 0 <= chosen < len(concepts) else ""
         words = " / ".join(str(t.get("text", "")) for t in (state.get("build") or {}).get("texts") or [] if t.get("text"))
         return f"a {fmt.name if fmt else 'meme'} meme: {premise} (words: {words})".strip()
+
+    def _recent_schemes(self, persona: Persona, project_id: int, limit: int = 4) -> tuple[str, ...]:
+        """The color schemes ("ramp:surface") of this author's latest opening images and memes, newest first."""
+        with Session(self.engine) as session:
+            specs = session.exec(
+                select(ProjectImage.spec)
+                .join(Project, col(Project.id) == col(ProjectImage.project_id))
+                .where(col(Project.persona_id) == persona.id, col(ProjectImage.kind).in_(("meme", "hero")))
+                .order_by(col(Project.updated_at).desc())
+                .limit(limit * 3)
+            ).all()
+        schemes: list[str] = []
+        for spec in specs:
+            try:
+                state = json.loads(spec) if spec else {}
+            except json.JSONDecodeError:
+                continue
+            found = str(state.get("scheme") or "") if isinstance(state, dict) else ""
+            if ":" in found:
+                schemes.append(found)
+        return tuple(schemes[:limit])
+
+    def _taste(self, persona: Persona) -> Taste:
+        """What this author liked and passed on, from their thumbs on opening images and memes."""
+        with Session(self.engine) as session:
+            rows = session.exec(
+                select(ProjectImage.kind, ProjectImage.spec, ProjectImage.rating)
+                .join(Project, col(Project.id) == col(ProjectImage.project_id))
+                .where(col(Project.persona_id) == persona.id, col(ProjectImage.rating) != 0)
+                .order_by(col(Project.updated_at).desc())
+                .limit(60)
+            ).all()
+        return taste_of(rows)
+
+    def rate(self, image_id: int, rating: int) -> ProjectImage:
+        """Store the author's thumbs (1, -1, or 0 to clear) on an image."""
+        with Session(self.engine) as session:
+            image = session.get(ProjectImage, image_id)
+            if image is None:
+                raise ImageProviderError("That image no longer exists.")
+            image.rating = max(-1, min(1, int(rating)))
+            session.add(image)
+            session.commit()
+            session.refresh(image)
+            return image
 
     def _recent_opening_styles(self, persona: Persona, project_id: int, limit: int = 3) -> tuple[str, ...]:
         """The styles of this author's latest opening images in other posts, newest first."""
@@ -833,6 +887,8 @@ class ImageService:
             image = session.get(ProjectImage, image_id)
             if image is None:
                 raise KeyError(image_id)
+            if updates.get("file_name") and updates["file_name"] != image.file_name and "rating" not in updates:
+                image.rating = 0  # a thumbs up or down was for the old picture
             for key, value in updates.items():
                 setattr(image, key, value)
             if record and updates.get("file_name"):

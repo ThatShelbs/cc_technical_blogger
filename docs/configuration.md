@@ -35,7 +35,10 @@ Inferno Ghostwriter works with zero configuration. Most settings live in the app
 | `INFERNO_GHOSTWRITER_MODEL` | Claude model | `claude-opus-5-5` |
 | `INFERNO_GHOSTWRITER_USE_FALLBACKS` | Server-side refusal fallback | `true` |
 | `INFERNO_GHOSTWRITER_REVISION_PASSES` | Editing passes per post | `1` |
-| `INFERNO_GHOSTWRITER_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `OPENING_IDEAS`, `OPENING_JUDGE`, `OPENING_REVIEW`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE`, `IDEA_RESEARCH`, `IDEA_IDEAS`, `IDEA_RANK` | see `config.py` |
+| `INFERNO_GHOSTWRITER_EFFORT_*` | Effort per task: `ANALYZE`, `RESEARCH`, `SYNTHESIZE`, `PLAN`, `DRAFT`, `CRITIQUE`, `IMAGES`, `MEME_IDEAS`, `OPENING_IDEAS`, `IMAGE_IMPROVE`, `DETECT`, `INSIGHTS`, `REFERENCES`, `EVOLVE`, `IDEA_RESEARCH`, `IDEA_IDEAS`, `IDEA_RANK` | see `config.py` |
+| `INFERNO_GHOSTWRITER_IMAGE_PANEL_MEME`, `_OPENING`, `_RENDER` | The judging panels' seats as a JSON list of `role:model:effort` (model `opus`, `sonnet`, `haiku` or an id); see [image-kit.md](image-kit.md#the-judging-panel-imagespanelpy) | mixed Haiku, Sonnet and Opus |
+| `INFERNO_GHOSTWRITER_IMAGE_PANEL_FINAL` | The final pick between drawn candidates, `model:effort` | `opus:medium` |
+| `INFERNO_GHOSTWRITER_IMAGE_RENDER_CANDIDATES` | How many top pitches a fresh opener or meme draws for the render panel | `2` |
 | `INFERNO_GHOSTWRITER_REFERENCE_MAX_SEARCHES` | Web searches per reference | `3` |
 | `INFERNO_GHOSTWRITER_OPENING_MAX_SEARCHES` | Web searches for the numbers behind a data opener (chart or big number) | `4` |
 | `INFERNO_GHOSTWRITER_IDEA_MAX_SEARCHES` | Idea Lab: web searches per research scout at standard depth | `8` |

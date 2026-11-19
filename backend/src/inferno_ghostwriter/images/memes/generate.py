@@ -20,18 +20,22 @@ from inferno_ghostwriter.images.memes.formats import CAST, FALLBACK, MemeFormat,
 from inferno_ghostwriter.images.memes.looks import Look, choose_look, get_look, themed
 from inferno_ghostwriter.images.memes.looks import menu as looks_menu
 from inferno_ghostwriter.images.memes.specs import (
+    CastPick,
     MemeArt,
     MemeBuild,
     MemeConcept,
     MemeDatum,
     MemeIdeas,
-    MemeReview,
+    MemeStagingEdit,
     MemeText,
-    MemeVerdict,
+    PanelPick,
 )
+from inferno_ghostwriter.images.palettes import Scheme, brand_scheme, from_id, house_ramp
+from inferno_ghostwriter.images.palettes import pick as pick_colors
+from inferno_ghostwriter.images.panel import PanelResult, convene, final_pick, parse_seats
 from inferno_ghostwriter.images.remix import PALETTE, ImprovementPlan, Tweak, edit_note, variation_for
 from inferno_ghostwriter.llm import LLM, LLMError, SystemBlock
-from inferno_ghostwriter.llm.base import LLMImagesUnsupportedError, UsageSink
+from inferno_ghostwriter.llm.base import UsageSink
 from inferno_ghostwriter.prompts import raw, render
 
 log = logging.getLogger(__name__)
@@ -73,6 +77,12 @@ class MemeContext:
     position: str = "closing"
     # For a closing meme when the post also opens with one (a meme sandwich): the opener's format and premise.
     opening: str = ""
+    # Color schemes ("ramp:surface") this author's latest images used, newest first: a new one rotates away from them.
+    recent_schemes: tuple[str, ...] = ()
+    # The author's image taste (liked and passed formats, looks, casts) as the room should read it; "" when unknown.
+    taste: str = ""
+    # Look weights from the author's ratings (1.0 = neutral).
+    look_weights: dict[str, float] | None = None
 
 
 def position_guide(post: MemeContext) -> str:
@@ -118,6 +128,13 @@ class MemeResult:
     spec: str
     alt: str
     caption: str
+
+
+def _kit_menu() -> str:
+    from inferno_ghostwriter.images.kit import menu as kit_menu
+    from inferno_ghostwriter.images.kit.props import menu as props_menu
+
+    return kit_menu() + "\n" + props_menu()
 
 
 def humor_guide(level: int) -> str:
@@ -186,12 +203,6 @@ def pick(concepts: list[MemeConcept], preferred: int | None, skip: set[int], pan
     return max(usable, key=lambda i: ((panel[i] if panel else 0), total(concepts[i])), default=None)
 
 
-def panel_total(judge: Any) -> int:
-    """One panel score; a joke a cold reader does not get is ruled out (pushed far below the rest)."""
-    score = judge.feed_reader + judge.comedy_editor + judge.author + judge.gets_it
-    return score - 100 if judge.gets_it < 5 else score
-
-
 def punched_up(fmt: MemeFormat, concept: MemeConcept, punch: list[MemeText]) -> list[MemeText] | None:
     """The panel's sharper words, when they cover every required slot and fit every limit; else None."""
     words = {t.slot: t.text.strip() for t in punch}
@@ -227,8 +238,30 @@ def validate(fmt: MemeFormat, build: MemeBuild) -> tuple[list[str], list[str]]:
     return blocking, style
 
 
-def render_build(fmt: MemeFormat, build: MemeBuild, palette: tuple[str, ...] = (), look: Look | None = None) -> tuple[bytes, int, int]:
-    theme = themed(look, palette) if look else None
+def cast_dict(cast: list[CastPick]) -> dict[str, dict[str, str]]:
+    return {c.role: {"kind": c.kind, "expression": c.expression, "accessory": c.accessory} for c in cast if c.role}
+
+
+def scheme_of(state: dict[str, Any] | None, palette: tuple[str, ...], look: Look | None) -> Scheme:
+    """The colors a meme is drawn in: a brand palette first, then the stored scheme, then the look's default."""
+    if len(palette) >= 3 and house_ramp(palette) is None:
+        return brand_scheme(palette)
+    stored = from_id(str((state or {}).get("scheme") or ""))
+    return stored or (look or get_look(None)).default_scheme
+
+
+def pick_scheme(post: MemeContext, look: Look, palette: tuple[str, ...], avoid: str = "") -> Scheme:
+    """A new meme's colors: the brand palette, else a ramp and surface the author's latest images did not use."""
+    dark = True if look.tone == "dark" else False if look.tone == "light" else None
+    return pick_colors(palette, post.recent_schemes, ramp=look.ramp or None, dark=dark, avoid=[avoid] if avoid else ())
+
+
+def render_build(
+    fmt: MemeFormat, build: MemeBuild, palette: tuple[str, ...] = (), look: Look | None = None, sch: Scheme | None = None
+) -> tuple[bytes, int, int]:
+    look = look or get_look(None)
+    sch = sch or scheme_of(None, palette, look)
+    palette = palette if house_ramp(palette) is None else ()  # a house ramp is a scheme, not a brand palette
     return compose(
         fmt,
         {t.slot: t for t in build.texts},
@@ -236,7 +269,11 @@ def render_build(fmt: MemeFormat, build: MemeBuild, palette: tuple[str, ...] = (
         build.cast_defs,
         build.data,
         palette=palette,
-        theme=theme,
+        theme=themed(look, palette, sch),
+        look=look.id,
+        sch=sch,
+        cast=cast_dict(build.cast),
+        panels=[p.model_dump() for p in build.panels],
     )
 
 
@@ -248,19 +285,28 @@ def look_direction(look: Look) -> str:
     )
 
 
-def review_score(review: MemeReview) -> int:
-    return review.funny + review.craft + (5 if review.passes else 0)
-
-
-def review_entry(review: MemeReview, verdict: str) -> dict[str, Any]:
-    return {"verdict": verdict, "funny": review.funny, "craft": review.craft, "problems": review.problems[:5]}
-
-
-def alt_text(fmt: MemeFormat, texts: list[MemeText], data: list[MemeDatum]) -> str:
-    """Alt text written from the meme's own parts, so it is always right: the format and every word in it."""
+def alt_text(
+    fmt: MemeFormat,
+    texts: list[MemeText],
+    data: list[MemeDatum],
+    cast: list[CastPick] | None = None,
+    panels: list[PanelPick] | None = None,
+) -> str:
+    """Alt text written from the meme's own parts, so it is always right: the format, who is in it and every word."""
     words = " / ".join(t.text.strip() for t in texts if t.text.strip())
     chart = "; ".join(f"{d.label}: {d.value:g}" for d in data)
-    return f"{fmt.name} meme. Text: {words}." + (f" Data: {chart}." if chart else "")
+    who = ""
+    if panels:
+        who = " " + " ".join(
+            f"Panel {i + 1}: " + ", ".join(f"a {c.expression.replace('_', ' ')} {c.kind}" for c in p.characters) + "."
+            for i, p in enumerate(panels)
+        )
+    elif fmt.staged and fmt.family != "comic":
+        who = f" {fmt.recognizable}"
+        recast = [f"{c.role} played by a {c.kind}" for c in (cast or []) if c.kind and c.kind != "ghost"]
+        if recast:
+            who += " (" + ", ".join(recast) + ")"
+    return f"{fmt.name} meme.{who} Text: {words}." + (f" Data: {chart}." if chart else "")
 
 
 def concept_build(fmt: MemeFormat, concept: MemeConcept) -> MemeBuild:
@@ -270,8 +316,10 @@ def concept_build(fmt: MemeFormat, concept: MemeConcept) -> MemeBuild:
         cast_defs="",
         art=[],
         data=concept.data,
-        alt=alt_text(fmt, concept.texts, concept.data),
+        alt=alt_text(fmt, concept.texts, concept.data, concept.cast, concept.panels),
         caption=concept.caption,
+        cast=concept.cast,
+        panels=concept.panels,
     )
 
 
@@ -341,13 +389,16 @@ class MemeMaker:
 
         fmt = (get_format(concept.format) if concept else None) or FALLBACK
         avoid = [previous_look] if previous_look and (redraw or rethink) and not look else []
-        chosen_look = choose_look(look, concept.look if concept else None, post.recent_looks, avoid=avoid)
+        chosen_look = choose_look(look, concept.look if concept else None, post.recent_looks, avoid=avoid, weights=post.look_weights)
         state["look"] = chosen_look.id
+        previous_scheme = str(state.get("scheme") or "")
+        sch = pick_scheme(post, chosen_look, art.palette, avoid=previous_scheme if (redraw or rethink) else "")
+        state["scheme"] = sch.id
         state.pop("review", None)
         # A redraw of an edited meme keeps the edits: its current art and words go into the build.
         current = state.get("build") if art.edits and redraw and not meme_format and concept_index is None and not rethink else None
         built = (
-            await self._produce(fmt, concept, post.title, art, chosen_look, redraw=redraw, current=current, usage=usage)
+            await self._produce(fmt, concept, post.title, art, chosen_look, redraw=redraw, current=current, usage=usage, sch=sch)
             if concept
             else None
         )
@@ -357,17 +408,101 @@ class MemeMaker:
             state["fallback_from"] = fmt.id
             for other in sorted((i for i in range(len(concepts)) if i != index), key=lambda i: total(concepts[i]), reverse=True):
                 other_fmt = get_format(concepts[other].format)
-                direct = self._direct(other_fmt, concepts[other], art, chosen_look, strict=False) if other_fmt else None
+                direct = self._direct(other_fmt, concepts[other], art, chosen_look, strict=False, sch=sch) if other_fmt else None
                 if direct is not None and other_fmt is not None:
                     index, concept, fmt, built = other, concepts[other], other_fmt, direct
                     tried.add(other)
                     break
         state["chosen"] = index
         state["tried"] = sorted(tried)
-        if built is not None and fmt.regions and review and self.settings.meme_review:
-            premise = concept.premise if concept else ""
-            built = await self._look_over(state, fmt, built, art, chosen_look, post.title, premise, usage)
+        fresh = not (redraw or rethink or concept_index is not None)
+        if built is not None and concept is not None and review and self.settings.meme_review and fresh and index is not None:
+            index, concept, fmt, built = await self._choose_render(
+                state, post, art, chosen_look, sch, concepts, (index, concept, fmt, built), tried, usage
+            )
+            state["chosen"] = index
+            state["tried"] = sorted(tried)
         return self._finish(state, fmt, concept, built, art)
+
+    async def _choose_render(
+        self,
+        state: dict[str, Any],
+        post: MemeContext,
+        art: ArtDirection,
+        look: Look,
+        sch: Scheme,
+        concepts: list[MemeConcept],
+        first: tuple[int, MemeConcept, MemeFormat, Built],
+        tried: set[int],
+        usage: UsageSink | None,
+    ) -> tuple[int, MemeConcept, MemeFormat, Built]:
+        """Draw the best pitches (code renders, no model call), let the render panel look at them, and keep the pick.
+
+        A blind reader who sees only the picture says what it means; that is matched against the pitch, so a meme that
+        does not make sense to a stranger loses. The final pick may ask for one fix, applied by restaging."""
+        panel_scores_ = panel_scores(state, len(concepts)) or [0] * len(concepts)
+        ranked = sorted(
+            (i for i in range(len(concepts)) if i != first[0] and get_format(concepts[i].format)),
+            key=lambda i: (panel_scores_[i], total(concepts[i])),
+            reverse=True,
+        )
+        options: list[tuple[int, MemeConcept, MemeFormat, Built]] = [first]
+        for i in ranked:
+            if len(options) >= max(1, self.settings.image_render_candidates):
+                break
+            if panel_scores_[i] < 0:
+                continue
+            other_fmt = get_format(concepts[i].format)
+            built = self._direct(other_fmt, concepts[i], art, look, strict=False, sch=sch) if other_fmt else None
+            if built is not None and other_fmt is not None:
+                options.append((i, concepts[i], other_fmt, built))
+        if len(options) < 2 and not parse_seats(self.settings.image_panel_render):
+            return first
+        pngs = [thumbnail_png(o[3][1]) for o in options]
+        render_panel = await convene(
+            self.llm,
+            parse_seats(self.settings.image_panel_render),
+            context=self._context(post),
+            candidates=[f"[{o[2].name}] {o[1].premise}" for o in options],
+            images=pngs,
+            intents=[o[1].premise for o in options],
+            usage=usage,
+        )
+        if not render_panel.answered:
+            state["review"] = {"skipped": True, "note": "This connection cannot show Claude the image, so it was not reviewed."}
+            return first
+        order = render_panel.ranking()
+        pick_ = await final_pick(
+            self.llm,
+            context=self._context(post),
+            candidates=[f"[{o[2].name}] {o[1].premise}" for o in options],
+            images=pngs,
+            panel=render_panel,
+            spec=self.settings.image_panel_final,
+            usage=usage,
+        )
+        best = (
+            pick_.chosen
+            if pick_ is not None and (pick_.chosen not in render_panel.vetoed or len(render_panel.vetoed) == len(options))
+            else order[0]
+        )
+        winner = options[best]
+        tried.add(winner[0])
+        verdict = "passed"
+        if pick_ is not None and pick_.fix.strip() and winner[2].staged:
+            fixed = await self._restage(state, winner[2], winner[3][0], pick_.fix, art, usage)
+            if fixed is not None:
+                winner = (winner[0], winner[1], winner[2], fixed)
+                verdict = "redrawn"
+        state["review"] = {
+            "verdict": verdict,
+            "panel": render_panel.summary(),
+            "why": pick_.why if pick_ is not None else "",
+            "fix": pick_.fix if pick_ is not None else "",
+            "candidates": [o[0] for o in options],
+            "winner": best,
+        }
+        return winner
 
     async def edit(self, spec: str, instruction: str, art: ArtDirection, *, usage: UsageSink | None = None) -> MemeResult:
         """Change the current meme as the author asks ("make the ghost look more smug"), keeping the rest."""
@@ -375,7 +510,12 @@ class MemeMaker:
         if state is None or not state.get("build"):
             raise ImageProviderError(OLD_MEME)
         fmt = get_format(str(state.get("format", ""))) or FALLBACK
-        built = await self._revise(fmt, MemeBuild.model_validate(state["build"]), instruction, art, get_look(state.get("look")), usage)
+        current = MemeBuild.model_validate(state["build"])
+        if fmt.staged and not current.art:
+            built = await self._restage(state, fmt, current, instruction, art, usage)
+        else:
+            look_ = get_look(state.get("look"))
+            built = await self._revise(fmt, current, instruction, art, look_, usage, scheme_of(state, art.palette, look_))
         if built is None:
             raise ImageProviderError("Claude's edit could not be drawn. Try rewording the instruction.")
         return self._finish(state, fmt, None, built, art)
@@ -396,11 +536,12 @@ class MemeMaker:
             )
             for s in fmt.slots
         ]
-        build = current.model_copy(update={"texts": texts, "alt": alt_text(fmt, texts, current.data)})
+        build = current.model_copy(update={"texts": texts, "alt": alt_text(fmt, texts, current.data, current.cast, current.panels)})
         blocking, _ = validate(fmt, build)
         if blocking:
             raise ImageProviderError(" ".join(blocking))
-        png, width, height = render_build(fmt, build, art.palette, get_look(state.get("look")))
+        look_ = get_look(state.get("look"))
+        png, width, height = render_build(fmt, build, art.palette, look_, scheme_of(state, art.palette, look_))
         return self._finish(state, fmt, None, (build, png, width, height), art)
 
     def _finish(
@@ -414,7 +555,8 @@ class MemeMaker:
         if built is None:
             fmt = FALLBACK
             build = fallback_build(concept)
-            png, width, height = render_build(fmt, build, art.palette, get_look(state.get("look")))
+            look_ = get_look(state.get("look"))
+            png, width, height = render_build(fmt, build, art.palette, look_, scheme_of(state, art.palette, look_))
         else:
             build, png, width, height = built
         caption = build.caption.strip()
@@ -447,6 +589,7 @@ class MemeMaker:
             # The opener is pitched from the post's beginning; the closer keeps its ending, where callbacks pay off.
             post=clip_post(post.markdown, tail=0) if opening else clip_post(post.markdown),
             menu=menu(only),
+            kit=_kit_menu(),
             looks=looks_menu(),
             recent_looks=(
                 f"\nThis author's last memes were drawn in these looks: {', '.join(post.recent_looks)}. Suggest other looks.\n"
@@ -455,6 +598,7 @@ class MemeMaker:
             ),
             constraint=f"\nOnly use the format `{only}`: all five concepts must use it, each with a different joke.\n" if only else "",
             exclude=f"\nThese premises were already used; pitch different jokes:\n{avoid}\n" if exclude else "",
+            taste=f"\n{post.taste}\n" if post.taste else "",
             recent=(
                 f"\nThis author's last memes used: {recent}. Readers notice a repeated format, so prefer other formats "
                 "unless one of these is clearly the funniest fit.\n"
@@ -477,66 +621,68 @@ class MemeMaker:
         chosen: int | None = ideas.chosen if 0 <= ideas.chosen < len(concepts) else None
         why = ideas.why
         state: dict[str, Any] = {"version": STATE_VERSION, "brief": post.brief, "tried": []}
-        verdict = await self._judge(post, concepts, usage)
-        by_concept = {j.concept: j for j in verdict.scores if 0 <= j.concept < len(concepts)} if verdict is not None else {}
-        if verdict is not None and len(by_concept) == len(concepts):
-            panel = [panel_total(by_concept[i]) for i in range(len(concepts))]
+        panel = await self._judge(post, concepts, usage)
+        if panel is not None:
             usable = [i for i, c in enumerate(concepts) if get_format(c.format)]
-            if 0 <= verdict.chosen < len(concepts) and panel[verdict.chosen] >= 0 and verdict.chosen in usable:
-                chosen = verdict.chosen
-            elif usable:
-                chosen = max(usable, key=lambda i: (panel[i], total(concepts[i])))
+            if usable:
+                chosen = max(usable, key=lambda i: (panel.totals[i], total(concepts[i])))
             words = None
             fmt = get_format(concepts[chosen].format) if chosen is not None else None
-            if chosen is not None and chosen == verdict.chosen and fmt is not None and verdict.punch_up:
-                words = punched_up(fmt, concepts[chosen], verdict.punch_up)
+            if chosen is not None and panel.punch_for == chosen and fmt is not None and panel.punch_up:
+                words = punched_up(fmt, concepts[chosen], [MemeText(slot=w.slot, text=w.text, speaker="") for w in panel.punch_up])
             if words is not None and chosen is not None:
                 concepts[chosen] = concepts[chosen].model_copy(update={"texts": words})
-            why = verdict.summary or why
-            state["panel"] = {
-                "scores": panel,
-                "notes": [by_concept[i].note for i in range(len(concepts))],
-                "punched_up": words is not None,
-            }
+            if chosen is not None and panel.notes[chosen]:
+                why = panel.notes[chosen][0].split(": ", 1)[-1]
+            state["panel"] = {**panel.summary(), "punched_up": words is not None}
         state.update(concepts=[c.model_dump() for c in concepts], chosen=chosen, why=why)
         return state
 
-    async def _judge(self, post: MemeContext, concepts: list[MemeConcept], usage: UsageSink | None) -> MemeVerdict | None:
-        """An independent panel scores the pitches (the writers do not grade their own jokes); None if the call fails."""
+    def _pitch_lines(self, concepts: list[MemeConcept]) -> list[str]:
         lines = []
-        for i, c in enumerate(concepts):
+        for c in concepts:
             fmt = get_format(c.format)
             words = " | ".join(f"{t.slot}: {t.text}" for t in c.texts if t.text.strip())
             data = "; ".join(f"{d.label}: {d.value:g}" for d in c.data)
+            cast = ", ".join(f"{k.role} = {k.kind}" for k in c.cast if k.kind)
             lines.append(
-                f"{i}. [{fmt.name if fmt else c.format}] {c.premise}\n   Pays off: {c.callback}\n   Words: {words}"
+                f"[{fmt.name if fmt else c.format}] {c.premise}\n   Pays off: {c.callback}\n   Words: {words}"
+                + (f"\n   Cast: {cast}" if cast else "")
                 + (f"\n   Chart data: {data}" if data else "")
+                + (f"\n   Format limits: {', '.join(f'{sl.name} <= {sl.max_chars}' for sl in fmt.slots)}" if fmt else "")
             )
-        opening = post.position == "opening"
-        try:
-            return await self.llm.structured(
-                task="meme panel",
-                system=self.system,
-                prompt=render(
-                    "meme_verdict",
-                    position_guide=position_guide(post),
-                    title=post.title,
-                    humor=post.humor,
-                    humor_guide=humor_guide(post.humor),
-                    humor_section=voice_section(post.voice_profile, "Humor") or "(not described: dry, specific, good-natured humor)",
-                    post=clip_post(post.markdown, 12000, 0 if opening else 4000),
-                    concepts="\n".join(lines),
-                ),
-                schema=MemeVerdict,
-                effort=self.settings.effort_meme_verdict,
-                max_tokens=8000,
-                usage=usage,
-            )
-        except LLMError as exc:
-            log.info("Meme panel failed, using the writers own scores: %s", exc)
-            return None
+        return lines
 
-    def _direct(self, fmt: MemeFormat, concept: MemeConcept, art: ArtDirection, look: Look, *, strict: bool = True) -> Built | None:
+    def _context(self, post: MemeContext) -> str:
+        opening = post.position == "opening"
+        humor = voice_section(post.voice_profile, "Humor") or "(dry, specific, good-natured)"
+        return (
+            f"{position_guide(post)}\n\nPost title: {post.title}\nHumor level {post.humor}/10: {humor_guide(post.humor)}\n"
+            f"The author's sense of humor:\n<humor>\n{humor}\n</humor>\n"
+            f"The post:\n<post>\n{clip_post(post.markdown, 9000, 0 if opening else 3000)}\n</post>"
+        )
+
+    async def _judge(self, post: MemeContext, concepts: list[MemeConcept], usage: UsageSink | None) -> PanelResult | None:
+        """The independent pitch panel (images/panel.py): every seat at once; None when too few seats answered."""
+        seats = parse_seats(self.settings.image_panel_meme)
+        if not seats:
+            return None
+        result = await convene(self.llm, seats, context=self._context(post), candidates=self._pitch_lines(concepts), usage=usage)
+        if not result.ok:
+            log.info("Meme panel: too few seats answered (%d/%d); using the writers' own scores", result.answered, result.asked)
+            return None
+        return result
+
+    def _direct(
+        self,
+        fmt: MemeFormat,
+        concept: MemeConcept,
+        art: ArtDirection,
+        look: Look,
+        *,
+        strict: bool = True,
+        sch: Scheme | None = None,
+    ) -> Built | None:
         """Draw an art-free format straight from the pitch; None when it has art or the pitch is not ready to draw.
 
         ``strict`` also turns down a pitch whose words run long (production would tighten them)."""
@@ -547,7 +693,7 @@ class MemeMaker:
         if blocking or (strict and style):
             return None
         try:
-            return (build, *render_build(fmt, build, art.palette, look))
+            return (build, *render_build(fmt, build, art.palette, look, sch))
         except ImageProviderError:
             return None
 
@@ -562,9 +708,18 @@ class MemeMaker:
         redraw: bool,
         current: dict[str, Any] | None = None,
         usage: UsageSink | None,
+        sch: Scheme | None = None,
     ) -> Built | None:
-        return self._direct(fmt, concept, art, look) or await self._build(
-            fmt, concept, title, art, look, redraw=redraw, current=current, usage=usage
+        if current and fmt.staged:
+            # A redraw of an edited staged meme keeps its edited words and casting; only the look and colors move.
+            try:
+                build = MemeBuild.model_validate(current)
+                if not build.art:
+                    return (build, *render_build(fmt, build, art.palette, look, sch))
+            except (ImageProviderError, ValueError):
+                pass
+        return self._direct(fmt, concept, art, look, sch=sch) or await self._build(
+            fmt, concept, title, art, look, redraw=redraw, current=current, usage=usage, sch=sch
         )
 
     async def _build(
@@ -578,6 +733,7 @@ class MemeMaker:
         redraw: bool,
         current: dict[str, Any] | None = None,
         usage: UsageSink | None,
+        sch: Scheme | None = None,
     ) -> Built | None:
         concept_text = json.dumps(
             {
@@ -609,10 +765,17 @@ class MemeMaker:
         )
         if current:
             prompt += edit_note(art.edits, json.dumps(current, indent=1), what="build")
-        return await self._attempts(fmt, prompt, art, look, task=f"meme build ({fmt.id})", usage=usage)
+        return await self._attempts(fmt, prompt, art, look, task=f"meme build ({fmt.id})", usage=usage, sch=sch)
 
     async def _revise(
-        self, fmt: MemeFormat, current: MemeBuild, instruction: str, art: ArtDirection, look: Look, usage: UsageSink | None
+        self,
+        fmt: MemeFormat,
+        current: MemeBuild,
+        instruction: str,
+        art: ArtDirection,
+        look: Look,
+        usage: UsageSink | None,
+        sch: Scheme | None = None,
     ) -> Built | None:
         """Change a built meme as asked, keeping the rest; None when the change could not be drawn."""
         prompt = render(
@@ -623,69 +786,65 @@ class MemeMaker:
             brand=art.brand,
             look=look_direction(look),
         )
-        return await self._attempts(fmt, prompt, art, look, task=f"meme edit ({fmt.id})", usage=usage)
+        return await self._attempts(fmt, prompt, art, look, task=f"meme edit ({fmt.id})", usage=usage, sch=sch)
 
-    async def _review(
-        self, built: Built, fmt: MemeFormat, look: Look, title: str, premise: str, usage: UsageSink | None
-    ) -> MemeReview | None:
-        """Claude's look at the drawn meme; None when this connection cannot show it an image (or the call fails)."""
-        try:
-            return await self.llm.structured(
-                task="meme review",
-                system=self.system,
-                prompt=render(
-                    "meme_review",
-                    title=title,
-                    format=fmt.name,
-                    recognizable=fmt.recognizable,
-                    look=f"{look.label}: {look.art}",
-                    premise=premise or "(the joke is in the words)",
-                    words=built[0].alt,
-                ),
-                schema=MemeReview,
-                effort=self.settings.effort_meme_review,
-                max_tokens=4000,
-                usage=usage,
-                images=[thumbnail_png(built[1])],
-            )
-        except LLMImagesUnsupportedError:
-            return None
-        except LLMError as exc:
-            log.info("Meme review failed: %s", exc)
-            return None
-
-    async def _look_over(
+    async def _restage(
         self,
         state: dict[str, Any],
         fmt: MemeFormat,
-        built: Built,
+        current: MemeBuild,
+        instruction: str,
         art: ArtDirection,
-        look: Look,
-        title: str,
-        premise: str,
         usage: UsageSink | None,
-    ) -> Built:
-        """Review the drawn meme; one that reads badly gets one redraw with the reviewer's fix, and the better one is kept."""
-        first = await self._review(built, fmt, look, title, premise, usage)
-        if first is None:
-            state["review"] = {"skipped": True, "note": "This connection cannot show Claude the image, so it was not reviewed."}
-            return built
-        if first.passes:
-            state["review"] = review_entry(first, "passed")
-            return built
+    ) -> Built | None:
+        """Edit a code-staged meme: Claude changes the words, the casting or the comic panels; the kit redraws it."""
+        from inferno_ghostwriter.images.kit import menu as kit_menu
+        from inferno_ghostwriter.images.kit.props import menu as props_menu
+
+        snapshot = {
+            "texts": [t.model_dump() for t in current.texts],
+            "cast": [c.model_dump() for c in current.cast],
+            "panels": [p.model_dump() for p in current.panels],
+        }
+        prompt = render(
+            "meme_restage",
+            instruction=instruction.strip(),
+            spec=build_spec(fmt),
+            current=json.dumps(snapshot, indent=1),
+            kit=kit_menu() + "\n" + props_menu(),
+        )
         try:
-            again = await self._revise(fmt, built[0], first.fix or "; ".join(first.problems), art, look, usage)
-        except LLMError:
-            again = None
-        second = await self._review(again, fmt, look, title, premise, usage) if again else None
-        if again is not None and (second is None or review_score(second) >= review_score(first)):
-            state["review"] = review_entry(second, "redrawn") if second else {"verdict": "redrawn", "problems": first.problems[:5]}
-            return again
-        state["review"] = review_entry(first, "kept")
-        return built
+            edit = await self.llm.structured(
+                task=f"meme edit ({fmt.id})",
+                system=self.system,
+                prompt=prompt,
+                schema=MemeStagingEdit,
+                effort=self.settings.effort_images,
+                max_tokens=8000,
+                usage=usage,
+            )
+        except LLMError as exc:
+            log.info("Meme restage failed: %s", exc)
+            return None
+        build = current.model_copy(
+            update={
+                "texts": edit.texts or current.texts,
+                "cast": edit.cast or current.cast,
+                "panels": edit.panels if fmt.family == "comic" and edit.panels else current.panels,
+            }
+        )
+        build = build.model_copy(update={"alt": alt_text(fmt, build.texts, build.data, build.cast, build.panels)})
+        blocking, _ = validate(fmt, build)
+        if blocking:
+            return None
+        look_ = get_look(state.get("look"))
+        try:
+            return (build, *render_build(fmt, build, art.palette, look_, scheme_of(state, art.palette, look_)))
+        except ImageProviderError:
+            return None
 
     async def _attempts(
-        self, fmt: MemeFormat, prompt: str, art: ArtDirection, look: Look, *, task: str, usage: UsageSink | None
+        self, fmt: MemeFormat, prompt: str, art: ArtDirection, look: Look, *, task: str, usage: UsageSink | None, sch: Scheme | None = None
     ) -> Built | None:
         """Ask for a build and draw it, retrying once with the problems quoted back; None means it could not be drawn."""
 
@@ -705,7 +864,7 @@ class MemeMaker:
             blocking, style = validate(fmt, build)
             if blocking or (style and not last):
                 raise ImageProviderError("\n".join(blocking + style))
-            return render_build(fmt, build, art.palette, look)
+            return render_build(fmt, build, art.palette, look, sch)
 
         try:
             build, (png, width, height) = await draw_with_retry(ask, draw)

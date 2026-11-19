@@ -10,6 +10,10 @@ People who see it should assume a skilled human designer made it for this exact 
 - **Crafted.** Deliberate composition, generous negative space, a limited palette, consistent stroke widths, aligned edges, real hierarchy. Nothing cramped, nothing clipped, nothing decorative that says nothing.
 - **True.** Numbers, labels and claims come from the post or from research with citations. Nothing implies a figure that was not found.
 
+## Characters people like
+
+Characters come from our kit, drawn by code, so they are always whole, on-model and appealing: the friendly Inferno Ghostwriter ghost (the house star), a round pup, a cat, stylized chibi people and a friendly robot, each with named expressions and poses. Cast them for warmth and emotion: a face reacting to the post's mechanism is what makes a reader stop. Never draw characters yourself.
+
 ## Open, imaginative metaphors are welcome
 
 The best openers often act the idea out as a physical scene: marketing spend as coins dropping through a plinko board into buckets labelled with the channels; a "single source of truth" as specialists each shining a flashlight on one part of an elephant and seeing only that part. Find the post's central mechanism and ask what physical system behaves the same way. Whimsy is good when it is specific; a playful scene with a sharp point beats a literal diagram of the obvious.
@@ -27,7 +31,7 @@ The best openers often act the idea out as a physical scene: marketing spend as 
 - viewBox `0 0 1600 900`, one self-contained `<svg xmlns="http://www.w3.org/2000/svg">` document, a full-canvas background painted first.
 - Platforms crop the thumbnail from the centre as wide as 5:2, so everything that matters stays inside y 130-770; only background reaches the top and bottom edges.
 - Flat-vector editorial polish: gradients and soft shadows for depth, paths and curves (not stacked rectangles), clean outlines, a clear focal point, rule of thirds or strong symmetry.
-- Inferno palette, dark to light: #000004 #1b0c41 #4a0c6b #781c6d #a52c60 #cf4446 #ed6925 #fb9b06 #f7d13d #fcffa4, unless a brand palette or the persona's visual style says otherwise.
+- Colors: the build request names this image's scheme (the inferno, magma or viridis palette on a white, gray or near-black background, or the author's brand palette). Use only those colors, their tints, white, grays and near-black; any other color is moved to the nearest scheme color.
 - Any text in the drawing: "Segoe UI, Helvetica, Arial, sans-serif", at least 34px, short, spelled correctly, with room to spare in its shape (budget about 0.6 x font-size px per character).
 - Valid XML (escape `&` as `&amp;`). No `<script>`, `<foreignObject>`, `<image>`, event handlers, external URLs or fonts. Under about 400 elements; reuse `<defs>`.
 

@@ -44,6 +44,7 @@ from inferno_ghostwriter.api.schemas import (
     ProjectOut,
     ProjectSummary,
     ProjectUpdate,
+    RatingIn,
     RedrawIn,
     ReferenceHistoryOut,
     ReferenceOut,
@@ -174,7 +175,7 @@ def opening_info(image: ProjectImage) -> OpeningInfoOut | None:
                 template=str(entry.get("template") or ""),
                 hook=str(entry.get("hook") or ""),
                 concept=str(entry.get("concept") or ""),
-                scores={j: int(panel.get(j, 0)) for j in JUDGES},
+                scores={str(k): int(v) for k, v in (panel.get("seats") or {j: panel.get(j, 0) for j in JUDGES}).items()},
                 note=str(panel.get("note") or ""),
                 total=opening_total(entry)[0],
                 ruled_out=opening_ruled_out(entry),
@@ -203,16 +204,27 @@ def opening_info(image: ProjectImage) -> OpeningInfoOut | None:
         fallback_from=failed.label if failed else "",
         pitches=pitches,
         sources=[OpeningSourceOut(**s) for s in sources_of(state)],
-        review=(
-            OpeningReviewOut(verdict="skipped", note=str(review.get("note", "")))
-            if review and review.get("skipped")
-            else OpeningReviewOut(**{k: review[k] for k in ("verdict", "clickability", "craft", "problems") if k in review})
-            if review
-            else None
-        ),
+        review=review_out(review),
         slots=slots,
         thumbnail_fit=fit_of(state),
     )
+
+
+def review_out(review: dict[str, Any] | None) -> OpeningReviewOut | None:
+    """The render review as the image panel shows it (the seat panel, or an older single-image review)."""
+    if not review:
+        return None
+    if review.get("skipped"):
+        return OpeningReviewOut(verdict="skipped", note=str(review.get("note", "")))
+    out = OpeningReviewOut(**{k: review[k] for k in ("verdict", "clickability", "craft", "problems") if k in review})
+    panel = review.get("panel") or {}
+    candidates = review.get("candidates") or []
+    readings = panel.get("readings") or []
+    winner = int(review.get("winner") or 0)
+    out.why = str(review.get("why") or "")
+    out.fix = str(review.get("fix") or "")
+    out.readings = [str(r) for r in (readings[winner] if 0 <= winner < len(readings) and candidates else [])][:2]
+    return out
 
 
 def meme_info(image: ProjectImage) -> MemeInfoOut | None:
@@ -258,6 +270,8 @@ def meme_info(image: ProjectImage) -> MemeInfoOut | None:
         look=look.id,
         look_label=look.label,
         review_verdict=str((state.get("review") or {}).get("verdict") or ("skipped" if (state.get("review") or {}).get("skipped") else "")),
+        review_why=(review_out(state.get("review")) or OpeningReviewOut(verdict="")).why,
+        review_readings=(review_out(state.get("review")) or OpeningReviewOut(verdict="")).readings,
     )
 
 
@@ -965,6 +979,13 @@ def opening_styles() -> OpeningCatalogOut:
         ],
         suggested_by_type=suggested_by_type([t.id for t in ARTICLE_TYPES]),
     )
+
+
+@router.put("/images/{image_id}/rating", response_model=ImageOut)
+def rate_image(image_id: int, body: RatingIn, session: SessionDep, services: ServicesDep) -> ImageOut:
+    """Thumbs up (1), down (-1) or clear (0) on an image. Ratings on opening images and memes teach the persona's taste."""
+    image_or_404(session, image_id)
+    return image_out(services.images.rate(image_id, body.rating))
 
 
 @router.put("/images/{image_id}/meme-words", response_model=ImageOut)

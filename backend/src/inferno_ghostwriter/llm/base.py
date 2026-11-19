@@ -81,9 +81,11 @@ class LLM(Protocol):
         max_tokens: int = 16000,
         usage: UsageSink | None = None,
         images: list[bytes] | None = None,
+        model: str | None = None,
     ) -> T:
         """``images`` are PNGs shown to Claude before the prompt; a connection that cannot send them raises
-        :class:`LLMImagesUnsupportedError`."""
+        :class:`LLMImagesUnsupportedError`. ``model`` runs this one call on another model (a fast panel judge);
+        None uses the configured model."""
         ...
 
     async def text(

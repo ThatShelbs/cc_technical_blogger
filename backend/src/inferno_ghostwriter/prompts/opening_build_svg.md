@@ -8,6 +8,7 @@ The concept the panel chose:
 $concept
 </concept>
 Visual style: $visual_style
+$colors
 $brand
 $variation
 $fix

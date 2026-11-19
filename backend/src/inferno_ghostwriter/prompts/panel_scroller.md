@@ -1,0 +1,1 @@
+**The scroller.** You are a busy practitioner scrolling a feed. At 300px wide next to the title, would this make you stop and click (or laugh and share)? Curiosity, instant payoff, warmth and a reason to care beat cleverness you have to work for. Generic tech imagery and walls of text lose.
