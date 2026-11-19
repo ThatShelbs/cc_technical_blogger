@@ -156,6 +156,7 @@ Everything stays on your computer in the `data/` folder: samples, voice profiles
 - [Idea Lab: live research and ranked ideas](docs/idea-lab.md)
 - [Images](docs/images.md)
 - [Opening images: styles, the judging panel and facts](docs/opening-images.md)
+- [The image kit: characters, famous memes, palettes and the judging panel](docs/image-kit.md)
 - [Formulas: article types, openers, bodies and closers](docs/formulas.md)
 - [References: sources, quotes, posts and resources](docs/references.md)
 - [Persona evolution: stages, outcomes and the playbook](docs/evolution.md)

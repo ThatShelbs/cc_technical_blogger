@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, replace
 from PIL import Image, ImageDraw
 
 from inferno_ghostwriter.images.memes.text import Fitted, Style, draw_fitted, fit_text
+from inferno_ghostwriter.images.palettes import Scheme, house_ramp
 from inferno_ghostwriter.images.render import SVG_NS, svg_to_png
 
 W, H = 1600, 900
@@ -109,12 +110,17 @@ INFERNO_DARK = Theme(
 )
 
 
-def theme_for(palette: tuple[str, ...] = ()) -> Theme:
-    """The house theme, or one built from a brand palette (3+ colors): its darkest color becomes the background
-    when it is dark enough, otherwise the image is light with the palette as accents."""
+def theme_from_scheme(sch: Scheme) -> Theme:
+    """A template theme in one of the house schemes (inferno, magma or viridis on white, gray or near-black)."""
+    return Theme(bg=sch.bg, bg2=sch.bg2, ink=sch.ink, muted=sch.muted, panel=sch.panel, line=sch.line, accents=sch.accents)
+
+
+def theme_for(palette: tuple[str, ...] = (), sch: Scheme | None = None) -> Theme:
+    """A brand palette (3+ colors) first: its darkest color becomes the background when it is dark enough, otherwise
+    the image is light with the palette as accents. Without one, the image's scheme (the house default when none)."""
     colors = [c for c in palette if c.startswith("#") and len(c.lstrip("#")) in (3, 6)]
-    if len(colors) < 3:
-        return INFERNO_DARK
+    if len(colors) < 3 or house_ramp(colors) is not None:
+        return theme_from_scheme(sch) if sch is not None else INFERNO_DARK
     ordered = sorted(colors, key=luminance)
     darkest = ordered[0]
     if luminance(darkest) < 0.08:

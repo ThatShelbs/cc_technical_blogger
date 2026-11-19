@@ -46,12 +46,8 @@ def test_a_chosen_style_its_pitches_and_words_need_no_new_judging(client: TestCl
     hero = image(client, project, "hero")
     opening = hero["opening"]
     assert opening["style"] == "cheat_sheet" and opening["mode"] == "cheat_sheet" and len(opening["pitches"]) == 4
-    assert opening["pitches"][0]["current"] and set(opening["pitches"][0]["scores"]) == {
-        "scroller",
-        "art_director",
-        "fact_checker",
-        "author",
-    }
+    seats = {label.split(" ")[0] for label in opening["pitches"][0]["scores"]}
+    assert opening["pitches"][0]["current"] and {"scroller", "art_director", "fact_checker", "author", "gets_it"} <= seats
     assert opening["thumbnail_fit"] == "cover" and opening["review"]["verdict"] == "passed"
     assert {s["name"] for s in opening["slots"]} >= {"headline", "items.0.label", "items.0.detail"}
     url = f"/api/images/{hero['id']}"

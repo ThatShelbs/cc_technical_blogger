@@ -65,6 +65,12 @@ class MemeFormat:
     background: str = "#ffffff"
     # Slots in one group share a font size, so parallel text (rows, cells, panels) looks even.
     groups: tuple[tuple[str, ...], ...] = ()
+    # What must read for the format to be recognized (the review and the tests check these beats).
+    signature: tuple[str, ...] = ()
+    # The kinds of joke it serves, so the room pitches the classic that fits.
+    fit_tags: tuple[str, ...] = ()
+    # Drawn by code from the kit (images/memes/stagings.py): no art regions, no drawing call.
+    staged: bool = False
 
     def slot(self, name: str) -> TextSlot | None:
         return next((s for s in self.slots if s.name == name), None)
@@ -687,6 +693,159 @@ FORMATS: tuple[MemeFormat, ...] = (
     ),
 )
 
+_STAGED: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
+    # id: (what it looks like, signature beats, fit tags)
+    "right_right": (
+        "Four panels (2x2) in a sunlit meadow: a two-shot of a confident character (left) and a beaming hopeful one (right); "
+        "a close-up of the hopeful one smiling; a close-up of the confident one's blank stare; a close-up of the hopeful one, "
+        "smile frozen, sweating.",
+        ("2x2 grid", "panel 1 two-shot in a meadow", "panel 3 blank stare", "panel 4 frozen nervous smile"),
+        ("over-promise", "silver bullet", "naive optimism", "it will scale"),
+    ),
+    "this_is_fine": (
+        "Our cartoon dog in a little bowler hat sits at a small table with a coffee mug in a room engulfed in flames, "
+        "smiling contentedly: 'This is fine.'",
+        ("dog in a hat at a table", "coffee mug", "room on fire", "content smile"),
+        ("denial", "ironic calm", "tech debt", "everything is broken"),
+    ),
+    "expanding_brain": (
+        "Four rows: text on the left; on the right the same head in profile, its brain glowing brighter each row until it "
+        "is cosmic (rays, then a galaxy).",
+        ("four rows", "same head each row", "brain brightens", "galaxy at the bottom"),
+        ("escalation", "over-engineering", "galaxy brain", "ironic simplicity"),
+    ),
+    "nope_yep": (
+        "Two rows on yellow: the character in an orange puffer jacket turns away with a hand up (top), then smiles smugly "
+        "and points at the text (bottom). Right column: plain white with black text.",
+        ("puffer jacket on yellow", "top: turned away, hand up", "bottom: smug point"),
+        ("preference", "lazy option", "ironic choice"),
+    ),
+    "pointing_twins": (
+        "Two identical characters in matching scarves point at each other in a dim basement under one hanging light.",
+        ("identical twins", "pointing at each other", "basement light"),
+        ("same thing", "duplicates", "blame"),
+    ),
+    "distracted": (
+        "A city street: the middle character turns to stare, starry-eyed, at a passer-by in sunglasses (left) while its "
+        "partner glares (right).",
+        ("three figures", "middle one turns to look", "partner glares"),
+        ("shiny object", "temptation", "new tool"),
+    ),
+    "two_buttons": (
+        "Top: a hand hovers between two big red buttons on a control panel. Bottom: close-up of the character sweating, "
+        "wiping its brow with a cloth.",
+        ("two red buttons", "hovering hand", "sweating close-up"),
+        ("dilemma", "false choice", "both bad"),
+    ),
+    "midwit_bell_curve": (
+        "A bell curve of 'expertise': a goofy beaming character on the left tail, a panicking overthinker with glasses at the "
+        "peak, and a serene hooded expert on the right tail.",
+        ("bell curve", "goofy left", "panicking middle", "hooded calm right"),
+        ("overthinking", "simple is best", "beginner and expert agree"),
+    ),
+    "gru_plan": (
+        "A 2x2 grid: a character points proudly at a flipchart with steps 1-3; in panel 4 the board repeats step 3 and it "
+        "stares at it in shock.",
+        ("flipchart", "four steps", "double-take in panel 4"),
+        ("hidden flaw", "plan backfires"),
+    ),
+    "always_has_been": (
+        "Deep space: two astronaut characters float by a big planet; the front one stares at it in shock, the one behind "
+        "points calmly: 'Always has been.'",
+        ("space and planet", "two astronauts", "shocked front, calm behind"),
+        ("realization", "it was always X"),
+    ),
+    "change_my_mind": (
+        "A sunny lawn: a smug character sits behind a folding table with a mug and a big white sign reading a hot take.",
+        ("folding table", "white sign", "mug", "smug sitter"),
+        ("hot take", "unpopular opinion"),
+    ),
+    "is_this_a": (
+        "A garden at dusk: a character in glasses gestures hopefully at a glowing butterfly; labels on both and a bottom "
+        "caption 'Is this a ...?'.",
+        ("gesturing character", "glowing butterfly", "'Is this...?' caption"),
+        ("misidentification", "hype", "mislabeling"),
+    ),
+    "shocked_strip": (
+        "Three panels: the character proudly makes a choice in an office; works on happily while a chart crashes and a fire "
+        "starts; a huge close-up of its shocked face.",
+        ("proud choice", "consequence ignored", "shocked close-up"),
+        ("predictable consequence", "surprised by the obvious"),
+    ),
+    "classic_caption": (
+        "One character with a strong reaction, big and centered, with bold top and bottom captions.",
+        ("one big reaction", "top and bottom captions"),
+        ("single observation",),
+    ),
+}
+
+
+def _restage(f: MemeFormat) -> MemeFormat:
+    if f.id in _STAGED:
+        looks, signature, tags = _STAGED[f.id]
+        return replace(f, recognizable=looks, signature=signature, fit_tags=tags, regions=(), staged=True)
+    if f.family == "comic":
+        return replace(f, regions=(), staged=True)
+    return f
+
+
+FORMATS = (
+    *(_restage(f) for f in FORMATS),
+    MemeFormat(
+        id="this_is_fine_2",
+        name="This is fine (two panels)",
+        family="classic",
+        when_to_use="The two-panel version: a calm wide shot of the disaster, then a close-up where the character says it is fine.",
+        recognizable="Two panels: our dog in a bowler hat with a mug at a table in a burning room, then a close-up: 'This is fine.'",
+        size=(1400, 620),
+        background="#1b0c41",
+        slots=(
+            TextSlot("fire", (40, 470, 620, 120), 36, "outline", "Label on the flames: what is burning.", optional=True),
+            TextSlot("bubble", (740, 30, 620, 190), 40, "bubble", "What the dog says (classic: 'This is fine.').", bubble=True),
+        ),
+        signature=("wide shot then close-up", "dog in a hat", "room on fire"),
+        fit_tags=("denial", "ironic calm", "everything is broken"),
+        staged=True,
+    ),
+    MemeFormat(
+        id="panik_kalm_panik",
+        name="Panik / Kalm / Panik",
+        family="classic",
+        when_to_use="A worry, a reassuring fact, then a twist that brings the worry back worse.",
+        recognizable="Three rows: text on the left; on the right the same character panicking, then calm, then panicking again.",
+        size=(1080, 1080),
+        groups=(("row1", "row2", "row3"),),
+        slots=tuple(
+            TextSlot(f"row{i + 1}", (24, i * 360 + 20, 492, 320), 70, "dark", hint)
+            for i, hint in enumerate(("The worry.", "The reassuring fact.", "The twist that makes it worse."))
+        ),
+        signature=("three rows", "panic, calm, panic"),
+        fit_tags=("false relief", "twist", "worry returns"),
+        staged=True,
+    ),
+    MemeFormat(
+        id="running_away_balloon",
+        name="Running away balloon",
+        family="classic",
+        when_to_use="Someone reaching for what they want (the balloon) while something holds them back.",
+        recognizable=(
+            "Two panels in a meadow: a character reaches for a floating balloon; then another character holds it back as the "
+            "balloon drifts off."
+        ),
+        size=(1400, 700),
+        background="#1b0c41",
+        groups=(("balloon", "chaser", "holder"),),
+        slots=(
+            TextSlot("balloon", (980, 30, 400, 120), 30, "outline", "Label on the balloon: what they want."),
+            TextSlot("chaser", (170, 560, 420, 110), 30, "outline", "Label on the one reaching: who wants it."),
+            TextSlot("holder", (720, 560, 420, 110), 30, "outline", "Label on the one holding them back: what stops them."),
+        ),
+        signature=("balloon drifting away", "reaching character", "held back in panel 2"),
+        fit_tags=("held back", "competing priorities", "what we want vs what we have"),
+        staged=True,
+    ),
+)
+
 BY_ID = {f.id: f for f in FORMATS}
 FALLBACK = BY_ID["classic_caption"]
 
@@ -706,15 +865,34 @@ def menu(only: str | None = None) -> str:
         for f in formats:
             slots = ", ".join(f"{s.name}{'?' if s.optional else ''} (<= {s.max_chars} chars)" for s in f.slots)
             data = f" Chart data: {f.data}" if f.data else ""
-            lines.append(f"- `{f.id}`: **{f.name}**. Use for: {f.when_to_use} Looks like: {f.recognizable} Text slots: {slots}.{data}")
+            fits = f" Fits: {', '.join(f.fit_tags)}." if f.fit_tags else ""
+            cast = _cast_line(f)
+            lines.append(
+                f"- `{f.id}`: **{f.name}**. Use for: {f.when_to_use} Looks like: {f.recognizable}{fits} Text slots: {slots}.{data}{cast}"
+            )
         lines.append("")
     return "\n".join(lines).strip()
+
+
+def _cast_line(fmt: MemeFormat) -> str:
+    """How a staged format is cast (comics: per-panel picks)."""
+    if not fmt.staged:
+        return ""
+    if fmt.family == "comic":
+        panels = 4 if fmt.id == "comic_grid_4" else 3
+        return f" Drawn from the kit: give `panels` ({panels} entries)."
+    from inferno_ghostwriter.images.memes.stagings import roles_menu
+
+    roles = roles_menu(fmt.id)
+    return f" Drawn from the kit. Cast roles: {roles}." if roles else " Drawn from the kit."
 
 
 def build_spec(fmt: MemeFormat) -> str:
     """Everything the build call needs to fill one format."""
     width, height = fmt.size
     lines = [f"Format `{fmt.id}`: {fmt.name}", f"Looks like: {fmt.recognizable}", f"Canvas: {width}x{height}.", "", "Text slots:"]
+    if fmt.staged:
+        lines.insert(2, "Drawn by code from the character kit." + _cast_line(fmt))
     for s in fmt.slots:
         size = f", box {s.box[2]}x{s.box[3]}px" if s.box[2] else ""
         extra = " Speech bubble: set `speaker` to left/right/center." if s.bubble else ""

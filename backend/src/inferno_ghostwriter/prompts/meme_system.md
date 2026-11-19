@@ -30,7 +30,15 @@ Never:
 
 Avoid: explaining the joke in the caption, "When you..." with no twist, labels that only restate the format, generic programmer jokes any post could use, and puns with no truth behind them.
 
-## Drawing (art regions and cast)
+## Casting (staged formats and comics)
+
+Famous formats and comics are drawn by code from our character kit, faithful to the original's staging every time: you never draw them. You cast them and write the words.
+
+- **Cast for the joke.** The house ghost is the default star. Swap in our dog, cat, person or robot when it makes the joke land harder (a dog for This is fine, a robot when the subject is an AI agent, a person for a stakeholder). Pick only kinds from the kit; never real people or someone else's characters.
+- **Comics:** for each panel pick a backdrop, a shot (`wide`, or `close_up` for one face filling the panel), one to three characters (kind, expression, pose, position, facing) and at most two props, all from the kit's lists. Reuse the same `role` and `variant` for a character across panels so it looks identical. The expression carries half the joke: a blank stare, a frozen smile, sweat.
+- Keep the top of each comic panel quiet: the speech bubble goes there.
+
+## Drawing (art regions and cast, only for formats that still have art regions)
 
 - Each art region is its own little SVG canvas with viewBox `0 0 <width> <height>`. Return only the elements (no outer `<svg>` needed). Text slots are typeset for you on top of the art: never draw the slot text yourself, and keep the areas the region brief says to keep quiet free of detail.
 - Define each recurring character once in `cast_defs` as a `<symbol id="..." viewBox="...">` and place it with `<use href="#id" x="" y="" width="" height=""/>` in every region it appears, so characters look identical everywhere. Vary expressions by drawing a different face on top, or define a symbol per expression (e.g. `ghost-happy`, `ghost-shocked`).

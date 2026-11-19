@@ -337,7 +337,9 @@ function Editor({ project, banner, busy, onRegenerate, onABTest, onOpenSettings,
                 <Article
                   markdown={project.markdown}
                   images={project.images}
-                  renderImage={(_slot, image) => (image ? <ImageCard key={image.id} projectId={project.id} image={image} images={project.images} /> : null)}
+                  renderImage={(_slot, image) =>
+                    image ? <ImageCard key={image.id} projectId={project.id} image={image} images={project.images} title={project.title} /> : null
+                  }
                   renderLink={(href, children) => {
                     const reference = referenceForHref(project.references, href)
                     return reference ? (

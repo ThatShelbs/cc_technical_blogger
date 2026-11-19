@@ -57,14 +57,14 @@ TWEAKS: list[Tweak] = [
         "inferno",
         "Inferno (house)",
         "The inferno palette: deep purple through crimson and orange to pale yellow.",
-        ("#1b0c41", "#781c6d", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"),
+        ("#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d", "#fcffa4"),
     ),
     Tweak(
         PALETTE,
         "viridis",
         "Viridis",
         "A viridis palette: deep indigo, teal and green to bright yellow-green, calm and scientific.",
-        ("#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"),
+        ("#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde725"),
     ),
     Tweak(
         PALETTE,
@@ -99,7 +99,7 @@ TWEAKS: list[Tweak] = [
         "magma",
         "Magma noir",
         "A magma palette on near-black: purple glows to hot pink and peach, dramatic contrast.",
-        ("#000004", "#51127c", "#b73779", "#fc8961", "#fcfdbf"),
+        ("#000004", "#180f3e", "#451077", "#721f81", "#9f2f7f", "#cd4071", "#f1605d", "#fd9567", "#fec98d", "#fcfdbf"),
     ),
     Tweak(
         PALETTE,
@@ -185,6 +185,8 @@ TWEAKS: list[Tweak] = [
     ),
 ]
 BY_ID = {(t.dimension, t.id): t for t in TWEAKS}
+# Opening images and closing memes stay in the house palettes (images/palettes.py), with white, gray or black grounds.
+HOUSE = ("inferno", "magma", "viridis")
 
 # Where each dimension makes sense. A chart has no cast; a code-drawn template has no staging.
 KIND_DIMENSIONS: dict[str, tuple[str, ...]] = {
@@ -223,6 +225,7 @@ def choose_tweaks(
     rng: random.Random | None = None,
     count: int = 2,
     keep_palette: bool = False,
+    house_only: bool = False,
 ) -> list[Tweak]:
     """The experiments this redraw tries: the author's pins, then random ones that differ from the last redraws.
 
@@ -243,8 +246,8 @@ def choose_tweaks(
     # Dimensions that were varied least recently go first.
     free.sort(key=lambda d: next((i for i, entry in enumerate(recent) if entry.startswith(f"{d}:")), len(recent) + 1), reverse=True)
     for dimension in free[: max(0, count - len(chosen))]:
-        options = [t for t in TWEAKS if t.dimension == dimension and f"{dimension}:{t.id}" not in recent[:MEMORY]]
-        options = options or [t for t in TWEAKS if t.dimension == dimension]
+        pool = [t for t in TWEAKS if t.dimension == dimension and not (house_only and dimension == PALETTE and t.id not in HOUSE)]
+        options = [t for t in pool if f"{dimension}:{t.id}" not in recent[:MEMORY]] or pool
         # The ghost is the house cast: it is only a random pick when the redraw is already away from it (it can return).
         chosen.append(rng.choice(options))
     return chosen

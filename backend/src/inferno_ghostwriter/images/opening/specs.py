@@ -1,4 +1,4 @@
-"""Structured outputs for the opening room: pitches, the panel's verdict, a template build and the render review."""
+"""Structured outputs for the opening room: pitches, a template build and a kit scene (judging is images/panel.py)."""
 
 from __future__ import annotations
 
@@ -16,24 +16,14 @@ class OpeningConcept(BaseModel):
     data_claim: str = Field(
         description="For data styles: the one factual point and the numbers needed to show it, with where they come from. '' otherwise."
     )
+    reader_takeaway: str = Field(
+        "",
+        description="At a glance, a reader sees ___ and understands ___ (one sentence a stranger could confirm from the picture alone).",
+    )
 
 
 class OpeningIdeas(BaseModel):
     concepts: list[OpeningConcept] = Field(description="Distinct concepts, as many as asked for.")
-
-
-class JudgeScore(BaseModel):
-    concept: int = Field(description="Index of the concept in the list, from 0.")
-    scroller: int = Field(description="Would a reader scrolling a feed stop and click at 300px wide? 1-10.")
-    art_director: int = Field(description="Crisp, professional, clearly designed by a person; no generic AI clichés. 1-10.")
-    fact_checker: int = Field(description="Accurate, specific, and (for data) sourceable; implies nothing false. 1-10.")
-    author: int = Field(description="Relevant to the title and the post's promise, and in the author's voice. 1-10.")
-    note: str = Field(description="One line: the strongest point and the biggest risk.")
-
-
-class OpeningVerdict(BaseModel):
-    scores: list[JudgeScore] = Field(description="One entry per concept, in order.")
-    summary: str = Field(description="One sentence on which concept the panel would publish and why.")
 
 
 class OpeningItem(BaseModel):
@@ -69,9 +59,42 @@ class OpeningBuild(BaseModel):
     caption: str = Field(description="Caption in the author's style; no credit line.")
 
 
-class RenderReview(BaseModel):
-    passes: bool = Field(description="True if this image is ready to publish as the post's thumbnail and opening image.")
-    clickability: int = Field(description="Would it make someone click at 300px wide? 1-10.")
-    craft: int = Field(description="Crisp, balanced, legible, professional; nothing broken, cramped or generic. 1-10.")
-    problems: list[str] = Field(default_factory=list, description="Specific visible problems, worst first.")
-    fix: str = Field("", description="Concrete instructions for a redraw that fixes them ('' when it passes).")
+class SceneCharacter(BaseModel):
+    kind: str = Field(description="ghost, dog, cat, person or robot (the ghost is the house star).")
+    expression: str = Field(description="An expression id from the kit.")
+    pose: str = Field(description="A pose id from the kit.")
+    slot: str = Field(description="far_left, left, center, right or far_right (see the layout).")
+    facing: str = Field("", description="left or right; '' faces the picture's focal point.")
+    size: str = Field("large", description="large, medium or small.")
+    accessory: str = Field("none", description="An accessory id, or 'none'.")
+    prop: str = Field("none", description="A hand prop id, or 'none'.")
+    variant: int = Field(0, description="0-2: another coat for a second character of the same kind.")
+
+
+class ScenePlacement(BaseModel):
+    name: str = Field(description="A prop id from the kit's prop list.")
+    slot: str = Field(description="far_left, left, center, right or far_right.")
+    size: str = Field("medium", description="large, medium or small.")
+
+
+class SceneLabel(BaseModel):
+    text: str = Field(description="One to three words from the post. Never the title.")
+    slot: str = Field(description="object, far_left, left, center, right or far_right: what it labels.")
+
+
+class SceneSpec(BaseModel):
+    """A visual-metaphor opener staged from the kit, plus at most one custom object Claude draws."""
+
+    layout: str = Field(description="A layout id from the list.")
+    backdrop: str = Field("plain", description="A backdrop id from the kit ('plain' is the scheme's own surface).")
+    tone: str = Field("", description="'dark' or 'light' background; '' lets the scheme rotation decide.")
+    characters: list[SceneCharacter] = Field(default_factory=list, description="Zero to three kit characters.")
+    props: list[ScenePlacement] = Field(default_factory=list, description="Zero to three kit props.")
+    object_svg: str = Field(
+        "",
+        description="The post-specific metaphor object, drawn as SVG elements in viewBox 0 0 600 500 on a transparent "
+        "background (no outer <svg>); '' when the kit props carry the idea.",
+    )
+    labels: list[SceneLabel] = Field(default_factory=list, description="Zero to four short labels.")
+    alt: str = Field(description="Alt text: what the picture shows.")
+    caption: str = Field(description="Caption in the author's style; no credit line.")

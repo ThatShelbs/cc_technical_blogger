@@ -568,6 +568,7 @@ export interface ImageOut {
   builds_on?: string;
   remix?: RemixOut | null;
   remix_dimensions?: string[];
+  rating?: number;
 }
 
 export interface ImageUpdate {
@@ -663,6 +664,8 @@ export interface MemeInfoOut {
   look?: string;
   look_label?: string;
   review_verdict?: string;
+  review_why?: string;
+  review_readings?: string[];
 }
 
 export interface MemeLookOut {
@@ -736,6 +739,9 @@ export interface OpeningReviewOut {
   craft?: number;
   problems?: string[];
   note?: string;
+  why?: string;
+  fix?: string;
+  readings?: string[];
 }
 
 export interface OpeningSourceOut {
@@ -959,6 +965,10 @@ export interface ProjectUpdate {
   persona_id?: number | null;
   stage?: "draft" | "ready" | "published" | null;
   outcome?: "too_early" | "small" | "good" | "viral" | null;
+}
+
+export interface RatingIn {
+  rating: number;
 }
 
 export interface RedrawIn {

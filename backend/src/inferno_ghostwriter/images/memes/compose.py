@@ -13,12 +13,16 @@ from lxml import etree
 from PIL import Image, ImageDraw
 
 from inferno_ghostwriter.images.base import ImageProviderError
+from inferno_ghostwriter.images.kit.props import Stage
+from inferno_ghostwriter.images.kit.style import kit_style
 from inferno_ghostwriter.images.memes import charts
 from inferno_ghostwriter.images.memes.formats import ArtRegion, Box, MemeFormat
 from inferno_ghostwriter.images.memes.looks import BY_ID as LOOKS_BY_ID
 from inferno_ghostwriter.images.memes.looks import DEFAULT_LOOK, Theme
 from inferno_ghostwriter.images.memes.specs import MemeDatum, MemeText
+from inferno_ghostwriter.images.memes.stagings import Cast, stage_art
 from inferno_ghostwriter.images.memes.text import STYLES, Fitted, draw_fitted, fit_text
+from inferno_ghostwriter.images.palettes import Scheme
 from inferno_ghostwriter.images.render import SVG_NS, parse_xml, svg_to_png
 
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -185,6 +189,8 @@ def _two_buttons(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], 
         '<defs><radialGradient id="btn-top" cx="0.4" cy="0.35" r="0.75"><stop offset="0" stop-color="#ff6b5e"/>'
         '<stop offset="1" stop-color="#c81d1d"/></radialGradient></defs>'
     )
+    if fmt.staged:
+        return Scene(over=[f'<line x1="0" y1="700" x2="1080" y2="700" stroke="{theme.ink}" stroke-width="6"/>'])
     return Scene(
         over=[
             defs
@@ -212,9 +218,11 @@ def _midwit(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], color
 
 
 def _gru(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
+    from inferno_ghostwriter.images.memes.formats import _panels
+
+    boxes = [(x, y, 300, h) for x, y, _w, h in _panels(1200, 900, 2, 2, 12)]
     parts = []
-    for r in fmt.regions:
-        x, y, _w, h = r.box
+    for x, y, _w, h in boxes:
         pw = 1200 // 2 - 18
         parts.append(
             f'<rect x="{x}" y="{y}" width="{pw}" height="{h}" fill="#f4e6d2"/>'
@@ -225,7 +233,7 @@ def _gru(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: 
             f'<rect x="{x + 304}" y="{y + 46}" width="262" height="318" rx="6" fill="#ffffff" stroke="#3a3346" stroke-width="5"/>'
             f'<rect x="{x + 294}" y="{y + 360}" width="282" height="14" rx="4" fill="#8a6a48"/>'
         )
-    frames = [(r.box[0], r.box[1], 1200 // 2 - 18, r.box[3]) for r in fmt.regions]
+    frames = [(bx, by, 1200 // 2 - 18, bh) for bx, by, _bw, bh in boxes]
     return Scene(under=parts, over=[_frame(frames, theme.ink)])
 
 
@@ -349,6 +357,19 @@ def _alignment(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], co
     return scene
 
 
+def _rows3(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
+    lines = "".join(f'<line x1="0" y1="{i * 360}" x2="1080" y2="{i * 360}" stroke="{theme.ink}" stroke-width="5"/>' for i in (1, 2))
+    return Scene(
+        under=['<rect width="540" height="1080" fill="#ffffff"/>'],
+        over=[lines + f'<line x1="540" y1="0" x2="540" y2="1080" stroke="{theme.ink}" stroke-width="5"/>'],
+    )
+
+
+def _two_panel(fmt: MemeFormat, texts: dict[str, str], data: list[MemeDatum], colors: list[str], theme: Theme) -> Scene:
+    w, h = fmt.size
+    return Scene(over=[_frame([(0, 0, w // 2 - 9, h), (w // 2 + 9, 0, w // 2 - 9, h)], theme.ink)])
+
+
 SCENES: dict[str, Callable[[MemeFormat, dict[str, str], list[MemeDatum], list[str], Theme], Scene]] = {
     "nope_yep": _nope_yep,
     "expanding_brain": _expanding_brain,
@@ -360,6 +381,9 @@ SCENES: dict[str, Callable[[MemeFormat, dict[str, str], list[MemeDatum], list[st
     "comic_strip_3": _comic,
     "right_right": _comic,
     "shocked_strip": _comic,
+    "this_is_fine_2": _comic,
+    "panik_kalm_panik": _rows3,
+    "running_away_balloon": _two_panel,
     "comic_grid_4": _comic,
     "chat_thread": _chat,
     "terminal": _terminal,
@@ -380,6 +404,10 @@ def compose(
     *,
     palette: tuple[str, ...] = (),
     theme: Theme | None = None,
+    look: str = DEFAULT_LOOK,
+    sch: Scheme | None = None,
+    cast: Cast | None = None,
+    panels: list[dict] | None = None,
 ) -> tuple[bytes, int, int]:
     """Render one meme to PNG; raises ImageProviderError when the build cannot be drawn.
 
@@ -447,6 +475,9 @@ def compose(
         drawn.append((fitted, placed.box, placed.style, placed.align, placed.valign, placed.fill))
 
     regions = "".join(region_svg(region, art[region.name]) for region in fmt.regions if art.get(region.name, "").strip())
+    if fmt.staged:
+        stage = Stage(sch or LOOKS_BY_ID.get(look, LOOKS_BY_ID[DEFAULT_LOOK]).default_scheme, look, prefix=f"m-{fmt.id}")
+        regions = stage_art(fmt, words, cast or {}, stage, panels) + regions
     svg = (
         f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
         f'<rect width="{width}" height="{height}" fill="{background}"/>{cast_svg(cast_defs)}'
@@ -456,6 +487,13 @@ def compose(
 
     with Image.open(io.BytesIO(png)) as source:
         img = source.convert("RGB")
+    cell = kit_style(look).pixel
+    if cell:
+        # Pixel looks: the art is snapped to a coarse grid; the text drawn next stays crisp.
+        small = img.resize((max(1, img.width // cell), max(1, img.height // cell)), Image.Resampling.BOX)
+        img = small.resize((small.width * cell, small.height * cell), Image.Resampling.NEAREST).crop((0, 0, img.width, img.height))
+        if img.size != (width, height):
+            img = img.resize((width, height), Image.Resampling.NEAREST)
     draw = ImageDraw.Draw(img)
     for fitted, box, style_name, align, valign, fill in drawn:
         draw_fitted(draw, fitted, box, STYLES[style_name], align=align, valign=valign, fill=fill)

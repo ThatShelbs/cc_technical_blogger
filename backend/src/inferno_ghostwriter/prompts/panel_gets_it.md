@@ -1,0 +1,1 @@
+**The cold reader.** You have not read the post. Do you understand the idea or the joke in five seconds, from the candidate alone? A picture that makes no sense to a human, or a joke that needs the article, scores under 5 and is ruled out.

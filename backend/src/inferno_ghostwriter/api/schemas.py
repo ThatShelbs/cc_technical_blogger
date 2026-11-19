@@ -608,6 +608,12 @@ class ImageOut(BaseModel):
     remix: RemixOut | None = None
     # What Remix can vary for this image: "palette", "cast", "staging", "medium" (see GET /api/remix-options).
     remix_dimensions: list[str] = []
+    # The author's thumbs: 1 liked, -1 passed, 0 none (opening images and memes; it teaches the persona's taste).
+    rating: int = 0
+
+
+class RatingIn(BaseModel):
+    rating: int = Field(ge=-1, le=1)
 
 
 class OpeningPitchOut(BaseModel):
@@ -619,7 +625,7 @@ class OpeningPitchOut(BaseModel):
     template: str
     hook: str
     concept: str
-    # Each judge's 1-10 score: scroller, art_director, fact_checker, author.
+    # Each judge's 1-10 score, by seat ("scroller (haiku, low)"); older images: scroller, art_director, fact_checker, author.
     scores: dict[str, int]
     note: str
     total: int
@@ -641,6 +647,10 @@ class OpeningReviewOut(BaseModel):
     craft: int = 0
     problems: list[str] = []
     note: str = ""
+    # The render panel: why the final pick chose this picture, the fix it asked for, and what blind readers saw in it.
+    why: str = ""
+    fix: str = ""
+    readings: list[str] = []
 
 
 class OpeningInfoOut(BaseModel):
@@ -722,6 +732,9 @@ class MemeInfoOut(BaseModel):
     look_label: str = "Inferno flat"
     # How the render review went: passed, redrawn, kept, skipped or "" (no review, e.g. formats with no art).
     review_verdict: str = ""
+    # The render panel's pick: why this meme won, and what strangers read in it with no context.
+    review_why: str = ""
+    review_readings: list[str] = []
 
 
 class MemeWordsIn(BaseModel):

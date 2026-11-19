@@ -15,6 +15,7 @@ from inferno_ghostwriter.images.base import ImageProviderError
 from inferno_ghostwriter.images.opening.canvas import Box, Canvas, Theme, W, frame, mix, readable_on, render, theme_for
 from inferno_ghostwriter.images.opening.charts import CHARTS, label_names, series_names
 from inferno_ghostwriter.images.opening.specs import OpeningBuild
+from inferno_ghostwriter.images.palettes import Scheme
 
 HEADLINE_MAX = 70
 SUBHEAD_MAX = 110
@@ -581,12 +582,12 @@ def validate(t: Template, b: OpeningBuild) -> tuple[list[str], list[str]]:
     return blocking, style
 
 
-def draw(t: Template, b: OpeningBuild, palette: tuple[str, ...] = ()) -> tuple[bytes, int, int]:
+def draw(t: Template, b: OpeningBuild, palette: tuple[str, ...] = (), sch: Scheme | None = None) -> tuple[bytes, int, int]:
     """Lay the build out and render it; raises ImageProviderError when the build cannot be drawn."""
     blocking, _ = validate(t, b)
     if blocking:
         raise ImageProviderError("\n".join(blocking))
-    theme: Theme = theme_for(palette)
+    theme: Theme = theme_for(palette, sch)
     canvas = Canvas(theme)
     sources = source_line(b)
     body = big_number_frame(canvas, b, sources) if t.id == "big_number" else frame(canvas, b.headline, b.subhead, sources)

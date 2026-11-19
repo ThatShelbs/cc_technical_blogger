@@ -26,6 +26,37 @@ class MemeDatum(BaseModel):
     series: str = Field(description="Series name for multi-series charts; empty otherwise.")
 
 
+class CastPick(BaseModel):
+    role: str = Field(description="A role name from the format's cast list.")
+    kind: str = Field(description="Who plays it: ghost, dog, cat, person or robot.")
+    expression: str = Field("", description="Only for roles whose expression is open (classic caption): an expression id; else ''.")
+    accessory: str = Field("", description="Optional accessory id that adds to the joke (e.g. 'glasses', 'crown'); '' for the default.")
+
+
+class PanelCharacter(BaseModel):
+    role: str = Field(description="A stable name for this character; reuse it in every panel it appears in.")
+    kind: str = Field(description="ghost, dog, cat, person or robot.")
+    expression: str = Field(description="An expression id from the kit.")
+    pose: str = Field(description="A pose id from the kit.")
+    position: str = Field("center", description="left, center or right (far_left / far_right also work).")
+    facing: str = Field("", description="left or right; '' faces the panel's middle.")
+    accessory: str = Field("none", description="An accessory id, or 'none'.")
+    prop: str = Field("none", description="A hand prop id, or 'none'.")
+    variant: int = Field(0, description="0-2: a different coat for a second character of the same kind.")
+
+
+class PanelProp(BaseModel):
+    name: str = Field(description="A prop id from the kit's prop list.")
+    position: str = Field("center", description="left, center or right.")
+
+
+class PanelPick(BaseModel):
+    backdrop: str = Field(description="A backdrop id from the kit.")
+    shot: str = Field("wide", description="'wide', or 'close_up' for one character's face filling the panel.")
+    characters: list[PanelCharacter] = Field(description="One to three characters.")
+    props: list[PanelProp] = Field(default_factory=list, description="Up to two set props.")
+
+
 class MemeConcept(BaseModel):
     format: str = Field(description="A format id from the menu.")
     premise: str = Field(description="The joke in one sentence.")
@@ -36,6 +67,13 @@ class MemeConcept(BaseModel):
     look: str = Field(
         default="",
         description="The look id from the looks menu that serves this joke best (it also varies from the author's recent memes).",
+    )
+    cast: list[CastPick] = Field(
+        default_factory=list,
+        description="Staged formats: who plays each role (the roles the format lists). Empty keeps the format's default cast.",
+    )
+    panels: list[PanelPick] = Field(
+        default_factory=list, description="Comic formats only: one entry per panel, in order. Empty list otherwise."
     )
     scores: ConceptScores
 
@@ -63,30 +101,14 @@ class MemeBuild(BaseModel):
     data: list[MemeDatum] = Field(description="Chart data for chart formats; empty list otherwise.")
     alt: str = Field(description="Alt text: what the image shows, including every word in it.")
     caption: str = Field(description="Caption in the author's style, without the credit.")
+    cast: list[CastPick] = Field(default_factory=list, description="Staged formats: who plays each role.")
+    panels: list[PanelPick] = Field(default_factory=list, description="Comic formats: the panel picks.")
 
 
-class MemeJudge(BaseModel):
-    concept: int = Field(description="Index of the concept in the list, from 0.")
-    feed_reader: int = Field(description="A tired senior practitioner scrolling a feed: would they laugh and share it? 1-10.")
-    comedy_editor: int = Field(description="A comedy editor: a real twist, economy of words, the punch word last, no explaining. 1-10.")
-    author: int = Field(description="The author: pays off this post and sounds like their humor. 1-10.")
-    gets_it: int = Field(description="Does a reader who has not read the post understand the joke in five seconds? 1-10.")
-    note: str = Field(description="One line: what makes it land and the biggest risk.")
+class MemeStagingEdit(BaseModel):
+    """An edit to a code-staged meme: new words, recasting and (comics) new panel picks; never drawing."""
 
-
-class MemeVerdict(BaseModel):
-    scores: list[MemeJudge] = Field(description="One entry per concept, in order.")
-    chosen: int = Field(description="Index of the concept the panel would publish.")
-    punch_up: list[MemeText] = Field(
-        default_factory=list,
-        description="Sharper final words for the chosen concept, one entry per text slot (same names and limits). Empty if already tight.",
-    )
-    summary: str = Field(description="One sentence on why the chosen concept wins.")
-
-
-class MemeReview(BaseModel):
-    passes: bool = Field(description="True if this meme is ready to publish as it is.")
-    funny: int = Field(description="Would it get a laugh and a share at thumbnail size? 1-10.")
-    craft: int = Field(description="Legible, balanced, on-look, the ghost on-model; nothing covered, cramped or broken. 1-10.")
-    problems: list[str] = Field(default_factory=list, description="Specific visible problems, worst first.")
-    fix: str = Field("", description="Concrete instructions for a redraw that fixes them ('' when it passes).")
+    texts: list[MemeText] = Field(description="Final words for every text slot (unchanged ones repeated as they are).")
+    cast: list[CastPick] = Field(default_factory=list, description="Who plays each role after the edit.")
+    panels: list[PanelPick] = Field(default_factory=list, description="Comic formats: every panel after the edit; empty otherwise.")
+    note: str = Field("", description="If the request cannot be done with the kit, one sentence on what was done instead.")

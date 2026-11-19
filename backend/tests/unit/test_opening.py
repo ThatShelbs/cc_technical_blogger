@@ -21,9 +21,10 @@ from inferno_ghostwriter.images.opening import facts
 from inferno_ghostwriter.images.opening.canvas import SAFE_BOTTOM, SAFE_TOP, Canvas, frame, theme_for
 from inferno_ghostwriter.images.opening.charts import fmt_value, nice_ticks
 from inferno_ghostwriter.images.opening.room import OpeningContext, OpeningRoom, load_state, ranking
-from inferno_ghostwriter.images.opening.specs import OpeningBuild, OpeningIdeas, RenderReview
+from inferno_ghostwriter.images.opening.specs import OpeningBuild, OpeningIdeas
 from inferno_ghostwriter.images.opening.styles import BY_ID, STYLES, clean_style, eligible, suggested
 from inferno_ghostwriter.images.opening.templates import TEMPLATES, apply_words, draw, slot_texts, validate
+from inferno_ghostwriter.images.panel import FinalPick
 from inferno_ghostwriter.llm.base import Citation, LLMImagesUnsupportedError
 from inferno_ghostwriter.writer.dials import Dials, resolve
 from inferno_ghostwriter.writer.formulas import ARTICLE_TYPES, OPENERS
@@ -182,9 +183,14 @@ async def test_auto_pitches_mix_styles_and_the_panel_picks_the_winner() -> None:
     styles = [c["style"] for c in state["concepts"]]
     assert styles.count("editorial") >= 2 and "data_art" in styles and styles[0] == "cheat_sheet"
     assert state["chosen"] == 0 and state["style"] == "cheat_sheet" and state["template"] == "cheat_grid"
-    assert all(set(c["panel"]) >= {"scroller", "art_director", "fact_checker", "author", "note"} for c in state["concepts"])
-    assert state["review"]["verdict"] == "passed" and result.provider == "claude-opening"
-    assert llm.tasks()[:2] == ["opening ideas", "opening panel"] and llm.calls[-1]["images"] == 1
+    assert all(set(c["panel"]) >= {"total", "vetoed", "note", "seats"} for c in state["concepts"])
+    assert state["review"]["verdict"] == "passed" and result.provider == "claude-opening" and state["scheme"]
+    # The pitch panel is many seats at once on mixed models; the two best concepts are built and judged as pictures.
+    tasks = llm.tasks()
+    assert tasks[0] == "opening ideas" and {"panel scroller", "panel art_director", "panel fact_checker"} <= set(tasks)
+    assert {c["model"] for c in llm.calls if c["task"].startswith("panel ")} >= {"claude-haiku-5-5", "claude-sonnet-5-5"}
+    assert len(state["review"]["candidates"]) == 2 and "opening scene" in tasks
+    assert next(c for c in llm.calls if c["task"] == "panel final pick")["images"] == 2
     pitch = llm.calls[0]["prompt"]
     assert (
         "Pitch exactly 6" in pitch
@@ -294,17 +300,11 @@ async def test_the_render_review_is_skipped_without_image_input_and_a_failure_is
     picky = FakeLLM()
     room = OpeningRoom(picky, Settings(), MemeMaker(picky, Settings()))
     original = picky.structured
-    reviews = iter(
-        [
-            RenderReview(passes=False, clickability=5, craft=4, problems=["Tiles are cramped"], fix="Use fewer, larger tiles."),
-            RenderReview(passes=True, clickability=8, craft=8),
-        ]
-    )
 
     async def strict(**kwargs: Any) -> Any:
-        if kwargs["schema"] is RenderReview:
+        if kwargs["schema"] is FinalPick:
             await original(**kwargs)
-            return next(reviews)
+            return FinalPick(chosen=0, fix="Use fewer, larger tiles.", why="Clearest at a glance.")
         return await original(**kwargs)
 
     monkeypatch.setattr(picky, "structured", strict)
@@ -312,6 +312,22 @@ async def test_the_render_review_is_skipped_without_image_input_and_a_failure_is
     builds = [c for c in picky.calls if c["task"] == "opening cheat_grid build"]
     assert len(builds) == 2 and "Use fewer, larger tiles." in builds[1]["prompt"]
     assert state and state["review"]["verdict"] == "redrawn"
+
+
+async def test_a_visual_metaphor_is_staged_from_the_kit_in_a_house_scheme() -> None:
+    llm = FakeLLM()
+    room = OpeningRoom(llm, Settings(), MemeMaker(llm, Settings()))
+    result = await room.make("", context(), ART, style="editorial")
+    state = load_state(result.spec)
+    assert state and state["style"] == "editorial" and state["scene"]["characters"][0]["kind"] == "ghost"
+    assert result.provider == "claude-scene" and state["scheme"].split(":")[0] in ("inferno", "magma", "viridis")
+    prompt = next(c for c in llm.calls if c["task"] == "opening scene")["prompt"]
+    assert "Layouts:" in prompt and "Expressions:" in prompt and "palette on a" in prompt
+    with Image.open(io.BytesIO(result.png)) as img:
+        assert img.size == (1600, 900)
+    # An edit restages the stored scene.
+    edited = await room.edit(result.spec, "Make the ghost look smug", context(), ART)
+    assert "The current scene to edit" in llm.calls[-1]["prompt"] and load_state(edited.spec)
 
 
 async def test_an_opening_meme_is_pitched_by_the_meme_room_as_an_opener() -> None:
